@@ -29,6 +29,8 @@ from agent_gateway.hooks import HookRegistry
 from agent_gateway.persistence.backend import PersistenceBackend
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
 from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
+from agent_gateway.queue.null import NullQueue
+from agent_gateway.queue.protocol import ExecutionQueue
 from agent_gateway.tools.runner import execute_tool
 from agent_gateway.workspace.loader import WorkspaceState, load_workspace
 from agent_gateway.workspace.prompt import assemble_system_prompt
@@ -80,10 +82,13 @@ class Gateway(FastAPI):
         self._audit_repo: AuditRepository = NullAuditRepository()
         self._execution_handles: dict[str, ExecutionHandle] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
-        self._execution_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_EXECUTIONS)
+        self._execution_semaphore: asyncio.Semaphore | None = None  # created in _startup
         self._reload_lock = asyncio.Lock()
         self._session_store: SessionStore | None = None
         self._session_cleanup_task: asyncio.Task[None] | None = None
+        self._queue_backend: ExecutionQueue | NullQueue | None = None  # fluent API
+        self._queue: ExecutionQueue | NullQueue = NullQueue()
+        self._worker_pool: Any = None  # WorkerPool, set during startup
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -260,7 +265,25 @@ class Gateway(FastAPI):
             except Exception:
                 logger.warning("Failed to init persistence, using null repos", exc_info=True)
 
-        # 6. Build LLM client and execution engine
+        # 6. Init execution queue
+        queue_cfg = self._config.queue
+        workers = queue_cfg.workers if queue_cfg else _MAX_CONCURRENT_EXECUTIONS
+        self._execution_semaphore = asyncio.Semaphore(workers)
+
+        queue = self._queue_backend
+        if queue is None:
+            queue = self._queue_from_config(queue_cfg)
+        if queue is not None:
+            try:
+                await queue.initialize()
+                self._queue = queue
+            except ImportError:
+                raise  # Don't swallow missing driver errors
+            except Exception:
+                logger.warning("Failed to init queue backend, using NullQueue", exc_info=True)
+                self._queue = NullQueue()
+
+        # 7. Build LLM client and execution engine
         engine: ExecutionEngine | None = None
         try:
             self._llm_client = LLMClient(self._config)
@@ -273,20 +296,31 @@ class Gateway(FastAPI):
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
 
-        # 7. Atomic snapshot
+        # 8. Atomic snapshot
         self._snapshot = WorkspaceSnapshot(
             workspace=workspace,
             tool_registry=tool_registry,
             engine=engine,
         )
 
-        # 8. Initialize session store for multi-turn chat
+        # 9. Initialize session store for multi-turn chat
         self._session_store = SessionStore()
         self._session_cleanup_task = asyncio.create_task(
             self._session_cleanup_loop(), name="session-cleanup"
         )
 
-        # 9. Wire auth middleware if enabled
+        # 10. Start worker pool for queue-based async execution
+        if not isinstance(self._queue, NullQueue):
+            from agent_gateway.queue.worker import WorkerPool
+
+            self._worker_pool = WorkerPool(
+                queue=self._queue,
+                gateway=self,
+                config=self._config.queue,
+            )
+            await self._worker_pool.start()
+
+        # 11. Wire auth middleware if enabled
         auth_provider = self._resolve_auth_provider()
         if auth_provider is not None:
             from agent_gateway.auth.middleware import AuthMiddleware
@@ -323,6 +357,11 @@ class Gateway(FastAPI):
         """Clean up resources on shutdown."""
         await self._hooks.fire("gateway.shutdown")
 
+        # Drain worker pool (waits for in-flight jobs up to drain_timeout_s)
+        if self._worker_pool is not None:
+            await self._worker_pool.drain()
+            self._worker_pool = None
+
         # Cancel session cleanup task
         if self._session_cleanup_task is not None:
             self._session_cleanup_task.cancel()
@@ -342,6 +381,11 @@ class Gateway(FastAPI):
         if self._auth_provider is not _AUTH_NOT_SET and self._auth_provider is not None:
             assert isinstance(self._auth_provider, AuthProvider)
             await self._auth_provider.close()
+
+        # Dispose queue backend
+        if not isinstance(self._queue, NullQueue):
+            await self._queue.dispose()
+            self._queue = NullQueue()
 
         if self._persistence_backend is not None:
             await self._persistence_backend.dispose()
@@ -413,6 +457,99 @@ class Gateway(FastAPI):
             raise RuntimeError("Cannot configure persistence after gateway has started")
         self._persistence_backend = backend
         return self
+
+    # --- Queue configuration (fluent API) ---
+
+    def use_memory_queue(self) -> Gateway:
+        """Use in-process asyncio.Queue for async execution.
+
+        Development and testing only. Jobs are lost on server restart.
+        Single-process only — ``--worker-only`` mode is not supported.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure queue after gateway has started")
+        from agent_gateway.queue.backends.memory import MemoryQueue
+
+        self._queue_backend = MemoryQueue()
+        return self
+
+    def use_redis_queue(
+        self,
+        url: str = "redis://localhost:6379/0",
+        stream_key: str = "ag:executions",
+        consumer_group: str = "ag-workers",
+    ) -> Gateway:
+        """Configure Redis Streams queue backend for async execution.
+
+        Requires: pip install agent-gateway[redis]
+
+        Args:
+            url: Redis connection URL.
+            stream_key: Redis stream name for jobs.
+            consumer_group: Consumer group name for coordinating workers.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure queue after gateway has started")
+        from agent_gateway.queue.backends.redis import RedisQueue
+
+        self._queue_backend = RedisQueue(
+            url=url, stream_key=stream_key, consumer_group=consumer_group
+        )
+        return self
+
+    def use_rabbitmq_queue(
+        self,
+        url: str = "amqp://guest:guest@localhost:5672/",
+        queue_name: str = "ag.executions",
+    ) -> Gateway:
+        """Configure RabbitMQ queue backend for async execution.
+
+        Requires: pip install agent-gateway[rabbitmq]
+
+        Args:
+            url: AMQP connection URL.
+            queue_name: Durable queue name for jobs.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure queue after gateway has started")
+        from agent_gateway.queue.backends.rabbitmq import RabbitMQQueue
+
+        self._queue_backend = RabbitMQQueue(url=url, queue_name=queue_name)
+        return self
+
+    def use_queue(self, backend: ExecutionQueue | None) -> Gateway:
+        """Configure a custom queue backend, or None to disable.
+
+        Args:
+            backend: An ExecutionQueue implementation, or None for NullQueue.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure queue after gateway has started")
+        self._queue_backend = backend
+        return self
+
+    def _queue_from_config(self, config: Any) -> Any:
+        """Create a queue backend from gateway.yaml config."""
+        if config is None:
+            return None
+        backend = config.backend
+        if backend == "memory":
+            from agent_gateway.queue.backends.memory import MemoryQueue
+
+            return MemoryQueue()
+        elif backend == "redis":
+            from agent_gateway.queue.backends.redis import RedisQueue
+
+            return RedisQueue(
+                url=config.redis_url,
+                stream_key=config.stream_key,
+                consumer_group=config.consumer_group,
+            )
+        elif backend == "rabbitmq":
+            from agent_gateway.queue.backends.rabbitmq import RabbitMQQueue
+
+            return RabbitMQQueue(url=config.rabbitmq_url, queue_name=config.queue_name)
+        return None
 
     # --- Auth configuration (fluent API) ---
 
@@ -823,12 +960,22 @@ class Gateway(FastAPI):
         return self._session_store.list_sessions(agent_id=agent_id, limit=limit)
 
     async def cancel_execution(self, execution_id: str) -> bool:
-        """Cancel a running execution. Returns True if cancelled."""
+        """Cancel a running execution. Returns True if cancelled.
+
+        Checks in-memory handles first (sync or same-process async),
+        then falls back to the queue backend (queued or cross-process).
+        """
+        # 1. Try in-memory handle (sync execution or same-process worker)
         handle = self._execution_handles.get(execution_id)
-        if handle is None:
-            return False
-        handle.cancel()
-        return True
+        if handle is not None:
+            handle.cancel()
+            return True
+
+        # 2. Try queue backend (queued job or running on another worker)
+        if not isinstance(self._queue, NullQueue):
+            return await self._queue.request_cancel(execution_id)
+
+        return False
 
     @overload
     def tool(self, fn: Callable[..., Any]) -> Callable[..., Any]: ...

@@ -99,6 +99,7 @@ class ExecutionOptions:
     async_execution: bool = False
     timeout_ms: int | None = None
     output_schema: dict[str, Any] | None = None
+    stream: bool = False
 
 
 @dataclass

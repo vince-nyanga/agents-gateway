@@ -48,6 +48,7 @@ class AgentDefinition:
     tools: list[str] = field(default_factory=list)
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
     schedules: list[ScheduleConfig] = field(default_factory=list)
+    execution_mode: str = "sync"  # "sync" | "async"
 
     @classmethod
     def load(cls, agent_dir: Path) -> AgentDefinition | None:
@@ -97,6 +98,14 @@ class AgentDefinition:
             fallback=model_data.get("fallback"),
         )
 
+        # Execution mode: CONFIG.md wins over AGENT.md (scalar precedence)
+        execution_mode_raw = config_meta.get("execution_mode") or agent_meta.get(
+            "execution_mode", "sync"
+        )
+        execution_mode = (
+            str(execution_mode_raw) if execution_mode_raw in ("sync", "async") else "sync"
+        )
+
         schedules_data = config_meta.get("schedules") or agent_meta.get("schedules", [])
         schedules = []
         for s in schedules_data:
@@ -123,4 +132,5 @@ class AgentDefinition:
             tools=tools,
             model=model_config,
             schedules=schedules,
+            execution_mode=execution_mode,
         )

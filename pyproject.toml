@@ -54,6 +54,7 @@ otlp = [
 oauth2 = ["PyJWT[crypto]>=2.8"]
 slack = ["slack-bolt>=1.18"]
 redis = ["redis>=5.0"]
+rabbitmq = ["aio-pika>=9.0"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -69,7 +70,7 @@ dev = [
     "asyncpg>=0.29",
     "psycopg2-binary>=2.9",
 ]
-all = ["agent-gateway[sqlite,postgres,otlp,oauth2,slack,redis]"]
+all = ["agent-gateway[sqlite,postgres,otlp,oauth2,slack,redis,rabbitmq]"]
 
 [project.scripts]
 agent-gateway = "agent_gateway.cli.main:app"

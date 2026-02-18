@@ -13,9 +13,17 @@ from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import ExecutionStatus
 from agent_gateway.persistence.domain import ExecutionRecord
+from agent_gateway.queue.null import NullQueue
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
+
+_TERMINAL_STATUSES = frozenset({
+    ExecutionStatus.COMPLETED,
+    ExecutionStatus.FAILED,
+    ExecutionStatus.CANCELLED,
+    ExecutionStatus.TIMEOUT,
+})
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
@@ -85,26 +93,45 @@ async def cancel_execution(
     request: Request,
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
-    """Cancel a running execution."""
+    """Cancel a running or queued execution."""
     gw: Gateway = request.app
 
+    # 1. Try in-memory handle (sync execution or same-process worker)
     handle = gw._execution_handles.get(execution_id)
-    if handle is None:
-        record = await gw._execution_repo.get(execution_id)
-        if record is None:
-            return error_response(
-                404, "execution_not_found", f"Execution '{execution_id}' not found"
+    if handle is not None:
+        handle.cancel()
+        await gw._execution_repo.update_status(execution_id, ExecutionStatus.CANCELLED)
+        return JSONResponse(
+            status_code=200,
+            content={"execution_id": execution_id, "status": "cancelled"},
+        )
+
+    # 2. Try queue backend (queued job or running on another worker)
+    if not isinstance(gw._queue, NullQueue):
+        cancelled = await gw._queue.request_cancel(execution_id)
+        if cancelled:
+            await gw._execution_repo.update_status(execution_id, ExecutionStatus.CANCELLED)
+            return JSONResponse(
+                status_code=200,
+                content={"execution_id": execution_id, "status": "cancel_requested"},
             )
+
+    # 3. Check persistence for terminal or unknown state
+    record = await gw._execution_repo.get(execution_id)
+    if record is None:
+        return error_response(
+            404, "execution_not_found", f"Execution '{execution_id}' not found"
+        )
+
+    if record.status in _TERMINAL_STATUSES:
         return error_response(
             409,
             "invalid_state",
-            f"Execution '{execution_id}' is not running (status: {record.status})",
+            f"Execution '{execution_id}' already in terminal state: {record.status}",
         )
 
-    handle.cancel()
-    await gw._execution_repo.update_status(execution_id, ExecutionStatus.CANCELLED)
-
-    return JSONResponse(
-        status_code=200,
-        content={"execution_id": execution_id, "status": "cancelled"},
+    return error_response(
+        409,
+        "invalid_state",
+        f"Execution '{execution_id}' is not cancellable (status: {record.status})",
     )

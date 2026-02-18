@@ -18,6 +18,7 @@ class InvokeOptions(BaseModel):
     """
 
     async_: bool = Field(False, alias="async")
+    stream: bool = False
     timeout_ms: int | None = Field(None, ge=1000, le=300_000)
 
     model_config = {"populate_by_name": True}

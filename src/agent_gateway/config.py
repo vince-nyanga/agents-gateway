@@ -141,8 +141,17 @@ class TelemetryConfig(BaseModel):
 
 
 class QueueConfig(BaseModel):
-    backend: str = "memory"  # memory | redis
-    url: str = "redis://localhost:6379"
+    backend: str = "none"  # none | memory | redis | rabbitmq
+    redis_url: str = "redis://localhost:6379/0"
+    rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
+    stream_key: str = "ag:executions"
+    queue_name: str = "ag.executions"
+    consumer_group: str = "ag-workers"
+    workers: int = 4
+    max_retries: int = 3
+    visibility_timeout_s: int = 300
+    drain_timeout_s: int = 30
+    default_execution_mode: str = "sync"  # sync | async
 
 
 class GatewayConfig(BaseSettings):

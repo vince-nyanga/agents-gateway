@@ -29,14 +29,29 @@ from agent_gateway.engine.models import (
     ExecutionStatus,
 )
 from agent_gateway.persistence.domain import ExecutionRecord
+from agent_gateway.queue.models import ExecutionJob
+from agent_gateway.queue.null import NullQueue
 from agent_gateway.tools.runner import execute_tool
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
+    from agent_gateway.workspace.agent import AgentDefinition
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
+
+
+def _should_queue(agent: AgentDefinition, request_async: bool) -> bool:
+    """Determine whether an invocation should be queued.
+
+    Agent config is a floor, not a ceiling:
+    - ``execution_mode: async`` forces queuing regardless of request.
+    - ``execution_mode: sync`` allows the client to opt into async.
+    """
+    if agent.execution_mode == "async":
+        return True
+    return request_async
 
 
 def _build_response(
@@ -99,44 +114,67 @@ async def invoke_agent(
     # Generate execution ID
     execution_id = str(uuid.uuid4())
 
+    # Determine execution mode
+    should_queue = _should_queue(agent, body.options.async_)
+
+    # Guard: streaming + async are incompatible
+    if should_queue and body.options.stream:
+        return error_response(
+            400,
+            "streaming_not_supported",
+            "Streaming is not available for async agents. Use polling or callbacks.",
+        )
+
     # Build execution options
     exec_options = ExecutionOptions(
-        async_execution=body.options.async_,
+        async_execution=should_queue,
         timeout_ms=body.options.timeout_ms,
+        stream=body.options.stream,
     )
 
     # Create execution record
+    initial_status = ExecutionStatus.QUEUED if should_queue else ExecutionStatus.RUNNING
     record = ExecutionRecord(
         id=execution_id,
         agent_id=agent_id,
-        status=ExecutionStatus.RUNNING,
+        status=initial_status,
         message=body.message,
         context=body.context or None,
         started_at=datetime.now(UTC),
     )
     await gw._execution_repo.create(record)
 
-    # Async execution: start background task, return 202
-    if body.options.async_:
-        if gw._execution_semaphore.locked():
-            return error_response(429, "too_many_requests", "Too many concurrent executions")
-
-        handle = ExecutionHandle(execution_id)
-        gw._execution_handles[execution_id] = handle
-        task = asyncio.create_task(
-            _run_background_execution(gw, agent, body, execution_id, exec_options, handle),
-            name=f"exec-{execution_id}",
-        )
-        gw._background_tasks.add(task)
-        task.add_done_callback(gw._background_tasks.discard)
+    # Queued execution: enqueue to backend, return 202
+    if should_queue:
+        if isinstance(gw._queue, NullQueue):
+            # No queue configured — fall back to asyncio.create_task
+            handle = ExecutionHandle(execution_id)
+            gw._execution_handles[execution_id] = handle
+            task = asyncio.create_task(
+                _run_background_execution(gw, agent, body, execution_id, exec_options, handle),
+                name=f"exec-{execution_id}",
+            )
+            gw._background_tasks.add(task)
+            task.add_done_callback(gw._background_tasks.discard)
+        else:
+            job = ExecutionJob(
+                execution_id=execution_id,
+                agent_id=agent_id,
+                message=body.message,
+                context=body.context or None,
+                timeout_ms=body.options.timeout_ms,
+                enqueued_at=datetime.now(UTC).isoformat(),
+            )
+            await gw._queue.enqueue(job)
 
         return JSONResponse(
             status_code=202,
-            content=InvokeResponse(
-                execution_id=execution_id,
-                agent_id=agent_id,
-                status=ExecutionStatus.QUEUED,
-            ).model_dump(),
+            content={
+                "execution_id": execution_id,
+                "agent_id": agent_id,
+                "status": "queued",
+                "poll_url": f"/v1/executions/{execution_id}",
+            },
         )
 
     # Synchronous execution
