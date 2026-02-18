@@ -63,7 +63,6 @@ async def test_postgres_backend_creates_tables(postgres_backend: PostgresBackend
             lambda sync_conn: inspect(sync_conn).get_table_names()
         )
 
-    prefix = postgres_backend._metadata.tables
     expected = {"executions", "execution_steps", "audit_log", "schedules"}
     # Tables are prefixed — check that each base name appears (with prefix)
     for base in expected:
