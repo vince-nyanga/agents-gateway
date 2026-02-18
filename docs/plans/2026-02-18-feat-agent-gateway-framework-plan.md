@@ -616,12 +616,12 @@ CREATE INDEX idx_schedules_next_run ON schedules(next_run_at) WHERE enabled = TR
 
 #### 1.14 CLI
 
-- [ ] `src/agent_gateway/cli/main.py` — Typer entry point
-- [ ] `src/agent_gateway/cli/init_cmd.py` — `agent-gateway init <project-name>`
-- [ ] `src/agent_gateway/cli/serve.py` — `agent-gateway serve [--port] [--reload]`
-- [ ] `src/agent_gateway/cli/invoke.py` — `agent-gateway invoke <agent> "<message>"`
-- [ ] `src/agent_gateway/cli/check.py` — `agent-gateway check` (validate workspace)
-- [ ] `src/agent_gateway/cli/list_cmd.py` — `agent-gateway agents`, `agent-gateway skills`, `agent-gateway schedules`
+- [x] `src/agent_gateway/cli/main.py` — Typer entry point
+- [x] `src/agent_gateway/cli/init_cmd.py` — `agent-gateway init <project-name>`
+- [x] `src/agent_gateway/cli/serve.py` — `agent-gateway serve [--port] [--reload]`
+- [x] `src/agent_gateway/cli/invoke.py` — `agent-gateway invoke <agent> "<message>"`
+- [x] `src/agent_gateway/cli/check.py` — `agent-gateway check` (validate workspace)
+- [x] `src/agent_gateway/cli/list_cmd.py` — `agent-gateway agents`, `agent-gateway skills`, `agent-gateway schedules`
 
 **`init` robustness:**
 - Target dir exists: error with message, no `--force` in v1

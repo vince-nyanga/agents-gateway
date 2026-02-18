@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.7: CLI Commands"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [01, 02]
 blocks: [08]
@@ -100,8 +100,8 @@ Update `src/agent_gateway/cli/main.py` to register all commands.
 
 ## Acceptance Criteria
 
-- [ ] `agent-gateway init test-project` creates correct scaffold
-- [ ] `agent-gateway check` validates workspace with proper output
-- [ ] `agent-gateway agents` lists discovered agents
-- [ ] All commands have help text
-- [ ] Exit codes are correct (0 success, 1 error)
+- [x] `agent-gateway init test-project` creates correct scaffold
+- [x] `agent-gateway check` validates workspace with proper output
+- [x] `agent-gateway agents` lists discovered agents
+- [x] All commands have help text
+- [x] Exit codes are correct (0 success, 1 error)
