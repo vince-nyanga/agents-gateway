@@ -9,6 +9,7 @@ from agent_gateway.config import GatewayConfig
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMResponse
 from agent_gateway.engine.models import ToolCall, ToolContext
+from agent_gateway.hooks import HookRegistry
 from agent_gateway.workspace.agent import AgentDefinition, AgentModelConfig
 from agent_gateway.workspace.loader import WorkspaceState
 from agent_gateway.workspace.registry import CodeTool, ResolvedTool, ToolRegistry
@@ -120,6 +121,7 @@ def make_engine(
     responses: list[LLMResponse],
     tools: list[ResolvedTool] | None = None,
     config: GatewayConfig | None = None,
+    hooks: HookRegistry | None = None,
 ) -> tuple[ExecutionEngine, MockLLMClient, ToolRegistry]:
     """Create an engine with a mock LLM client for testing."""
     mock_llm = MockLLMClient(responses)
@@ -136,6 +138,7 @@ def make_engine(
         llm_client=mock_llm,  # type: ignore[arg-type]
         tool_registry=registry,
         config=cfg,
+        hooks=hooks,
     )
     return engine, mock_llm, registry
 

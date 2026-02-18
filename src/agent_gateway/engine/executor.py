@@ -29,6 +29,16 @@ from agent_gateway.engine.output import (
     build_schema_instruction,
     validate_output,
 )
+from agent_gateway.hooks import HookRegistry
+from agent_gateway.telemetry import attributes as attr
+from agent_gateway.telemetry.metrics import create_metrics
+from agent_gateway.telemetry.tracing import (
+    agent_invoke_span,
+    llm_call_span,
+    set_span_error,
+    set_span_ok,
+    tool_execute_span,
+)
 from agent_gateway.workspace.agent import AgentDefinition
 from agent_gateway.workspace.loader import WorkspaceState
 from agent_gateway.workspace.prompt import assemble_system_prompt
@@ -71,10 +81,13 @@ class ExecutionEngine:
         llm_client: LLMClient,
         tool_registry: ToolRegistry,
         config: GatewayConfig,
+        hooks: HookRegistry | None = None,
     ) -> None:
         self._llm = llm_client
         self._registry = tool_registry
         self._config = config
+        self._hooks = hooks or HookRegistry()
+        self._metrics = create_metrics()
 
     async def execute(
         self,
@@ -145,6 +158,73 @@ class ExecutionEngine:
             metadata=context or {},
         )
 
+        exec_start = time.monotonic()
+
+        await self._hooks.fire(
+            "agent.invoke.before",
+            agent_id=agent.id,
+            message=message,
+            execution_id=execution_id,
+        )
+
+        with agent_invoke_span(agent.id, execution_id) as invoke_span:
+            try:
+                result = await self._execute_loop(
+                    agent=agent,
+                    messages=messages,
+                    tool_declarations=tool_declarations,
+                    tool_map=tool_map,
+                    tool_context=tool_context,
+                    tool_executor=tool_executor,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    options=options,
+                    handle=handle,
+                    usage=usage,
+                    timeout_s=timeout_s,
+                    max_iterations=max_iterations,
+                    max_tool_calls=max_tool_calls,
+                )
+                set_span_ok(invoke_span)
+                invoke_span.set_attribute(attr.AGW_STOP_REASON, result.stop_reason.value)
+            except Exception as exc:
+                set_span_error(invoke_span, exc)
+                raise
+
+        duration_ms = int((time.monotonic() - exec_start) * 1000)
+        self._metrics.executions_total.add(1, {"agent_id": agent.id})
+        self._metrics.executions_duration.record(duration_ms, {"agent_id": agent.id})
+
+        await self._hooks.fire(
+            "agent.invoke.after",
+            agent_id=agent.id,
+            execution_id=execution_id,
+            result=result,
+            duration_ms=duration_ms,
+        )
+
+        return result
+
+    async def _execute_loop(
+        self,
+        agent: AgentDefinition,
+        messages: list[dict[str, Any]],
+        tool_declarations: list[dict[str, Any]],
+        tool_map: dict[str, ResolvedTool],
+        tool_context: ToolContext,
+        tool_executor: ToolExecutorFn | None,
+        model: str | None,
+        temperature: float,
+        max_tokens: int,
+        options: ExecutionOptions,
+        handle: ExecutionHandle | None,
+        usage: UsageAccumulator,
+        timeout_s: float,
+        max_iterations: int,
+        max_tool_calls: int,
+    ) -> ExecutionResult:
+        """Inner execution loop, wrapped by OTel span and hooks in execute()."""
         total_tool_calls = 0
         last_text: str = ""
 
@@ -159,17 +239,16 @@ class ExecutionEngine:
                             usage=usage,
                         )
 
-                    # Call LLM
-                    try:
-                        llm_response = await self._llm.completion(
-                            messages=messages,
-                            tools=tool_declarations or None,
-                            model=model,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                        )
-                    except Exception as e:
-                        logger.error("LLM call failed during execution: %s", e)
+                    # Call LLM with span
+                    llm_response = await self._call_llm_with_span(
+                        messages=messages,
+                        tools=tool_declarations,
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        agent_id=agent.id,
+                    )
+                    if llm_response is None:
                         return ExecutionResult(
                             raw_text=last_text,
                             stop_reason=StopReason.ERROR,
@@ -301,6 +380,67 @@ class ExecutionEngine:
                 usage=usage,
             )
 
+    async def _call_llm_with_span(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        model: str | None,
+        temperature: float,
+        max_tokens: int,
+        agent_id: str,
+    ) -> Any:
+        """Call LLM wrapped with OTel span, metrics, and hooks."""
+        model_label = model or "default"
+
+        await self._hooks.fire("llm.call.before", model=model_label, agent_id=agent_id)
+
+        llm_start = time.monotonic()
+        with llm_call_span(model_label, agent_id) as span:
+            try:
+                llm_response = await self._llm.completion(
+                    messages=messages,
+                    tools=tools or None,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception as exc:
+                set_span_error(span, exc)
+                logger.error("LLM call failed during execution: %s", exc)
+                await self._hooks.fire(
+                    "llm.call.after", model=model_label, agent_id=agent_id, error=exc
+                )
+                return None
+
+            span.set_attribute(attr.GEN_AI_USAGE_INPUT_TOKENS, llm_response.input_tokens)
+            span.set_attribute(attr.GEN_AI_USAGE_OUTPUT_TOKENS, llm_response.output_tokens)
+            set_span_ok(span)
+
+        llm_duration_ms = int((time.monotonic() - llm_start) * 1000)
+        self._metrics.llm_calls_total.add(1, {"model": model_label})
+        self._metrics.llm_duration.record(llm_duration_ms, {"model": model_label})
+        self._metrics.llm_tokens_input.add(
+            llm_response.input_tokens, {"model": model_label, "agent_id": agent_id}
+        )
+        self._metrics.llm_tokens_output.add(
+            llm_response.output_tokens, {"model": model_label, "agent_id": agent_id}
+        )
+        if llm_response.cost:
+            self._metrics.llm_cost_usd.add(
+                llm_response.cost, {"model": model_label, "agent_id": agent_id}
+            )
+
+        await self._hooks.fire(
+            "llm.call.after",
+            model=model_label,
+            agent_id=agent_id,
+            duration_ms=llm_duration_ms,
+            input_tokens=llm_response.input_tokens,
+            output_tokens=llm_response.output_tokens,
+        )
+
+        return llm_response
+
     async def _execute_tool_calls(
         self,
         tool_calls: list[ToolCall],
@@ -402,37 +542,86 @@ class ExecutionEngine:
                 output={"error": "No tool executor configured"},
             )
 
-        try:
-            usage.add_tool_call()
-            result = await tool_executor(resolved, tool_call.arguments, tool_context)
-            duration_ms = int((time.monotonic() - start) * 1000)
-            return ToolResult(
-                call_id=tool_call.call_id,
-                name=tool_call.name,
-                success=True,
-                output=result,
-                duration_ms=duration_ms,
-            )
-        except TimeoutError:
-            duration_ms = int((time.monotonic() - start) * 1000)
-            logger.warning("Tool '%s' timed out after %dms", tool_call.name, duration_ms)
-            return ToolResult(
-                call_id=tool_call.call_id,
-                name=tool_call.name,
-                success=False,
-                output={"error": f"Tool '{tool_call.name}' timed out"},
-                duration_ms=duration_ms,
-            )
-        except Exception as e:
-            duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("Tool '%s' failed: %s: %s", tool_call.name, type(e).__name__, e)
-            return ToolResult(
-                call_id=tool_call.call_id,
-                name=tool_call.name,
-                success=False,
-                output={"error": f"Tool '{tool_call.name}' failed unexpectedly"},
-                duration_ms=duration_ms,
-            )
+        await self._hooks.fire(
+            "tool.execute.before",
+            tool_name=tool_call.name,
+            agent_id=tool_context.agent_id,
+            arguments=tool_call.arguments,
+        )
+
+        with tool_execute_span(
+            tool_call.name, resolved.source, **{"agw.tool.args": json.dumps(tool_call.arguments)}
+        ) as span:
+            try:
+                usage.add_tool_call()
+                result = await tool_executor(resolved, tool_call.arguments, tool_context)
+                duration_ms = int((time.monotonic() - start) * 1000)
+                set_span_ok(span)
+
+                self._metrics.tools_calls_total.add(1, {"tool": tool_call.name})
+                self._metrics.tools_duration.record(duration_ms, {"tool": tool_call.name})
+
+                await self._hooks.fire(
+                    "tool.execute.after",
+                    tool_name=tool_call.name,
+                    agent_id=tool_context.agent_id,
+                    duration_ms=duration_ms,
+                    success=True,
+                )
+
+                return ToolResult(
+                    call_id=tool_call.call_id,
+                    name=tool_call.name,
+                    success=True,
+                    output=result,
+                    duration_ms=duration_ms,
+                )
+            except TimeoutError:
+                duration_ms = int((time.monotonic() - start) * 1000)
+                logger.warning("Tool '%s' timed out after %dms", tool_call.name, duration_ms)
+                set_span_error(span, TimeoutError(f"Tool '{tool_call.name}' timed out"))
+
+                self._metrics.tools_calls_total.add(1, {"tool": tool_call.name})
+                self._metrics.tools_duration.record(duration_ms, {"tool": tool_call.name})
+
+                await self._hooks.fire(
+                    "tool.execute.after",
+                    tool_name=tool_call.name,
+                    agent_id=tool_context.agent_id,
+                    duration_ms=duration_ms,
+                    success=False,
+                )
+
+                return ToolResult(
+                    call_id=tool_call.call_id,
+                    name=tool_call.name,
+                    success=False,
+                    output={"error": f"Tool '{tool_call.name}' timed out"},
+                    duration_ms=duration_ms,
+                )
+            except Exception as e:
+                duration_ms = int((time.monotonic() - start) * 1000)
+                logger.error("Tool '%s' failed: %s: %s", tool_call.name, type(e).__name__, e)
+                set_span_error(span, e)
+
+                self._metrics.tools_calls_total.add(1, {"tool": tool_call.name})
+                self._metrics.tools_duration.record(duration_ms, {"tool": tool_call.name})
+
+                await self._hooks.fire(
+                    "tool.execute.after",
+                    tool_name=tool_call.name,
+                    agent_id=tool_context.agent_id,
+                    duration_ms=duration_ms,
+                    success=False,
+                )
+
+                return ToolResult(
+                    call_id=tool_call.call_id,
+                    name=tool_call.name,
+                    success=False,
+                    output={"error": f"Tool '{tool_call.name}' failed unexpectedly"},
+                    duration_ms=duration_ms,
+                )
 
     async def _retry_structured_output(
         self,

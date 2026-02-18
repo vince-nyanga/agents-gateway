@@ -24,6 +24,7 @@ from agent_gateway.engine.models import (
     ExecutionOptions,
     ExecutionResult,
 )
+from agent_gateway.hooks import HookRegistry
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
 from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
 from agent_gateway.tools.runner import execute_tool
@@ -66,6 +67,7 @@ class Gateway(FastAPI):
         self._auth_enabled = auth
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
+        self._hooks = HookRegistry()
 
         # Initialized during lifespan startup
         self._config: GatewayConfig | None = None
@@ -179,6 +181,21 @@ class Gateway(FastAPI):
     async def __aexit__(self, *exc: object) -> None:
         await self._shutdown()
 
+    def _setup_logging(self) -> None:
+        """Configure centralized logging with structured format."""
+        log_level = logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+            datefmt="%H:%M:%S",
+            force=True,
+        )
+        # Suppress noisy libraries
+        logging.getLogger("litellm").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("opentelemetry").setLevel(logging.WARNING)
+
     async def _startup(self) -> None:
         """Initialize all gateway components on startup."""
         ws_path = Path(self._workspace_path)
@@ -189,6 +206,10 @@ class Gateway(FastAPI):
         except Exception:
             logger.warning("Failed to load config, using defaults", exc_info=True)
             self._config = GatewayConfig()
+
+        # 1.5. Setup logging (never crashes)
+        with contextlib.suppress(Exception):
+            self._setup_logging()
 
         # 2. Setup telemetry (never crashes)
         try:
@@ -256,6 +277,7 @@ class Gateway(FastAPI):
                 llm_client=self._llm_client,
                 tool_registry=tool_registry,
                 config=self._config,
+                hooks=self._hooks,
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
@@ -287,6 +309,8 @@ class Gateway(FastAPI):
             self._workspace_path,
         )
 
+        await self._hooks.fire("gateway.startup")
+
     async def _session_cleanup_loop(self) -> None:
         """Periodically clean up expired chat sessions."""
         try:
@@ -299,6 +323,8 @@ class Gateway(FastAPI):
 
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
+        await self._hooks.fire("gateway.shutdown")
+
         # Cancel session cleanup task
         if self._session_cleanup_task is not None:
             self._session_cleanup_task.cancel()
@@ -355,6 +381,7 @@ class Gateway(FastAPI):
                     llm_client=self._llm_client,
                     tool_registry=new_registry,
                     config=self._config,
+                    hooks=self._hooks,
                 )
 
             # Single atomic reference swap
@@ -595,6 +622,22 @@ class Gateway(FastAPI):
 
         if fn is not None:
             return decorator(fn)
+        return decorator
+
+    def on(self, event: str) -> Callable[..., Any]:
+        """Register a lifecycle hook callback.
+
+        Usage::
+
+            @gw.on("agent.invoke.before")
+            async def on_invoke(agent_id, message, execution_id, **kw):
+                print(f"Invoking {agent_id}")
+        """
+
+        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+            self._hooks.register(event, fn)
+            return fn
+
         return decorator
 
     def run(

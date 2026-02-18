@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from agent_gateway.workspace.agent import AgentDefinition
 from agent_gateway.workspace.loader import WorkspaceState
 from agent_gateway.workspace.skill import SkillDefinition
@@ -24,6 +26,10 @@ def assemble_system_prompt(
     by the Gateway at invocation time, not during workspace loading.
     """
     parts: list[str] = []
+
+    # 0. Current date/time
+    now = datetime.now(UTC)
+    parts.append(f"Current date and time (UTC): {now.strftime('%Y-%m-%d %H:%M')}")
 
     # 1. Root system prompt
     if workspace.root_system_prompt:

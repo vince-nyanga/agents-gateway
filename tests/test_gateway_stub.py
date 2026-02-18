@@ -37,7 +37,9 @@ class TestGatewayStub:
         assert gw.title == "Test"
 
     def test_version(self) -> None:
-        assert __version__ == "0.1.0"
+        # __version__ is "0.0.0" at dev time, replaced by GitVersion at build time
+        assert isinstance(__version__, str)
+        assert len(__version__.split(".")) >= 3
 
     def test_pending_tools_initialized(self) -> None:
         gw = Gateway()
