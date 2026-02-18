@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from datetime import UTC, datetime
@@ -195,7 +196,7 @@ class WorkerPool:
                 )
             finally:
                 cancel_task.cancel()
-                with asyncio.suppress(asyncio.CancelledError):
+                with contextlib.suppress(asyncio.CancelledError):
                     await cancel_task
 
             duration_ms = int((time.monotonic() - start) * 1000)

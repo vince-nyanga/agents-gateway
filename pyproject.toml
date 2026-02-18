@@ -66,9 +66,11 @@ dev = [
     "types-jsonschema>=4.21",
     "PyJWT[crypto]>=2.8",
     "aiosqlite>=0.20",
-    "testcontainers[postgres]>=4.0",
+    "testcontainers[postgres,redis,rabbitmq]>=4.0",
     "asyncpg>=0.29",
     "psycopg2-binary>=2.9",
+    "redis>=5.0",
+    "aio-pika>=9.0",
 ]
 all = ["agent-gateway[sqlite,postgres,otlp,oauth2,slack,redis,rabbitmq]"]
 
@@ -98,6 +100,8 @@ asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests requiring real LLM API keys (GEMINI_API_KEY)",
     "postgres: PostgreSQL integration tests requiring Docker",
+    "redis: Redis integration tests requiring Docker",
+    "rabbitmq: RabbitMQ integration tests requiring Docker",
 ]
 
 [tool.mypy]
