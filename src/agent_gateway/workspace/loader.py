@@ -158,7 +158,7 @@ def _load_tools(tools_dir: Path, resolved_root: Path, state: WorkspaceState) -> 
         tool = ToolDefinition.load(entry)
         if tool is not None:
             state.tools[tool.id] = tool
-            logger.debug("Loaded tool: %s (%s)", tool.id, tool.type)
+            logger.debug("Loaded tool: %s", tool.id)
 
 
 def _validate_cross_references(state: WorkspaceState) -> None:

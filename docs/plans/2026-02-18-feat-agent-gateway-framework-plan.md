@@ -476,10 +476,8 @@ tests/test_engine/test_executor_cancel.py     # Cancellation
 
 #### 1.8 Tool Executors
 
-- [ ] `src/agent_gateway/tools/runner.py` — Dispatch to correct executor based on tool type
-- [ ] `src/agent_gateway/tools/http.py` — HTTP tool executor (httpx with connection pooling)
-- [ ] `src/agent_gateway/tools/function.py` — Python function executor (handler.py + @gw.tool)
-- [ ] `src/agent_gateway/tools/script.py` — Script executor (subprocess with timeout + signal handling)
+- [x] `src/agent_gateway/tools/runner.py` — Dispatch to correct executor based on tool source
+- [x] `src/agent_gateway/tools/function.py` — Python function executor (handler.py + @gw.tool)
 
 **HTTP executor robustness:**
 - Follow redirects (max 5)

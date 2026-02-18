@@ -1,7 +1,6 @@
 ---
 name: echo
 description: Echo the input back
-type: function
 parameters:
   message:
     type: string

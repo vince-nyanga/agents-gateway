@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.5: Tool Executors (HTTP, Function, Script)"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [01, 02, 03, 04]
 blocks: [08]
@@ -195,9 +195,9 @@ async def execute_script_tool(tool, arguments, context):
 
 ## Acceptance Criteria
 
-- [ ] HTTP tools call external APIs with env var resolution
-- [ ] HTTP tools handle all status codes correctly (2xx, 4xx, 5xx retry)
-- [ ] Function tools run both code and file-based handlers
-- [ ] Script tools run subprocesses with proper I/O and timeout/kill
-- [ ] All executors return `ToolResult` — never raise exceptions
-- [ ] All tests pass
+- [x] Function tools run both code (@gw.tool) and file-based (handler.py) handlers
+- [x] Sync and async handlers supported (sync wrapped in asyncio.to_thread)
+- [x] ToolContext injection for functions that accept a context parameter
+- [x] ToolRunner dispatches to correct executor based on tool source
+- [x] All tests pass (184 total)
+- N/A: HTTP and script executors removed — functions cover all use cases

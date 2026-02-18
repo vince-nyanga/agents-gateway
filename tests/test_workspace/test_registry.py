@@ -20,7 +20,6 @@ def _make_file_tool(
         path=Path(f"/fake/{name}"),
         name=name,
         description=description,
-        type="function",
         parameters=[
             ToolParameter(name="message", type="string", description="The message", required=True)
         ],
