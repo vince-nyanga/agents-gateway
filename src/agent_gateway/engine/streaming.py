@@ -127,6 +127,7 @@ async def stream_chat_execution(
 
         try:
             # Acquire concurrency semaphore to respect global limits
+            assert gw._execution_semaphore is not None
             async with gw._execution_semaphore:
                 async with asyncio.timeout(timeout_s):
                     for _iteration in range(max_iterations):

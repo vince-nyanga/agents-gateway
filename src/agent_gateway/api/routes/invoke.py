@@ -233,6 +233,7 @@ async def _run_background_execution(
     handle: ExecutionHandle,
 ) -> None:
     """Run an agent execution as a background task."""
+    assert gw._execution_semaphore is not None
     async with gw._execution_semaphore:
         try:
             snapshot = gw._snapshot
