@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.6: OpenTelemetry & Persistence"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [01]
 blocks: [08]
@@ -146,10 +146,10 @@ No-op implementation for when persistence is disabled or DB is unavailable. Same
 
 ## Acceptance Criteria
 
-- [ ] `setup_telemetry()` works with console exporter
-- [ ] Span helpers create properly attributed spans
-- [ ] Metrics are defined and can be recorded
-- [ ] SQLAlchemy models create correct schema
-- [ ] CRUD operations work with async SQLite
-- [ ] NullPersistence works as fallback
-- [ ] All tests pass
+- [x] `setup_telemetry()` works with console exporter
+- [x] Span helpers create properly attributed spans
+- [x] Metrics are defined and can be recorded
+- [x] SQLAlchemy models create correct schema
+- [x] CRUD operations work with async SQLite
+- [x] NullPersistence works as fallback
+- [x] All tests pass

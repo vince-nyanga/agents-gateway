@@ -523,10 +523,10 @@ tests/test_engine/test_executor_cancel.py     # Cancellation
 
 #### 1.10 OpenTelemetry Bootstrap
 
-- [ ] `src/agent_gateway/telemetry/__init__.py` — `setup_telemetry()` bootstrap
-- [ ] `src/agent_gateway/telemetry/tracing.py` — Tracer provider, span helpers
-- [ ] `src/agent_gateway/telemetry/metrics.py` — Meter provider, metric definitions
-- [ ] `src/agent_gateway/telemetry/attributes.py` — GenAI semantic convention constants
+- [x] `src/agent_gateway/telemetry/__init__.py` — `setup_telemetry()` bootstrap
+- [x] `src/agent_gateway/telemetry/tracing.py` — Tracer provider, span helpers
+- [x] `src/agent_gateway/telemetry/metrics.py` — Meter provider, metric definitions
+- [x] `src/agent_gateway/telemetry/attributes.py` — GenAI semantic convention constants
 
 **Traces:** Every execution creates a root span `agent.invoke` with nested spans for `prompt.assemble`, `llm.call`, `tool.execute`, `output.validate`, `notification.send`.
 
@@ -549,11 +549,11 @@ tests/test_engine/test_executor_cancel.py     # Cancellation
 
 #### 1.11 Persistence Layer
 
-- [ ] `src/agent_gateway/persistence/models.py` — SQLAlchemy 2.0 async models
-- [ ] `src/agent_gateway/persistence/session.py` — Engine + session factory
-- [ ] `src/agent_gateway/persistence/repository.py` — CRUD operations for executions, steps, audit log
-- [ ] Auto-create tables on startup via `conn.run_sync(Base.metadata.create_all)`
-- [ ] `NullPersistence` fallback when persistence is disabled or DB unavailable
+- [x] `src/agent_gateway/persistence/models.py` — SQLAlchemy 2.0 async models
+- [x] `src/agent_gateway/persistence/session.py` — Engine + session factory
+- [x] `src/agent_gateway/persistence/repository.py` — CRUD operations for executions, steps, audit log
+- [x] Auto-create tables on startup via `conn.run_sync(Base.metadata.create_all)`
+- [x] `NullPersistence` fallback when persistence is disabled or DB unavailable
 
 **Schema:** Per DESIGN.md Section 17.4 (`executions`, `execution_steps`, `audit_log` tables) plus:
 
