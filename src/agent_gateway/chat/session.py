@@ -55,9 +55,9 @@ class ChatSession:
     ) -> None:
         """Add an assistant message and update timestamp."""
         msg: dict[str, Any] = {"role": "assistant"}
-        if content:
+        if content is not None:
             msg["content"] = content
-        if tool_calls:
+        if tool_calls is not None:
             msg["tool_calls"] = tool_calls
         self.messages.append(msg)
         self._touch()

@@ -115,7 +115,7 @@ async def chat_with_agent(
 
 
 def _create_streaming_response(
-    gw: Any,
+    gw: Gateway,
     agent_id: str,
     body: ChatRequest,
 ) -> StreamingResponse:
