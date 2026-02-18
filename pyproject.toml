@@ -63,6 +63,9 @@ dev = [
     "types-PyYAML>=6.0",
     "types-jsonschema>=4.21",
     "aiosqlite>=0.20",
+    "testcontainers[postgres]>=4.0",
+    "asyncpg>=0.29",
+    "psycopg2-binary>=2.9",
 ]
 all = ["agent-gateway[sqlite,postgres,otlp,slack,redis]"]
 
@@ -91,6 +94,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests requiring real LLM API keys (GEMINI_API_KEY)",
+    "postgres: PostgreSQL integration tests requiring Docker",
 ]
 
 [tool.mypy]

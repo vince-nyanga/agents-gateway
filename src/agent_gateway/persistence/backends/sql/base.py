@@ -68,9 +68,9 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("result", JSON),
         Column("error", Text),
         Column("usage", JSON),
-        Column("started_at", DateTime),
-        Column("completed_at", DateTime),
-        Column("created_at", DateTime, nullable=False, server_default=func.now()),
+        Column("started_at", DateTime(timezone=True)),
+        Column("completed_at", DateTime(timezone=True)),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}executions_agent_id", "agent_id"),
     )
 
@@ -88,7 +88,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("sequence", Integer, nullable=False),
         Column("data", JSON),
         Column("duration_ms", Integer, default=0),
-        Column("created_at", DateTime, nullable=False, server_default=func.now()),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}execution_steps_execution_id", "execution_id"),
     )
 
@@ -102,7 +102,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("resource_id", String),
         Column("metadata", JSON),
         Column("ip_address", String),
-        Column("created_at", DateTime, nullable=False, server_default=func.now()),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}audit_log_event_type", "event_type"),
     )
 
@@ -117,9 +117,9 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("context", JSON),
         Column("enabled", Boolean, default=True),
         Column("timezone", String, default="UTC"),
-        Column("last_run_at", DateTime),
-        Column("next_run_at", DateTime),
-        Column("created_at", DateTime, nullable=False, server_default=func.now()),
+        Column("last_run_at", DateTime(timezone=True)),
+        Column("next_run_at", DateTime(timezone=True)),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}schedules_agent_id", "agent_id"),
         Index(
             f"ix_{prefix}schedules_next_run",
