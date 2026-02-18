@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import inspect
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,14 +25,23 @@ async def execute_code_tool(
     """Execute a @gw.tool() decorated function.
 
     Handles both sync and async functions. Injects ToolContext if the
-    function signature accepts a 'context' parameter.
+    function signature accepts a 'context' parameter. Filters arguments
+    to only those accepted by the function signature.
     """
     fn = tool.fn
-    kwargs = dict(arguments)
+    sig = inspect.signature(fn)
+    params = sig.parameters
+
+    # Filter arguments to only those the function accepts.
+    # Pass all arguments if **kwargs is present.
+    has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    if has_var_keyword:
+        kwargs = dict(arguments)
+    else:
+        kwargs = {k: v for k, v in arguments.items() if k in params}
 
     # Inject context if the function accepts it
-    sig = inspect.signature(fn)
-    if "context" in sig.parameters:
+    if "context" in params:
         kwargs["context"] = context
 
     if asyncio.iscoroutinefunction(fn):
@@ -48,13 +58,14 @@ async def execute_function_tool(
     """Execute a file-based function tool (handler.py).
 
     Loads the handler module, finds the `handle` function, and calls it.
+    Raises RuntimeError if the handler cannot be loaded.
     """
     if tool.handler_path is None:
-        return {"error": f"Tool '{tool.name}' has no handler.py"}
+        raise RuntimeError(f"Tool '{tool.name}' has no handler.py")
 
     handler_fn = load_handler(tool.handler_path, tool.name)
     if handler_fn is None:
-        return {"error": f"Tool '{tool.name}' handler could not be loaded"}
+        raise RuntimeError(f"Tool '{tool.name}' handler could not be loaded")
 
     if asyncio.iscoroutinefunction(handler_fn):
         return await handler_fn(arguments, context)
@@ -62,7 +73,7 @@ async def execute_function_tool(
         return await asyncio.to_thread(handler_fn, arguments, context)
 
 
-def load_handler(handler_path: Path, tool_name: str) -> Any | None:
+def load_handler(handler_path: Path, tool_name: str) -> Callable[..., Any] | None:
     """Import handler.py and return the `handle` function.
 
     Returns None if import fails or `handle` is not found.
@@ -82,7 +93,9 @@ def load_handler(handler_path: Path, tool_name: str) -> Any | None:
     except Exception as e:
         logger.error(
             "Failed to import handler for tool '%s': %s: %s",
-            tool_name, type(e).__name__, e,
+            tool_name,
+            type(e).__name__,
+            e,
         )
         return None
 
@@ -95,4 +108,5 @@ def load_handler(handler_path: Path, tool_name: str) -> Any | None:
         logger.error("'handle' in handler.py for tool '%s' is not callable", tool_name)
         return None
 
-    return handle_fn
+    result: Callable[..., Any] = handle_fn
+    return result

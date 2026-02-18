@@ -1,11 +1,11 @@
-"""Integration test: ToolRunner used as the tool_executor in ExecutionEngine."""
+"""Integration test: execute_tool used as the tool_executor in ExecutionEngine."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from agent_gateway.engine.models import StopReason, ToolCall
-from agent_gateway.tools.runner import ToolRunner
+from agent_gateway.tools.runner import execute_tool
 from agent_gateway.workspace.registry import CodeTool, ResolvedTool
 
 # Import helpers from engine tests
@@ -38,8 +38,8 @@ def _make_echo_tool() -> ResolvedTool:
     )
 
 
-async def test_tool_runner_as_executor() -> None:
-    """ToolRunner.execute works as the ToolExecutorFn in ExecutionEngine."""
+async def test_execute_tool_as_executor() -> None:
+    """execute_tool works as the ToolExecutorFn in ExecutionEngine."""
     tool = _make_echo_tool()
     engine, mock_llm, registry = make_engine(
         responses=[
@@ -51,7 +51,6 @@ async def test_tool_runner_as_executor() -> None:
         tools=[tool],
     )
 
-    runner = ToolRunner()
     agent = make_agent(tools=["echo"])
     workspace = make_workspace()
 
@@ -59,7 +58,7 @@ async def test_tool_runner_as_executor() -> None:
         agent=agent,
         message="Echo hello",
         workspace=workspace,
-        tool_executor=runner.execute,
+        tool_executor=execute_tool,
     )
 
     assert result.stop_reason == StopReason.COMPLETED
@@ -67,8 +66,8 @@ async def test_tool_runner_as_executor() -> None:
     assert result.usage.tool_calls == 1
 
 
-async def test_tool_runner_with_multiple_tools() -> None:
-    """ToolRunner dispatches to different code tools correctly."""
+async def test_execute_tool_with_multiple_tools() -> None:
+    """execute_tool dispatches to different code tools correctly."""
 
     async def add(a: float = 0, b: float = 0, **kwargs: Any) -> dict[str, float]:
         return {"result": a + b}
@@ -109,7 +108,6 @@ async def test_tool_runner_with_multiple_tools() -> None:
         tools=[echo_tool, add_tool],
     )
 
-    runner = ToolRunner()
     agent = make_agent(tools=["echo", "add"])
     workspace = make_workspace()
 
@@ -117,7 +115,7 @@ async def test_tool_runner_with_multiple_tools() -> None:
         agent=agent,
         message="Add 2+3 and echo hi",
         workspace=workspace,
-        tool_executor=runner.execute,
+        tool_executor=execute_tool,
     )
 
     assert result.stop_reason == StopReason.COMPLETED

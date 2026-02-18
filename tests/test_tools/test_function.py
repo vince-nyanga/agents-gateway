@@ -63,6 +63,27 @@ class TestExecuteCodeTool:
         with pytest.raises(ValueError, match="boom"):
             await execute_code_tool(tool, {}, _make_context())
 
+    async def test_filters_unexpected_kwargs(self) -> None:
+        """Extra arguments from the LLM are filtered out for functions without **kwargs."""
+
+        async def strict(a: int, b: int) -> dict[str, int]:
+            return {"sum": a + b}
+
+        tool = CodeTool(name="strict", description="Strict", fn=strict, parameters_schema={})
+        # LLM sends an extra 'c' argument that the function doesn't accept
+        result = await execute_code_tool(tool, {"a": 1, "b": 2, "c": 99}, _make_context())
+        assert result == {"sum": 3}
+
+    async def test_passes_all_kwargs_when_var_keyword(self) -> None:
+        """Functions with **kwargs receive all arguments."""
+
+        async def flexible(**kwargs: Any) -> dict[str, Any]:
+            return kwargs
+
+        tool = CodeTool(name="flex", description="Flex", fn=flexible, parameters_schema={})
+        result = await execute_code_tool(tool, {"a": 1, "extra": "yes"}, _make_context())
+        assert result == {"a": 1, "extra": "yes"}
+
 
 # --- File-based function tool tests ---
 
@@ -72,8 +93,7 @@ class TestExecuteFunctionTool:
         tool_dir = tmp_path / "async-tool"
         tool_dir.mkdir()
         (tool_dir / "handler.py").write_text(
-            "async def handle(arguments, context):\n"
-            "    return {'got': arguments}\n"
+            "async def handle(arguments, context):\n    return {'got': arguments}\n"
         )
 
         tool = ToolDefinition(
@@ -90,8 +110,7 @@ class TestExecuteFunctionTool:
         tool_dir = tmp_path / "sync-tool"
         tool_dir.mkdir()
         (tool_dir / "handler.py").write_text(
-            "def handle(arguments, context):\n"
-            "    return {'sync': True, 'args': arguments}\n"
+            "def handle(arguments, context):\n    return {'sync': True, 'args': arguments}\n"
         )
 
         tool = ToolDefinition(
@@ -104,22 +123,36 @@ class TestExecuteFunctionTool:
         result = await execute_function_tool(tool, {"a": 1}, _make_context())
         assert result == {"sync": True, "args": {"a": 1}}
 
-    async def test_no_handler_path(self) -> None:
+    async def test_no_handler_path_raises(self) -> None:
         tool = ToolDefinition(
             id="no-handler",
             path=Path("/tmp"),
             name="no-handler",
             description="No handler",
         )
-        result = await execute_function_tool(tool, {}, _make_context())
-        assert "error" in result
+        with pytest.raises(RuntimeError, match="has no handler.py"):
+            await execute_function_tool(tool, {}, _make_context())
 
-    async def test_handler_exception(self, tmp_path: Path) -> None:
+    async def test_broken_handler_raises(self, tmp_path: Path) -> None:
+        tool_dir = tmp_path / "bad-tool"
+        tool_dir.mkdir()
+        (tool_dir / "handler.py").write_text("import nonexistent_module_xyz\n")
+
+        tool = ToolDefinition(
+            id="bad-tool",
+            path=tool_dir,
+            name="bad-tool",
+            description="Bad tool",
+            handler_path=tool_dir / "handler.py",
+        )
+        with pytest.raises(RuntimeError, match="could not be loaded"):
+            await execute_function_tool(tool, {}, _make_context())
+
+    async def test_handler_exception_propagates(self, tmp_path: Path) -> None:
         tool_dir = tmp_path / "err-tool"
         tool_dir.mkdir()
         (tool_dir / "handler.py").write_text(
-            "async def handle(arguments, context):\n"
-            "    raise RuntimeError('handler error')\n"
+            "async def handle(arguments, context):\n    raise RuntimeError('handler error')\n"
         )
 
         tool = ToolDefinition(

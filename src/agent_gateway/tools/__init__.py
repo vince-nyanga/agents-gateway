@@ -1,5 +1,5 @@
-"""Tool executors — HTTP, function, and script execution."""
+"""Tool executors — function execution for code and file-based tools."""
 
-from agent_gateway.tools.runner import ToolRunner
+from agent_gateway.tools.runner import execute_tool
 
-__all__ = ["ToolRunner"]
+__all__ = ["execute_tool"]
