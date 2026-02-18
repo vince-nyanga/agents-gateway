@@ -8,6 +8,7 @@ import time
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TTL_SECONDS = 30 * 60  # 30 minutes
 DEFAULT_MAX_SESSIONS = 1000
 DEFAULT_MAX_HISTORY = 100
+MAX_METADATA_SIZE = 64 * 1024  # 64KB
 
 
 @dataclass
@@ -24,20 +26,27 @@ class ChatSession:
     session_id: str
     agent_id: str
     messages: list[dict[str, Any]] = field(default_factory=list)
-    created_at: float = field(default_factory=time.monotonic)
-    updated_at: float = field(default_factory=time.monotonic)
+    created_at: float = field(default_factory=lambda: datetime.now(UTC).timestamp())
+    updated_at: float = field(default_factory=lambda: datetime.now(UTC).timestamp())
     metadata: dict[str, Any] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+    # Internal monotonic timestamp for TTL checks
+    _last_active: float = field(default_factory=time.monotonic, repr=False)
 
     @property
     def turn_count(self) -> int:
         """Number of user messages in this session."""
         return sum(1 for m in self.messages if m.get("role") == "user")
 
+    def _touch(self) -> None:
+        """Update timestamps."""
+        self.updated_at = datetime.now(UTC).timestamp()
+        self._last_active = time.monotonic()
+
     def append_user_message(self, content: str) -> None:
         """Add a user message and update timestamp."""
         self.messages.append({"role": "user", "content": content})
-        self.updated_at = time.monotonic()
+        self._touch()
 
     def append_assistant_message(
         self,
@@ -51,21 +60,58 @@ class ChatSession:
         if tool_calls:
             msg["tool_calls"] = tool_calls
         self.messages.append(msg)
-        self.updated_at = time.monotonic()
+        self._touch()
 
     def append_tool_result(self, tool_call_id: str, content: str) -> None:
         """Add a tool result message."""
         self.messages.append(
             {"role": "tool", "tool_call_id": tool_call_id, "content": content}
         )
-        self.updated_at = time.monotonic()
+        self._touch()
 
     def truncate_history(self, max_messages: int) -> None:
-        """Keep only the most recent messages, preserving system messages."""
+        """Keep only the most recent messages, preserving tool-call sequences.
+
+        Finds a safe truncation point that doesn't split an assistant message
+        with tool_calls from its corresponding tool result messages.
+        """
         if len(self.messages) <= max_messages:
             return
-        # Keep the newest messages
-        self.messages = self.messages[-max_messages:]
+
+        # Start from the desired cut point and scan forward to find a safe boundary
+        cut_index = len(self.messages) - max_messages
+        while cut_index < len(self.messages):
+            msg = self.messages[cut_index]
+            # A tool result message without its preceding assistant+tool_calls is invalid
+            if msg.get("role") == "tool":
+                cut_index += 1
+                continue
+            # An assistant message with tool_calls needs its tool results after it
+            # Check the message *before* cut_index: if it's an assistant with tool_calls,
+            # we'd be cutting its tool results. But since we're starting at cut_index,
+            # we only care that cut_index itself is a safe start.
+            break
+
+        self.messages = self.messages[cut_index:]
+
+    def merge_metadata(self, context: dict[str, Any]) -> None:
+        """Merge context into session metadata, respecting size limits."""
+        import json
+
+        # Estimate current size
+        merged = {**self.metadata, **context}
+        try:
+            size = len(json.dumps(merged))
+        except (TypeError, ValueError):
+            size = 0
+        if size > MAX_METADATA_SIZE:
+            logger.warning(
+                "Session %s metadata exceeds %dKB limit, skipping merge",
+                self.session_id,
+                MAX_METADATA_SIZE // 1024,
+            )
+            return
+        self.metadata = merged
 
 
 class SessionStore:
@@ -157,4 +203,4 @@ class SessionStore:
         return len(expired)
 
     def _is_expired(self, session: ChatSession) -> bool:
-        return (time.monotonic() - session.updated_at) > self._ttl_seconds
+        return (time.monotonic() - session._last_active) > self._ttl_seconds

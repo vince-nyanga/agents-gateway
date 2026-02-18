@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -138,21 +136,6 @@ class TestChatEndpoint:
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "session_not_found"
 
-    async def test_session_agent_mismatch(self, client: AsyncClient) -> None:
-        """Using a session for a different agent returns 409."""
-        # Create session for test-agent
-        with _mock_completion([make_llm_response(text="Hello!")]):
-            resp1 = await client.post(
-                "/v1/agents/test-agent/chat",
-                json={"message": "Hi"},
-            )
-        session_id = resp1.json()["session_id"]
-
-        # Try to use it with a different agent — but we need another agent
-        # The fixture workspace has test-agent; a nonexistent agent will 404 first
-        # So let's just verify the session was created for test-agent
-        assert resp1.json()["agent_id"] == "test-agent"
-
     async def test_agent_not_found(self, client: AsyncClient) -> None:
         """Chat with nonexistent agent returns 404."""
         resp = await client.post(
@@ -205,6 +188,9 @@ class TestSessionCRUD:
         assert data["agent_id"] == "test-agent"
         assert data["turn_count"] == 1
         assert data["message_count"] >= 1
+        # Timestamps should be Unix epoch (wall-clock, > year 2020)
+        assert data["created_at"] > 1_577_836_800
+        assert data["updated_at"] > 1_577_836_800
 
     async def test_get_session_not_found(self, client: AsyncClient) -> None:
         resp = await client.get("/v1/sessions/nonexistent")
@@ -256,7 +242,7 @@ class TestSessionCRUD:
 
 
 class TestChatProgrammatic:
-    """Tests for gw.chat() programmatic API."""
+    """Tests for gw.chat() and programmatic session methods."""
 
     async def test_chat_programmatic(self, gateway_app: Gateway) -> None:
         """gw.chat() works for multi-turn conversations."""
@@ -266,6 +252,7 @@ class TestChatProgrammatic:
 
             assert session_id.startswith("sess_")
             assert result.raw_text == "Hello!"
+            assert result.duration_ms >= 0
 
             # Second turn with same session
             with _mock_completion([make_llm_response(text="Fine, thanks!")]):
@@ -285,3 +272,41 @@ class TestChatProgrammatic:
         async with gateway_app:
             with pytest.raises(ValueError, match="not found"):
                 await gateway_app.chat("test-agent", "Hi", session_id="sess_fake")
+
+    async def test_programmatic_session_management(self, gateway_app: Gateway) -> None:
+        """gw.get_session(), gw.list_sessions(), gw.delete_session() work."""
+        async with gateway_app:
+            with _mock_completion([make_llm_response(text="Hello!")]):
+                session_id, _ = await gateway_app.chat("test-agent", "Hi")
+
+            # get_session
+            session = gateway_app.get_session(session_id)
+            assert session is not None
+            assert session.agent_id == "test-agent"
+            assert session.turn_count == 1
+
+            # list_sessions
+            sessions = gateway_app.list_sessions()
+            assert len(sessions) >= 1
+            assert any(s.session_id == session_id for s in sessions)
+
+            # list_sessions with filter
+            filtered = gateway_app.list_sessions(agent_id="nonexistent")
+            assert len(filtered) == 0
+
+            # delete_session
+            assert gateway_app.delete_session(session_id) is True
+            assert gateway_app.get_session(session_id) is None
+            assert gateway_app.delete_session(session_id) is False
+
+    async def test_chat_session_mismatch(self, gateway_app: Gateway) -> None:
+        """Using a session from one agent with a different agent raises ValueError."""
+        async with gateway_app:
+            # Create a session directly for a different agent ID
+            session = gateway_app._session_store.create_session("other-agent")
+
+            # Try to use it with test-agent
+            with pytest.raises(ValueError, match="belongs to agent"):
+                await gateway_app.chat(
+                    "test-agent", "Hi", session_id=session.session_id
+                )

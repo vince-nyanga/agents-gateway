@@ -171,5 +171,5 @@ class SessionInfo(BaseModel):
     agent_id: str
     turn_count: int = 0
     message_count: int = 0
-    created_at: float = 0.0
-    updated_at: float = 0.0
+    created_at: float = 0.0  # Unix epoch seconds (wall-clock)
+    updated_at: float = 0.0  # Unix epoch seconds (wall-clock)

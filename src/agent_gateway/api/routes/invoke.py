@@ -20,12 +20,12 @@ from agent_gateway.api.models import (
     UsagePayload,
 )
 from agent_gateway.api.routes.base import GatewayAPIRoute
+from agent_gateway.api.routes.status import stop_reason_to_status
 from agent_gateway.engine.models import (
     ExecutionHandle,
     ExecutionOptions,
     ExecutionResult,
     ExecutionStatus,
-    StopReason,
 )
 from agent_gateway.persistence.models import ExecutionRecord
 from agent_gateway.tools.runner import execute_tool
@@ -38,19 +38,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
-def _stop_reason_to_status(stop_reason: StopReason) -> ExecutionStatus:
-    """Map engine StopReason to API execution status."""
-    mapping = {
-        StopReason.COMPLETED: ExecutionStatus.COMPLETED,
-        StopReason.MAX_ITERATIONS: ExecutionStatus.COMPLETED,
-        StopReason.MAX_TOOL_CALLS: ExecutionStatus.COMPLETED,
-        StopReason.TIMEOUT: ExecutionStatus.TIMEOUT,
-        StopReason.CANCELLED: ExecutionStatus.CANCELLED,
-        StopReason.ERROR: ExecutionStatus.FAILED,
-    }
-    return mapping.get(stop_reason, ExecutionStatus.FAILED)
-
-
 def _build_response(
     execution_id: str,
     agent_id: str,
@@ -58,7 +45,7 @@ def _build_response(
     duration_ms: int,
 ) -> InvokeResponse:
     """Build the API response from an ExecutionResult."""
-    status = _stop_reason_to_status(result.stop_reason)
+    status = stop_reason_to_status(result.stop_reason)
     usage = result.usage
 
     return InvokeResponse(
@@ -174,7 +161,7 @@ async def invoke_agent(
     duration_ms = int((time.monotonic() - start) * 1000)
 
     # Persist result
-    status = _stop_reason_to_status(result.stop_reason)
+    status = stop_reason_to_status(result.stop_reason)
     await gw._execution_repo.update_status(
         execution_id,
         status,
@@ -216,7 +203,7 @@ async def _run_background_execution(
                 tool_executor=execute_tool,
             )
 
-            status = _stop_reason_to_status(result.stop_reason)
+            status = stop_reason_to_status(result.stop_reason)
             await gw._execution_repo.update_status(
                 execution_id, status, completed_at=datetime.now(UTC)
             )

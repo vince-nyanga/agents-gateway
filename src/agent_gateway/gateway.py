@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -14,7 +15,7 @@ from typing import TYPE_CHECKING, Any, overload
 
 from fastapi import APIRouter, FastAPI
 
-from agent_gateway.chat.session import SessionStore
+from agent_gateway.chat.session import ChatSession, SessionStore
 from agent_gateway.config import GatewayConfig
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMClient
@@ -469,7 +470,7 @@ class Gateway(FastAPI):
             session = self._session_store.create_session(agent_id, metadata=context)
 
         if context:
-            session.metadata.update(context)
+            session.merge_metadata(context)
 
         async with session.lock:
             session.append_user_message(message)
@@ -485,6 +486,7 @@ class Gateway(FastAPI):
             handle = ExecutionHandle(execution_id=execution_id)
             self._execution_handles[execution_id] = handle
 
+            start = time.monotonic()
             try:
                 result = await snapshot.engine.execute(
                     agent=agent,
@@ -499,10 +501,36 @@ class Gateway(FastAPI):
             finally:
                 self._execution_handles.pop(execution_id, None)
 
+            result.duration_ms = int((time.monotonic() - start) * 1000)
+
             if result.raw_text:
                 session.append_assistant_message(content=result.raw_text)
 
             return session.session_id, result
+
+    # --- Programmatic session management ---
+
+    def get_session(self, session_id: str) -> ChatSession | None:
+        """Get a session by ID."""
+        if self._session_store is None:
+            return None
+        return self._session_store.get_session(session_id)
+
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session. Returns True if it existed."""
+        if self._session_store is None:
+            return False
+        return self._session_store.delete_session(session_id)
+
+    def list_sessions(
+        self,
+        agent_id: str | None = None,
+        limit: int = 50,
+    ) -> list[ChatSession]:
+        """List active sessions."""
+        if self._session_store is None:
+            return []
+        return self._session_store.list_sessions(agent_id=agent_id, limit=limit)
 
     async def cancel_execution(self, execution_id: str) -> bool:
         """Cancel a running execution. Returns True if cancelled."""
@@ -540,10 +568,10 @@ class Gateway(FastAPI):
         """Register a tool. Can be used as @gw.tool or @gw.tool().
 
         Supports 4 input spec modes:
-        1. Explicit ``parameters`` dict — used as-is, no inference.
-        2. Single Pydantic model parameter — schema from model_json_schema().
-        3. ``Annotated[type, "description"]`` — type + description extracted.
-        4. Bare type hints — type inferred, parameter name used as description.
+        1. Explicit ``parameters`` dict -- used as-is, no inference.
+        2. Single Pydantic model parameter -- schema from model_json_schema().
+        3. ``Annotated[type, "description"]`` -- type + description extracted.
+        4. Bare type hints -- type inferred, parameter name used as description.
         """
         from agent_gateway.workspace.schema import schema_from_function
 

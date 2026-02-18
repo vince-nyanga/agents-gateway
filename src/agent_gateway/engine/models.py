@@ -111,6 +111,7 @@ class ExecutionResult:
     usage: UsageAccumulator = field(default_factory=UsageAccumulator)
     error: str | None = None
     validation_errors: list[str] | None = None
+    duration_ms: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for API responses."""

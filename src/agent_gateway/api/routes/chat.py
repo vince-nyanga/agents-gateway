@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
-import uuid
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Path, Query, Request
@@ -19,13 +17,8 @@ from agent_gateway.api.models import (
     UsagePayload,
 )
 from agent_gateway.api.routes.base import GatewayAPIRoute
-from agent_gateway.engine.models import (
-    ExecutionHandle,
-    ExecutionOptions,
-    StopReason,
-)
-from agent_gateway.tools.runner import execute_tool
-from agent_gateway.workspace.prompt import assemble_system_prompt
+from agent_gateway.api.routes.status import stop_reason_to_status
+from agent_gateway.engine.models import ExecutionHandle, ExecutionOptions
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
@@ -35,26 +28,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
-def _stop_reason_to_status(stop_reason: StopReason) -> str:
-    """Map engine StopReason to API status string."""
-    from agent_gateway.engine.models import ExecutionStatus
-
-    mapping = {
-        StopReason.COMPLETED: ExecutionStatus.COMPLETED,
-        StopReason.MAX_ITERATIONS: ExecutionStatus.COMPLETED,
-        StopReason.MAX_TOOL_CALLS: ExecutionStatus.COMPLETED,
-        StopReason.TIMEOUT: ExecutionStatus.TIMEOUT,
-        StopReason.CANCELLED: ExecutionStatus.CANCELLED,
-        StopReason.ERROR: ExecutionStatus.FAILED,
-    }
-    return mapping.get(stop_reason, ExecutionStatus.FAILED)
-
-
 @router.post("/agents/{agent_id}/chat", response_model=None)
 async def chat_with_agent(
     body: ChatRequest,
     request: Request,
-    agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
+    agent_id: str = Path(
+        ..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"
+    ),
 ) -> ChatResponse | JSONResponse | StreamingResponse:
     """Send a message to an agent in a multi-turn conversation."""
     gw: Gateway = request.app
@@ -73,134 +53,121 @@ async def chat_with_agent(
     if gw._session_store is None:
         return error_response(503, "sessions_unavailable", "Session store not initialized")
 
-    session_store = gw._session_store
+    # Handle streaming — the streaming generator acquires its own lock
+    if body.options.stream:
+        return _create_streaming_response(
+            gw=gw,
+            agent_id=agent_id,
+            body=body,
+        )
 
-    # Get or create session
-    if body.session_id:
-        session = session_store.get_session(body.session_id)
-        if session is None:
-            return error_response(
-                404, "session_not_found", f"Session '{body.session_id}' not found"
+    # Non-streaming: delegate to gw.chat()
+    try:
+        session_id, result = await gw.chat(
+            agent_id=agent_id,
+            message=body.message,
+            session_id=body.session_id,
+            context=body.context or None,
+            options=ExecutionOptions(timeout_ms=body.options.timeout_ms),
+        )
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg and "Session" in msg:
+            return error_response(404, "session_not_found", msg)
+        if "not found" in msg and "Agent" in msg:
+            return error_response(404, "agent_not_found", msg)
+        if "mismatch" in msg or "belongs to agent" in msg:
+            return error_response(409, "session_agent_mismatch", msg)
+        return error_response(500, "execution_error", msg)
+    except Exception as e:
+        logger.error("Chat execution failed: %s", e)
+        return error_response(500, "execution_error", "Internal execution error")
+
+    status = stop_reason_to_status(result.stop_reason)
+    usage = result.usage
+
+    # Get turn count from session
+    session = gw._session_store.get_session(session_id) if gw._session_store else None
+    turn_count = session.turn_count if session else 0
+
+    return ChatResponse(
+        session_id=session_id,
+        execution_id="",
+        agent_id=agent_id,
+        status=status,
+        result=ResultPayload(
+            output=result.output,
+            raw_text=result.raw_text,
+            validation_errors=result.validation_errors,
+        ),
+        usage=UsagePayload(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cost_usd=round(usage.cost_usd, 6),
+            llm_calls=usage.llm_calls,
+            tool_calls=usage.tool_calls,
+            models_used=list(usage.models_used),
+            duration_ms=result.duration_ms,
+        ),
+        error=result.error,
+        turn_count=turn_count,
+    )
+
+
+def _create_streaming_response(
+    gw: Any,
+    agent_id: str,
+    body: ChatRequest,
+) -> StreamingResponse:
+    """Create an SSE streaming response for a chat message."""
+    from agent_gateway.engine.streaming import stream_chat_execution
+    from agent_gateway.workspace.prompt import assemble_system_prompt
+
+    async def event_generator() -> Any:
+        snapshot = gw._snapshot
+        if snapshot is None or snapshot.workspace is None:
+            return
+
+        agent = snapshot.workspace.agents.get(agent_id)
+        if agent is None:
+            return
+
+        session_store = gw._session_store
+        if session_store is None:
+            return
+
+        # Get or create session
+        if body.session_id:
+            session = session_store.get_session(body.session_id)
+            if session is None:
+                return
+            if session.agent_id != agent_id:
+                return
+        else:
+            session = session_store.create_session(
+                agent_id, metadata=body.context or None
             )
-        if session.agent_id != agent_id:
-            return error_response(
-                409,
-                "session_agent_mismatch",
-                f"Session '{body.session_id}' belongs to agent "
-                f"'{session.agent_id}', not '{agent_id}'",
-            )
-    else:
-        session = session_store.create_session(agent_id, metadata=body.context or None)
 
-    # Merge context
-    if body.context:
-        session.metadata.update(body.context)
+        if body.context:
+            session.metadata.update(body.context)
 
-    # Serialize concurrent requests to same session
-    async with session.lock:
-        # Append user message
+        # Append user message and build messages (inside generator, before lock)
         session.append_user_message(body.message)
-
-        # Truncate history if needed
         session.truncate_history(session_store._max_history)
 
-        # Build system prompt
         system_prompt = assemble_system_prompt(agent, snapshot.workspace)
-
-        # Build full message history for engine
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             *session.messages,
         ]
 
-        # Build execution options
-        exec_options = ExecutionOptions(
-            timeout_ms=body.options.timeout_ms,
-        )
+        exec_options = ExecutionOptions(timeout_ms=body.options.timeout_ms)
+        import uuid
 
         execution_id = str(uuid.uuid4())
         handle = ExecutionHandle(execution_id)
         gw._execution_handles[execution_id] = handle
 
-        # Handle streaming
-        if body.options.stream:
-            return _create_streaming_response(
-                gw=gw,
-                agent=agent,
-                session=session,
-                messages=messages,
-                exec_options=exec_options,
-                execution_id=execution_id,
-                handle=handle,
-            )
-
-        # Non-streaming execution
-        start = time.monotonic()
-        try:
-            result = await snapshot.engine.execute(
-                agent=agent,
-                message=body.message,
-                workspace=snapshot.workspace,
-                context=session.metadata,
-                options=exec_options,
-                handle=handle,
-                tool_executor=execute_tool,
-                message_history=messages,
-            )
-        except Exception as e:
-            logger.error("Chat execution failed: %s", e)
-            return error_response(
-                500, "execution_error", "Internal execution error", execution_id=execution_id
-            )
-        finally:
-            gw._execution_handles.pop(execution_id, None)
-
-        duration_ms = int((time.monotonic() - start) * 1000)
-
-        # Append assistant response to session
-        if result.raw_text:
-            session.append_assistant_message(content=result.raw_text)
-
-        status = _stop_reason_to_status(result.stop_reason)
-        usage = result.usage
-
-        return ChatResponse(
-            session_id=session.session_id,
-            execution_id=execution_id,
-            agent_id=agent_id,
-            status=status,
-            result=ResultPayload(
-                output=result.output,
-                raw_text=result.raw_text,
-                validation_errors=result.validation_errors,
-            ),
-            usage=UsagePayload(
-                input_tokens=usage.input_tokens,
-                output_tokens=usage.output_tokens,
-                cost_usd=round(usage.cost_usd, 6),
-                llm_calls=usage.llm_calls,
-                tool_calls=usage.tool_calls,
-                models_used=list(usage.models_used),
-                duration_ms=duration_ms,
-            ),
-            error=result.error,
-            turn_count=session.turn_count,
-        )
-
-
-def _create_streaming_response(
-    gw: Any,
-    agent: Any,
-    session: Any,
-    messages: list[dict[str, Any]],
-    exec_options: ExecutionOptions,
-    execution_id: str,
-    handle: ExecutionHandle,
-) -> StreamingResponse:
-    """Create an SSE streaming response for a chat message."""
-    from agent_gateway.engine.streaming import stream_chat_execution
-
-    async def event_generator() -> Any:
         try:
             async for event in stream_chat_execution(
                 gw=gw,
