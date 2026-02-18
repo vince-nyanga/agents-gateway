@@ -9,7 +9,11 @@ from typing import Any
 
 import litellm
 from litellm import ModelResponse
-from litellm.router import AllowedFailsPolicy, RetryPolicy, Router
+from litellm.router import (  # type: ignore[attr-defined]
+    AllowedFailsPolicy,
+    RetryPolicy,
+    Router,
+)
 
 from agent_gateway.config import GatewayConfig, ModelConfig
 from agent_gateway.engine.models import ToolCall
@@ -55,7 +59,7 @@ def _build_model_list(config: ModelConfig) -> list[dict[str, Any]]:
 def _parse_tool_calls(response: ModelResponse) -> list[ToolCall]:
     """Extract tool calls from an LLM response."""
     tool_calls: list[ToolCall] = []
-    choices = response.choices  # type: ignore[union-attr]
+    choices = response.choices
     if not choices:
         return tool_calls
 
@@ -143,7 +147,7 @@ class LLMClient:
             kwargs["response_format"] = response_format
 
         try:
-            response: ModelResponse = await self._router.acompletion(**kwargs)  # type: ignore[assignment]
+            response: ModelResponse = await self._router.acompletion(**kwargs)
         except Exception as e:
             logger.error("LLM call failed: %s", e)
             raise ExecutionError(f"LLM call failed: {e}") from e
@@ -171,18 +175,18 @@ class LLMClient:
 
     def _parse_response(self, response: ModelResponse) -> LLMResponse:
         """Parse a LiteLLM ModelResponse into our LLMResponse."""
-        choices = response.choices  # type: ignore[union-attr]
+        choices = response.choices
         text: str | None = None
         if choices and choices[0].message and choices[0].message.content:
             text = choices[0].message.content
 
         tool_calls = _parse_tool_calls(response)
 
-        usage = response.usage  # type: ignore[union-attr]
+        usage = response.usage
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
 
-        model = response.model or ""  # type: ignore[union-attr]
+        model = response.model or ""
 
         return LLMResponse(
             text=text,

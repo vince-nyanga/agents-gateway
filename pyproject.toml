@@ -59,6 +59,7 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
     "types-PyYAML>=6.0",
+    "types-jsonschema>=4.21",
 ]
 all = ["agent-gateway[otlp,slack,postgresql,redis]"]
 
@@ -93,4 +94,8 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = "frontmatter"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "litellm.*"
 ignore_missing_imports = true

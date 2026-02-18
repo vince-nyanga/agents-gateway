@@ -117,9 +117,7 @@ class ExecutionEngine:
 
         # Build tool declarations
         skill_tool_names = self._resolve_skill_tools(agent, workspace)
-        resolved_tools = self._registry.resolve_for_agent(
-            agent.id, skill_tool_names, agent.tools
-        )
+        resolved_tools = self._registry.resolve_for_agent(agent.id, skill_tool_names, agent.tools)
         tool_declarations = self._registry.to_llm_declarations(resolved_tools)
         tool_map = {t.name: t for t in resolved_tools}
 
@@ -367,9 +365,7 @@ class ExecutionEngine:
                 call_id=tool_call.call_id,
                 name=tool_call.name,
                 success=False,
-                output={
-                    "error": f"Tool '{tool_call.name}' is not permitted for this agent"
-                },
+                output={"error": f"Tool '{tool_call.name}' is not permitted for this agent"},
             )
 
         # Validate arguments against schema
@@ -385,8 +381,7 @@ class ExecutionEngine:
                     name=tool_call.name,
                     success=False,
                     output={
-                        "error": f"Invalid arguments for tool '{tool_call.name}': "
-                        f"{e.message}"
+                        "error": f"Invalid arguments for tool '{tool_call.name}': {e.message}"
                     },
                 )
 
@@ -401,11 +396,7 @@ class ExecutionEngine:
 
         try:
             usage.add_tool_call()
-            result = await tool_executor(
-                tool=resolved,
-                arguments=tool_call.arguments,
-                context=tool_context,
-            )
+            result = await tool_executor(resolved, tool_call.arguments, tool_context)
             duration_ms = int((time.monotonic() - start) * 1000)
             return ToolResult(
                 call_id=tool_call.call_id,
@@ -426,9 +417,7 @@ class ExecutionEngine:
             )
         except Exception as e:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error(
-                "Tool '%s' failed: %s: %s", tool_call.name, type(e).__name__, e
-            )
+            logger.error("Tool '%s' failed: %s: %s", tool_call.name, type(e).__name__, e)
             return ToolResult(
                 call_id=tool_call.call_id,
                 name=tool_call.name,
@@ -515,9 +504,7 @@ class ExecutionEngine:
             validation_errors=validation_errors or None,
         )
 
-    def _resolve_skill_tools(
-        self, agent: AgentDefinition, workspace: WorkspaceState
-    ) -> list[str]:
+    def _resolve_skill_tools(self, agent: AgentDefinition, workspace: WorkspaceState) -> list[str]:
         """Gather tool names from all skills an agent uses."""
         tool_names: list[str] = []
         for skill_name in agent.skills:
