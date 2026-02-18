@@ -128,3 +128,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "jwt.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "redis.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "aio_pika.*"
+ignore_missing_imports = true

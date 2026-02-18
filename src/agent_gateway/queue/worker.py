@@ -133,7 +133,7 @@ class WorkerPool:
         """Execute a single job with error handling and ack/nack."""
         gw = self._gateway
         semaphore = gw._execution_semaphore
-        attrs = {"agent_id": job.agent_id, "worker_id": worker_id}
+        attrs = {"agent_id": job.agent_id, "worker_id": str(worker_id)}
 
         if semaphore is None:
             logger.error("Worker %d: execution semaphore not initialized", worker_id)

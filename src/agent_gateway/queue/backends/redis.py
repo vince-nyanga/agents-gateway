@@ -204,11 +204,13 @@ class RedisQueue:
         """Return the stream length (approximate pending count)."""
         if self._redis is None:
             return 0
-        return await self._redis.xlen(self._stream_key)
+        return int(await self._redis.xlen(self._stream_key))
 
     async def _get_msg_id(self, job_id: str) -> str | None:
         """Look up the Redis message ID for a job."""
         if self._redis is None:
             return None
         result = await self._redis.hget(f"ag:msg_map:{job_id}", "msg_id")
-        return result
+        if result is None:
+            return None
+        return str(result)

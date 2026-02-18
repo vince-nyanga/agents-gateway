@@ -203,6 +203,6 @@ class RabbitMQQueue:
             queue_info = await self._channel.declare_queue(
                 self._queue_name, passive=True
             )
-            return queue_info.declaration_result.message_count
+            return int(queue_info.declaration_result.message_count)
         except Exception:
             return 0
