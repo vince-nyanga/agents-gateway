@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.4: LLM Client & Execution Engine"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [01, 02, 03]
 blocks: [05, 06, 08]
@@ -201,12 +201,12 @@ The execution engine creates a `ToolContext` and passes it to tool executors.
 
 ## Acceptance Criteria
 
-- [ ] LLM client wraps LiteLLM with failover and cost tracking
-- [ ] Execution loop handles all tool call patterns correctly
-- [ ] All 6 StopReasons tested and working
-- [ ] Tool errors never crash the loop
-- [ ] Parallel tool execution with bounded concurrency
-- [ ] Cancellation is cooperative and tested
-- [ ] Structured output validation with retry
-- [ ] Tool results truncated at 32KB
-- [ ] All tests pass
+- [x] LLM client wraps LiteLLM with failover and cost tracking
+- [x] Execution loop handles all tool call patterns correctly
+- [x] All 6 StopReasons tested and working
+- [x] Tool errors never crash the loop
+- [x] Parallel tool execution with bounded concurrency
+- [x] Cancellation is cooperative and tested
+- [x] Structured output validation with retry
+- [x] Tool results truncated at 32KB
+- [x] All tests pass

@@ -432,12 +432,12 @@ class ToolRegistry:
 
 #### 1.6 LLM Client (LiteLLM Wrapper)
 
-- [ ] `src/agent_gateway/engine/llm.py` — LiteLLM Router wrapper with failover
-- [ ] Build `model_list` from gateway config + per-agent overrides
-- [ ] Configure retry policy: 2 retries for timeout, 3 for rate limit, 0 for auth/content errors
-- [ ] Cooldown: 3 allowed failures per minute, 60s cooldown
-- [ ] Cost tracking via `litellm.completion_cost()`
-- [ ] Usage accumulator (input tokens, output tokens, cost, model list)
+- [x] `src/agent_gateway/engine/llm.py` — LiteLLM Router wrapper with failover
+- [x] Build `model_list` from gateway config + per-agent overrides
+- [x] Configure retry policy: 2 retries for timeout, 3 for rate limit, 0 for auth/content errors
+- [x] Cooldown: 3 allowed failures per minute, 60s cooldown
+- [x] Cost tracking via `litellm.completion_cost()`
+- [x] Usage accumulator (input tokens, output tokens, cost, model list)
 - [ ] Streaming support via `acompletion(stream=True)`
 
 **Robustness:**
@@ -447,7 +447,7 @@ class ToolRegistry:
 
 #### 1.7 Execution Engine
 
-- [ ] `src/agent_gateway/engine/executor.py` — The core LLM function-calling loop
+- [x] `src/agent_gateway/engine/executor.py` — The core LLM function-calling loop
 
 **State machine implementation:**
 - `StopReason` enum: `COMPLETED`, `MAX_ITERATIONS`, `MAX_TOOL_CALLS`, `TIMEOUT`, `CANCELLED`, `ERROR`
@@ -510,7 +510,7 @@ tests/test_engine/test_executor_cancel.py     # Cancellation
 
 #### 1.9 Structured Output
 
-- [ ] `src/agent_gateway/engine/output.py` — Parse and validate LLM output against JSON Schema
+- [x] `src/agent_gateway/engine/output.py` — Parse and validate LLM output against JSON Schema
 
 **Flow:**
 1. If LLM supports native structured output (`response_format`) → use it
