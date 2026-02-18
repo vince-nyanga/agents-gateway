@@ -307,6 +307,4 @@ class TestChatProgrammatic:
 
             # Try to use it with test-agent
             with pytest.raises(ValueError, match="belongs to agent"):
-                await gateway_app.chat(
-                    "test-agent", "Hi", session_id=session.session_id
-                )
+                await gateway_app.chat("test-agent", "Hi", session_id=session.session_id)

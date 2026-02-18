@@ -186,9 +186,7 @@ class SessionStore:
 
     def cleanup_expired(self) -> int:
         """Remove all expired sessions. Returns count of removed sessions."""
-        expired = [
-            sid for sid, s in self._sessions.items() if self._is_expired(s)
-        ]
+        expired = [sid for sid, s in self._sessions.items() if self._is_expired(s)]
         for sid in expired:
             del self._sessions[sid]
         if expired:

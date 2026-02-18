@@ -85,10 +85,13 @@ async def stream_chat_execution(
     # Acquire session lock inside the generator to hold it during streaming
     async with session.lock:
         # Emit session info
-        yield _sse_event("session", {
-            "session_id": session.session_id,
-            "execution_id": execution_id,
-        })
+        yield _sse_event(
+            "session",
+            {
+                "session_id": session.session_id,
+                "execution_id": execution_id,
+            },
+        )
 
         usage = UsageAccumulator()
         guardrails = gw._config.guardrails if gw._config else None
@@ -145,16 +148,12 @@ async def stream_chat_execution(
                             ):
                                 if chunk["type"] == "token":
                                     accumulated_text += chunk["content"]
-                                    yield _sse_event(
-                                        "token", {"content": chunk["content"]}
-                                    )
+                                    yield _sse_event("token", {"content": chunk["content"]})
 
                                 elif chunk["type"] == "tool_call":
                                     tc_args = chunk["arguments"]
                                     try:
-                                        parsed_args = (
-                                            json.loads(tc_args) if tc_args else {}
-                                        )
+                                        parsed_args = json.loads(tc_args) if tc_args else {}
                                     except json.JSONDecodeError:
                                         parsed_args = {"_raw": tc_args}
 
@@ -164,11 +163,14 @@ async def stream_chat_execution(
                                         call_id=chunk["call_id"],
                                     )
                                     pending_tool_calls.append(tc)
-                                    yield _sse_event("tool_call", {
-                                        "name": tc.name,
-                                        "arguments": tc.arguments,
-                                        "call_id": tc.call_id,
-                                    })
+                                    yield _sse_event(
+                                        "tool_call",
+                                        {
+                                            "name": tc.name,
+                                            "arguments": tc.arguments,
+                                            "call_id": tc.call_id,
+                                        },
+                                    )
 
                                 elif chunk["type"] == "usage":
                                     usage.add_llm_usage(
@@ -180,9 +182,7 @@ async def stream_chat_execution(
 
                         except Exception as e:
                             logger.error("LLM streaming failed: %s", e)
-                            yield _sse_event(
-                                "error", {"message": "LLM call failed"}
-                            )
+                            yield _sse_event("error", {"message": "LLM call failed"})
                             stop_reason = StopReason.ERROR
                             break
 
@@ -221,40 +221,45 @@ async def stream_chat_execution(
 
                             resolved = tool_map.get(tc.name)
                             if resolved is None:
-                                tool_output: Any = {
-                                    "error": f"Unknown tool: '{tc.name}'"
-                                }
-                                yield _sse_event("tool_result", {
-                                    "call_id": tc.call_id,
-                                    "name": tc.name,
-                                    "output": tool_output,
-                                })
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tc.call_id,
-                                    "content": json.dumps(tool_output),
-                                })
+                                tool_output: Any = {"error": f"Unknown tool: '{tc.name}'"}
+                                yield _sse_event(
+                                    "tool_result",
+                                    {
+                                        "call_id": tc.call_id,
+                                        "name": tc.name,
+                                        "output": tool_output,
+                                    },
+                                )
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tc.call_id,
+                                        "content": json.dumps(tool_output),
+                                    }
+                                )
                                 total_tool_calls += 1
                                 continue
 
                             # Permission check
                             if not resolved.allows_agent(tool_context.agent_id):
                                 tool_output = {
-                                    "error": (
-                                        f"Tool '{tc.name}' is not permitted "
-                                        f"for this agent"
-                                    )
+                                    "error": (f"Tool '{tc.name}' is not permitted for this agent")
                                 }
-                                yield _sse_event("tool_result", {
-                                    "call_id": tc.call_id,
-                                    "name": tc.name,
-                                    "output": tool_output,
-                                })
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tc.call_id,
-                                    "content": json.dumps(tool_output),
-                                })
+                                yield _sse_event(
+                                    "tool_result",
+                                    {
+                                        "call_id": tc.call_id,
+                                        "name": tc.name,
+                                        "output": tool_output,
+                                    },
+                                )
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tc.call_id,
+                                        "content": json.dumps(tool_output),
+                                    }
+                                )
                                 total_tool_calls += 1
                                 continue
 
@@ -268,60 +273,68 @@ async def stream_chat_execution(
                                 except jsonschema.ValidationError as e:
                                     tool_output = {
                                         "error": (
-                                            f"Invalid arguments for tool "
-                                            f"'{tc.name}': {e.message}"
+                                            f"Invalid arguments for tool '{tc.name}': {e.message}"
                                         )
                                     }
-                                    yield _sse_event("tool_result", {
-                                        "call_id": tc.call_id,
-                                        "name": tc.name,
-                                        "output": tool_output,
-                                    })
-                                    messages.append({
-                                        "role": "tool",
-                                        "tool_call_id": tc.call_id,
-                                        "content": json.dumps(tool_output),
-                                    })
+                                    yield _sse_event(
+                                        "tool_result",
+                                        {
+                                            "call_id": tc.call_id,
+                                            "name": tc.name,
+                                            "output": tool_output,
+                                        },
+                                    )
+                                    messages.append(
+                                        {
+                                            "role": "tool",
+                                            "tool_call_id": tc.call_id,
+                                            "content": json.dumps(tool_output),
+                                        }
+                                    )
                                     total_tool_calls += 1
                                     continue
 
                             try:
                                 usage.add_tool_call()
-                                result = await execute_tool(
-                                    resolved, tc.arguments, tool_context
+                                result = await execute_tool(resolved, tc.arguments, tool_context)
+                                output_str = _truncate_result(_serialize_tool_output(result))
+                                yield _sse_event(
+                                    "tool_result",
+                                    {
+                                        "call_id": tc.call_id,
+                                        "name": tc.name,
+                                        "output": result,
+                                    },
                                 )
-                                output_str = _truncate_result(
-                                    _serialize_tool_output(result)
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tc.call_id,
+                                        "content": output_str,
+                                    }
                                 )
-                                yield _sse_event("tool_result", {
-                                    "call_id": tc.call_id,
-                                    "name": tc.name,
-                                    "output": result,
-                                })
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tc.call_id,
-                                    "content": output_str,
-                                })
                             except Exception as e:
                                 logger.error(
                                     "Tool '%s' failed during streaming: %s",
                                     tc.name,
                                     e,
                                 )
-                                tool_error = {
-                                    "error": f"Tool '{tc.name}' failed"
-                                }
-                                yield _sse_event("tool_result", {
-                                    "call_id": tc.call_id,
-                                    "name": tc.name,
-                                    "output": tool_error,
-                                })
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tc.call_id,
-                                    "content": json.dumps(tool_error),
-                                })
+                                tool_error = {"error": f"Tool '{tc.name}' failed"}
+                                yield _sse_event(
+                                    "tool_result",
+                                    {
+                                        "call_id": tc.call_id,
+                                        "name": tc.name,
+                                        "output": tool_error,
+                                    },
+                                )
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tc.call_id,
+                                        "content": json.dumps(tool_error),
+                                    }
+                                )
 
                             total_tool_calls += 1
 
@@ -344,16 +357,19 @@ async def stream_chat_execution(
         duration_ms = int((time.monotonic() - start) * 1000)
 
         # Emit done event
-        yield _sse_event("done", {
-            "status": stop_reason.value,
-            "usage": {
-                "input_tokens": usage.input_tokens,
-                "output_tokens": usage.output_tokens,
-                "cost_usd": round(usage.cost_usd, 6),
-                "llm_calls": usage.llm_calls,
-                "tool_calls": usage.tool_calls,
-                "models_used": list(usage.models_used),
-                "duration_ms": duration_ms,
+        yield _sse_event(
+            "done",
+            {
+                "status": stop_reason.value,
+                "usage": {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "cost_usd": round(usage.cost_usd, 6),
+                    "llm_calls": usage.llm_calls,
+                    "tool_calls": usage.tool_calls,
+                    "models_used": list(usage.models_used),
+                    "duration_ms": duration_ms,
+                },
+                "turn_count": session.turn_count,
             },
-            "turn_count": session.turn_count,
-        })
+        )

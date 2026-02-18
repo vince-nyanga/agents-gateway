@@ -69,9 +69,13 @@ class TestChatSession:
         session.append_assistant_message(
             tool_calls=[{"id": "tc1", "function": {"name": "echo", "arguments": "{}"}}]
         )
-        session.messages.append({
-            "role": "tool", "tool_call_id": "tc1", "content": '{"result": "ok"}',
-        })
+        session.messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": "tc1",
+                "content": '{"result": "ok"}',
+            }
+        )
         session.append_user_message("msg2")
         session.append_assistant_message(content="reply")
         # 5 messages total, truncate to 3 — naive slice would start at tool result

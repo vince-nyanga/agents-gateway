@@ -32,9 +32,7 @@ router = APIRouter(route_class=GatewayAPIRoute)
 async def chat_with_agent(
     body: ChatRequest,
     request: Request,
-    agent_id: str = Path(
-        ..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"
-    ),
+    agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> ChatResponse | JSONResponse | StreamingResponse:
     """Send a message to an agent in a multi-turn conversation."""
     gw: Gateway = request.app
@@ -144,9 +142,7 @@ def _create_streaming_response(
             if session.agent_id != agent_id:
                 return
         else:
-            session = session_store.create_session(
-                agent_id, metadata=body.context or None
-            )
+            session = session_store.create_session(agent_id, metadata=body.context or None)
 
         if body.context:
             session.metadata.update(body.context)
