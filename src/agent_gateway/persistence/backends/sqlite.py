@@ -20,8 +20,7 @@ class SqliteBackend(SqlBackend):
             import aiosqlite  # noqa: F401
         except ImportError:
             raise ImportError(
-                "SQLite backend requires the sqlite extra: "
-                "pip install agent-gateway[sqlite]"
+                "SQLite backend requires the sqlite extra: pip install agent-gateway[sqlite]"
             ) from None
 
         from sqlalchemy.ext.asyncio import create_async_engine

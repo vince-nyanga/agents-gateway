@@ -59,9 +59,7 @@ async def postgres_backend(postgres_container: str):
 async def test_postgres_backend_creates_tables(postgres_backend: PostgresBackend):
     """PostgresBackend.initialize should create all four tables."""
     async with postgres_backend._engine.connect() as conn:
-        table_names = await conn.run_sync(
-            lambda sync_conn: inspect(sync_conn).get_table_names()
-        )
+        table_names = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
 
     expected = {"executions", "execution_steps", "audit_log", "schedules"}
     # Tables are prefixed — check that each base name appears (with prefix)

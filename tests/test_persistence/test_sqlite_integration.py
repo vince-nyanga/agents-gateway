@@ -33,9 +33,7 @@ async def sqlite_backend(tmp_path) -> SqliteBackend:
 async def test_sqlite_backend_creates_tables(sqlite_backend: SqliteBackend):
     """SqliteBackend.initialize should create all four tables."""
     async with sqlite_backend._engine.connect() as conn:
-        table_names = await conn.run_sync(
-            lambda sync_conn: inspect(sync_conn).get_table_names()
-        )
+        table_names = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
 
     assert "executions" in table_names
     assert "execution_steps" in table_names
@@ -216,9 +214,7 @@ async def test_sqlite_memory_backend():
     await backend.initialize()
 
     async with backend._engine.connect() as conn:
-        table_names = await conn.run_sync(
-            lambda sync_conn: inspect(sync_conn).get_table_names()
-        )
+        table_names = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
 
     assert "executions" in table_names
     assert "execution_steps" in table_names
