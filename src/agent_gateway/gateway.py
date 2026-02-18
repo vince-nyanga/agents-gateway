@@ -69,9 +69,7 @@ class Gateway(FastAPI):
             tool_name = name or func.__name__.replace("_", "-")
             tool_desc = description or func.__doc__ or ""
 
-            params_schema = (
-                parameters if parameters is not None else schema_from_function(func)
-            )
+            params_schema = parameters if parameters is not None else schema_from_function(func)
 
             code_tool = CodeTool(
                 name=tool_name,

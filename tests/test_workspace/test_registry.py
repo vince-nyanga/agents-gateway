@@ -199,9 +199,7 @@ class TestResolveForAgent:
 
     def test_filters_by_allowed_agents(self) -> None:
         registry = ToolRegistry()
-        registry.register_code_tool(
-            _make_code_tool(name="secret", allowed_agents=["admin-agent"])
-        )
+        registry.register_code_tool(_make_code_tool(name="secret", allowed_agents=["admin-agent"]))
 
         resolved = registry.resolve_for_agent(
             agent_id="assistant",
@@ -212,9 +210,7 @@ class TestResolveForAgent:
 
     def test_allowed_agent_passes(self) -> None:
         registry = ToolRegistry()
-        registry.register_code_tool(
-            _make_code_tool(name="secret", allowed_agents=["admin-agent"])
-        )
+        registry.register_code_tool(_make_code_tool(name="secret", allowed_agents=["admin-agent"]))
 
         resolved = registry.resolve_for_agent(
             agent_id="admin-agent",

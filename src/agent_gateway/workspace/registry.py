@@ -116,9 +116,7 @@ class ToolRegistry:
                 logger.warning("Tool '%s' not found for agent '%s'", name, agent_id)
                 continue
             if not tool.allows_agent(agent_id):
-                logger.warning(
-                    "Tool '%s' not permitted for agent '%s'", name, agent_id
-                )
+                logger.warning("Tool '%s' not permitted for agent '%s'", name, agent_id)
                 continue
             result.append(tool)
 
