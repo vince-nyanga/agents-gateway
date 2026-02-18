@@ -136,6 +136,95 @@ class TestOversizedResult:
         assert "[truncated: result exceeded 32KB limit]" in tool_msg["content"]
 
 
+class TestInvalidToolArguments:
+    @pytest.mark.asyncio
+    async def test_invalid_arguments_returns_error_to_llm(self) -> None:
+        """Tool called with invalid arguments → validation error to LLM, loop continues."""
+        from agent_gateway.workspace.registry import CodeTool
+
+        code_tool = CodeTool(
+            name="strict-tool",
+            description="A tool with strict schema",
+            fn=lambda: None,
+            parameters_schema={
+                "type": "object",
+                "properties": {"count": {"type": "integer"}},
+                "required": ["count"],
+            },
+        )
+        strict_tool = ResolvedTool(
+            name="strict-tool",
+            description="A tool with strict schema",
+            source="code",
+            llm_declaration=code_tool.to_llm_declaration(),
+            parameters_schema=code_tool.parameters_schema,
+            code_tool=code_tool,
+        )
+
+        engine, mock_llm, _ = make_engine(
+            responses=[
+                make_llm_response(
+                    tool_calls=[
+                        make_tool_call(
+                            name="strict-tool",
+                            arguments={"count": "not-a-number"},
+                            call_id="c1",
+                        )
+                    ]
+                ),
+                make_llm_response(text="Fixed the arguments"),
+            ],
+            tools=[strict_tool],
+        )
+        agent = make_agent(tools=["strict-tool"])
+        workspace = make_workspace()
+
+        result = await engine.execute(
+            agent, "test", workspace, tool_executor=simple_tool_executor
+        )
+
+        assert result.stop_reason == StopReason.COMPLETED
+        assert result.raw_text == "Fixed the arguments"
+        # Verify the error was sent back to the LLM
+        tool_msg = mock_llm.calls[1]["messages"][-1]
+        assert "Invalid arguments" in tool_msg["content"]
+
+
+class TestSanitizedErrorMessages:
+    @pytest.mark.asyncio
+    async def test_tool_exception_does_not_leak_details(self) -> None:
+        """Tool exception error message does not expose internal details."""
+        echo_tool = make_resolved_tool(name="leaky-tool")
+
+        async def leaky_executor(
+            tool: ResolvedTool, arguments: dict[str, Any], context: ToolContext
+        ) -> Any:
+            raise ValueError("secret connection string: postgres://user:pass@host/db")
+
+        engine, mock_llm, _ = make_engine(
+            responses=[
+                make_llm_response(
+                    tool_calls=[
+                        make_tool_call(name="leaky-tool", arguments={}, call_id="c1")
+                    ]
+                ),
+                make_llm_response(text="Handled"),
+            ],
+            tools=[echo_tool],
+        )
+        agent = make_agent(tools=["leaky-tool"])
+        workspace = make_workspace()
+
+        result = await engine.execute(
+            agent, "test", workspace, tool_executor=leaky_executor
+        )
+
+        assert result.stop_reason == StopReason.COMPLETED
+        tool_msg = mock_llm.calls[1]["messages"][-1]
+        assert "postgres://" not in tool_msg["content"]
+        assert "failed unexpectedly" in tool_msg["content"]
+
+
 class TestNoToolExecutor:
     @pytest.mark.asyncio
     async def test_no_executor_configured(self) -> None:

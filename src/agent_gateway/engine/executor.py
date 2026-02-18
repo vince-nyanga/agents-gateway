@@ -10,6 +10,8 @@ import uuid
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+import jsonschema
+
 from agent_gateway.config import GatewayConfig
 from agent_gateway.engine.llm import LLMClient
 from agent_gateway.engine.models import (
@@ -36,6 +38,12 @@ logger = logging.getLogger(__name__)
 
 MAX_RESULT_SIZE = 32 * 1024  # 32KB
 MAX_CONCURRENCY = 5
+
+# Type alias for the tool executor function signature
+ToolExecutorFn = Callable[
+    [ResolvedTool, dict[str, Any], ToolContext],
+    Coroutine[Any, Any, Any],
+]
 
 
 def _truncate_result(result: str) -> str:
@@ -155,11 +163,20 @@ class ExecutionEngine:
                             max_tokens=max_tokens,
                         )
                     except Exception as e:
+                        logger.error("LLM call failed during execution: %s", e)
                         return ExecutionResult(
                             raw_text=last_text,
                             stop_reason=StopReason.ERROR,
                             usage=usage,
-                            error=str(e),
+                            error="LLM call failed",
+                        )
+
+                    # Check cancellation after LLM call
+                    if handle and handle.is_cancelled:
+                        return ExecutionResult(
+                            raw_text=last_text,
+                            stop_reason=StopReason.CANCELLED,
+                            usage=usage,
                         )
 
                     # Record usage
@@ -230,6 +247,14 @@ class ExecutionEngine:
                     )
 
                     total_tool_calls += len(tool_results)
+
+                    # Check cancellation after tool execution
+                    if handle and handle.is_cancelled:
+                        return ExecutionResult(
+                            raw_text=last_text,
+                            stop_reason=StopReason.CANCELLED,
+                            usage=usage,
+                        )
 
                     # Append tool results to messages
                     for tr in tool_results:
@@ -347,6 +372,24 @@ class ExecutionEngine:
                 },
             )
 
+        # Validate arguments against schema
+        if resolved.parameters_schema:
+            try:
+                jsonschema.validate(
+                    instance=tool_call.arguments,
+                    schema=resolved.parameters_schema,
+                )
+            except jsonschema.ValidationError as e:
+                return ToolResult(
+                    call_id=tool_call.call_id,
+                    name=tool_call.name,
+                    success=False,
+                    output={
+                        "error": f"Invalid arguments for tool '{tool_call.name}': "
+                        f"{e.message}"
+                    },
+                )
+
         # Execute via tool executor
         if tool_executor is None:
             return ToolResult(
@@ -383,12 +426,14 @@ class ExecutionEngine:
             )
         except Exception as e:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("Tool '%s' failed: %s", tool_call.name, e)
+            logger.error(
+                "Tool '%s' failed: %s: %s", tool_call.name, type(e).__name__, e
+            )
             return ToolResult(
                 call_id=tool_call.call_id,
                 name=tool_call.name,
                 success=False,
-                output={"error": f"Tool '{tool_call.name}' failed: {e}"},
+                output={"error": f"Tool '{tool_call.name}' failed unexpectedly"},
                 duration_ms=duration_ms,
             )
 
@@ -414,10 +459,11 @@ class ExecutionEngine:
                 max_tokens=max_tokens,
             )
         except Exception as e:
+            logger.error("Structured output retry failed: %s", e)
             return ExecutionResult(
                 stop_reason=StopReason.ERROR,
                 usage=usage,
-                error=f"Structured output retry failed: {e}",
+                error="Structured output retry failed",
             )
 
         usage.add_llm_usage(
@@ -479,11 +525,3 @@ class ExecutionEngine:
             if skill:
                 tool_names.extend(skill.tools)
         return tool_names
-
-
-
-# Type alias for the tool executor function signature
-ToolExecutorFn = Callable[
-    [ResolvedTool, dict[str, Any], ToolContext],
-    Coroutine[Any, Any, Any],
-]

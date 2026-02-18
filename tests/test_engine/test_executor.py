@@ -157,4 +157,4 @@ class TestLLMError:
         result = await engine.execute(agent, "Hi", workspace)
 
         assert result.stop_reason == StopReason.ERROR
-        assert "API down" in (result.error or "")
+        assert result.error == "LLM call failed"

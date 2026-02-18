@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -63,8 +64,6 @@ def _parse_tool_calls(response: ModelResponse) -> list[ToolCall]:
         return tool_calls
 
     for tc in message.tool_calls:
-        import json
-
         args = tc.function.arguments
         if isinstance(args, str):
             try:
@@ -87,6 +86,7 @@ def _extract_cost(response: ModelResponse) -> float:
     try:
         return float(litellm.completion_cost(completion_response=response))
     except Exception:
+        logger.debug("Could not extract cost from LLM response", exc_info=True)
         return 0.0
 
 
