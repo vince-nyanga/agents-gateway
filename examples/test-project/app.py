@@ -40,7 +40,10 @@ weather = WeatherService(default_unit="celsius")
 gw.tool(name="get-weather")(weather.get_weather)
 
 
-@gw.tool(name="search-flights", description="Search for available flights between two cities on a given date.")
+@gw.tool(
+    name="search-flights",
+    description="Search for available flights between two cities on a given date.",
+)
 async def search_flights(origin: str, destination: str, date: str) -> dict:
     """Return mock flight results."""
     return {
@@ -65,7 +68,8 @@ async def log_invoke(agent_id, message, execution_id, **kw):
 
 @gw.on("agent.invoke.after")
 async def log_result(agent_id, execution_id, result, **kw):
-    print(f"[hook] invoke done: agent={agent_id} exec={execution_id} stop={result.stop_reason.value}")
+    stop = result.stop_reason.value
+    print(f"[hook] invoke done: agent={agent_id} exec={execution_id} stop={stop}")
 
 
 @gw.on("tool.execute.before")
