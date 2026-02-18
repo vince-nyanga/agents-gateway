@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.8b: Multi-Turn Chat Endpoint with SSE Streaming"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [08]
 blocks: []
@@ -154,85 +154,85 @@ data: {}
 
 **File:** `src/agent_gateway/chat/session.py`
 
-- [ ] `ChatSession` dataclass: `session_id`, `agent_id`, `messages`, `created_at`, `updated_at`, `metadata`, `lock`
-- [ ] `SessionStore` class: in-memory dict with TTL, max sessions, LRU eviction
-- [ ] `create_session()`, `get_session()`, `delete_session()`, `list_sessions()`, `cleanup_expired()`
-- [ ] Per-session `asyncio.Lock` for serializing concurrent requests
+- [x] `ChatSession` dataclass: `session_id`, `agent_id`, `messages`, `created_at`, `updated_at`, `metadata`, `lock`
+- [x] `SessionStore` class: in-memory dict with TTL, max sessions, LRU eviction
+- [x] `create_session()`, `get_session()`, `delete_session()`, `list_sessions()`, `cleanup_expired()`
+- [x] Per-session `asyncio.Lock` for serializing concurrent requests
 
 ### 2. Chat Request/Response Models
 
 **File:** `src/agent_gateway/api/models.py` (extend existing)
 
-- [ ] `ChatRequest` — message, session_id (optional), context, options
-- [ ] `ChatResponse` — session_id, execution_id, agent_id, status, result, usage, turn_count
-- [ ] `SessionInfo` — session_id, agent_id, turn_count, created_at, updated_at
+- [x] `ChatRequest` — message, session_id (optional), context, options
+- [x] `ChatResponse` — session_id, execution_id, agent_id, status, result, usage, turn_count
+- [x] `SessionInfo` — session_id, agent_id, turn_count, created_at, updated_at
 
 ### 3. Chat Endpoint
 
 **File:** `src/agent_gateway/api/routes/chat.py`
 
-- [ ] `POST /v1/agents/{agent_id}/chat` — main chat endpoint
-- [ ] Non-streaming: run engine with full history, return response
-- [ ] Streaming: return SSE `StreamingResponse`
-- [ ] Create session if `session_id` not provided
-- [ ] Validate session belongs to correct agent
-- [ ] Serialize concurrent requests to same session
+- [x] `POST /v1/agents/{agent_id}/chat` — main chat endpoint
+- [x] Non-streaming: run engine with full history, return response
+- [x] Streaming: return SSE `StreamingResponse`
+- [x] Create session if `session_id` not provided
+- [x] Validate session belongs to correct agent
+- [x] Serialize concurrent requests to same session
 
 ### 4. Session Management Endpoints
 
 **File:** `src/agent_gateway/api/routes/chat.py` (same file)
 
-- [ ] `GET /v1/sessions/{session_id}` — session details + message count
-- [ ] `DELETE /v1/sessions/{session_id}` — end session
-- [ ] `GET /v1/sessions` — list sessions (with agent_id filter)
+- [x] `GET /v1/sessions/{session_id}` — session details + message count
+- [x] `DELETE /v1/sessions/{session_id}` — end session
+- [x] `GET /v1/sessions` — list sessions (with agent_id filter)
 
 ### 5. SSE Streaming Support
 
 **File:** `src/agent_gateway/engine/streaming.py`
 
-- [ ] Streaming execution wrapper that yields SSE events
-- [ ] Token streaming via `litellm.acompletion(stream=True)`
-- [ ] Heartbeat coroutine (ping every 15s)
-- [ ] Event formatting: `event: {type}\ndata: {json}\n\n`
+- [x] Streaming execution wrapper that yields SSE events
+- [x] Token streaming via `litellm.acompletion(stream=True)`
+- [x] Heartbeat coroutine (ping every 15s)
+- [x] Event formatting: `event: {type}\ndata: {json}\n\n`
 
 ### 6. LLM Client Streaming
 
 **File:** `src/agent_gateway/engine/llm.py` (extend existing)
 
-- [ ] Add `stream_completion()` method that yields token chunks
-- [ ] Handle streaming + tool calls (LiteLLM handles this)
+- [x] Add `stream_completion()` method that yields token chunks
+- [x] Handle streaming + tool calls (LiteLLM handles this)
 
 ### 7. Gateway Wiring
 
 **File:** `src/agent_gateway/gateway.py` (extend existing)
 
-- [ ] Initialize `SessionStore` during startup
-- [ ] Register chat routes in `/v1/` router
-- [ ] Start session cleanup background task
-- [ ] Stop cleanup task on shutdown
-- [ ] `gw.chat()` programmatic method
+- [x] Initialize `SessionStore` during startup
+- [x] Register chat routes in `/v1/` router
+- [x] Start session cleanup background task
+- [x] Stop cleanup task on shutdown
+- [x] `gw.chat()` programmatic method
 
 ### 8. Tests
 
-- [ ] Unit tests for `SessionStore` (create, get, delete, TTL, max sessions, LRU)
-- [ ] Unit tests for `ChatSession` (message appending, lock serialization)
-- [ ] Integration test: multi-turn conversation (3+ turns)
-- [ ] Integration test: SSE streaming event sequence
-- [ ] Integration test: session CRUD endpoints
-- [ ] Integration test: concurrent messages to same session
-- [ ] Integration test: session expiry
-- [ ] Integration test: session for wrong agent → 409
+- [x] Unit tests for `SessionStore` (create, get, delete, TTL, max sessions, LRU)
+- [x] Unit tests for `ChatSession` (message appending, lock serialization)
+- [x] Integration test: multi-turn conversation (3+ turns)
+- [x] Integration test: SSE streaming event sequence
+- [x] Integration test: session CRUD endpoints
+- [x] Integration test: concurrent messages to same session
+- [x] Integration test: session expiry
+- [x] Integration test: session for wrong agent → 409
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `POST /v1/agents/{id}/chat` creates a session and returns a response
-- [ ] Subsequent messages with the same `session_id` continue the conversation
-- [ ] `options.stream: true` returns SSE event stream
-- [ ] Session CRUD endpoints work (get, list, delete)
-- [ ] Sessions expire after TTL
-- [ ] Concurrent messages to same session are serialized
-- [ ] LLM sees full conversation history on each turn
-- [ ] Tool calls work within multi-turn context
-- [ ] All tests pass
+- [x] `POST /v1/agents/{id}/chat` creates a session and returns a response
+- [x] Subsequent messages with the same `session_id` continue the conversation
+- [x] `options.stream: true` returns SSE event stream
+- [x] Session CRUD endpoints work (get, list, delete)
+- [x] Sessions expire after TTL
+- [x] Concurrent messages to same session are serialized
+- [x] LLM sees full conversation history on each turn
+- [x] Tool calls work within multi-turn context
+- [x] All tests pass

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -153,6 +154,127 @@ class LLMClient:
             raise ExecutionError(f"LLM call failed: {e}") from e
 
         return self._parse_response(response)
+
+    async def stream_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream an LLM completion, yielding chunk events.
+
+        Yields dicts with keys:
+        - {"type": "token", "content": str}
+        - {"type": "tool_call", "index": int, "name": str, "arguments": str, "call_id": str}
+        - {"type": "tool_call_delta", "index": int, "arguments": str}
+        - {"type": "usage", "input_tokens": int, "output_tokens": int, "cost": float, "model": str}
+        """
+        kwargs: dict[str, Any] = {
+            "model": model or "default",
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+
+        try:
+            response = await self._router.acompletion(**kwargs)
+        except Exception as e:
+            logger.error("LLM streaming call failed: %s", e)
+            raise ExecutionError(f"LLM streaming call failed: {e}") from e
+
+        # Track tool call state for accumulation
+        active_tool_calls: dict[int, dict[str, str]] = {}
+        accumulated_model = ""
+        accumulated_input_tokens = 0
+        accumulated_output_tokens = 0
+
+        async for chunk in response:
+            # Extract model info
+            if hasattr(chunk, "model") and chunk.model:
+                accumulated_model = chunk.model
+
+            # Extract usage from final chunk
+            if hasattr(chunk, "usage") and chunk.usage:
+                accumulated_input_tokens = getattr(chunk.usage, "prompt_tokens", 0) or 0
+                accumulated_output_tokens = getattr(chunk.usage, "completion_tokens", 0) or 0
+
+            choices = chunk.choices
+            if not choices:
+                continue
+
+            delta = choices[0].delta
+            if delta is None:
+                continue
+
+            # Text content
+            if delta.content:
+                yield {"type": "token", "content": delta.content}
+
+            # Tool calls
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index if hasattr(tc_delta, "index") else 0
+
+                    if idx not in active_tool_calls:
+                        # New tool call
+                        active_tool_calls[idx] = {
+                            "name": "",
+                            "arguments": "",
+                            "call_id": "",
+                        }
+
+                    if tc_delta.id:
+                        active_tool_calls[idx]["call_id"] = tc_delta.id
+
+                    if tc_delta.function:
+                        if tc_delta.function.name:
+                            active_tool_calls[idx]["name"] = tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            active_tool_calls[idx]["arguments"] += tc_delta.function.arguments
+
+            # Check for finish_reason
+            if choices[0].finish_reason:
+                # Emit completed tool calls
+                for idx, tc_data in sorted(active_tool_calls.items()):
+                    yield {
+                        "type": "tool_call",
+                        "index": idx,
+                        "name": tc_data["name"],
+                        "arguments": tc_data["arguments"],
+                        "call_id": tc_data["call_id"],
+                    }
+                active_tool_calls.clear()
+
+        # Emit final usage
+        cost = 0.0
+        try:
+            if accumulated_model:
+                cost = float(
+                    litellm.cost_per_token(
+                        model=accumulated_model,
+                        prompt_tokens=accumulated_input_tokens,
+                        completion_tokens=accumulated_output_tokens,
+                    )[2]
+                    if accumulated_input_tokens or accumulated_output_tokens
+                    else 0.0
+                )
+        except Exception:
+            pass
+
+        yield {
+            "type": "usage",
+            "input_tokens": accumulated_input_tokens,
+            "output_tokens": accumulated_output_tokens,
+            "cost": cost,
+            "model": accumulated_model,
+        }
 
     def resolve_model_params(
         self,

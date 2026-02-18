@@ -85,18 +85,23 @@ class ExecutionEngine:
         options: ExecutionOptions | None = None,
         handle: ExecutionHandle | None = None,
         tool_executor: ToolExecutorFn | None = None,
+        message_history: list[dict[str, Any]] | None = None,
     ) -> ExecutionResult:
         """Run the full agent execution loop.
 
         Args:
             agent: The agent definition to execute.
-            message: The user's message.
+            message: The user's message (used when message_history is None).
             workspace: The loaded workspace state.
             context: Optional context dict from the request.
             options: Execution options (timeout, output_schema, etc.).
             handle: Optional handle for cancellation.
             tool_executor: Optional callable to execute tools. If not provided,
                 tools are not executed (useful for testing).
+            message_history: Optional pre-built message list for multi-turn chat.
+                When provided, this is used instead of constructing messages from
+                system prompt + message. Must include the system prompt as the
+                first message and the latest user message.
         """
         if options is None:
             options = ExecutionOptions()
@@ -125,10 +130,13 @@ class ExecutionEngine:
         model, temperature, max_tokens = self._llm.resolve_model_params(agent.model)
 
         # Build initial messages
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message},
-        ]
+        if message_history is not None:
+            messages = list(message_history)
+        else:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ]
 
         # Tool context for executors
         tool_context = ToolContext(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING, Any, overload
 
 from fastapi import APIRouter, FastAPI
 
+from agent_gateway.chat.session import SessionStore
 from agent_gateway.config import GatewayConfig
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMClient
@@ -25,6 +27,7 @@ from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRep
 from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
 from agent_gateway.tools.runner import execute_tool
 from agent_gateway.workspace.loader import WorkspaceState, load_workspace
+from agent_gateway.workspace.prompt import assemble_system_prompt
 from agent_gateway.workspace.registry import CodeTool, ToolRegistry
 
 if TYPE_CHECKING:
@@ -74,6 +77,8 @@ class Gateway(FastAPI):
         self._background_tasks: set[asyncio.Task[None]] = set()
         self._execution_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_EXECUTIONS)
         self._reload_lock = asyncio.Lock()
+        self._session_store: SessionStore | None = None
+        self._session_cleanup_task: asyncio.Task[None] | None = None
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -261,7 +266,13 @@ class Gateway(FastAPI):
             engine=engine,
         )
 
-        # 8. Wire auth middleware if enabled
+        # 8. Initialize session store for multi-turn chat
+        self._session_store = SessionStore()
+        self._session_cleanup_task = asyncio.create_task(
+            self._session_cleanup_loop(), name="session-cleanup"
+        )
+
+        # 9. Wire auth middleware if enabled
         if self._auth_enabled and self._config.auth.enabled and self._config.auth.api_keys:
             from agent_gateway.api.auth import ApiKeyAuthMiddleware
 
@@ -275,8 +286,24 @@ class Gateway(FastAPI):
             self._workspace_path,
         )
 
+    async def _session_cleanup_loop(self) -> None:
+        """Periodically clean up expired chat sessions."""
+        try:
+            while True:
+                await asyncio.sleep(60)
+                if self._session_store is not None:
+                    self._session_store.cleanup_expired()
+        except asyncio.CancelledError:
+            pass
+
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
+        # Cancel session cleanup task
+        if self._session_cleanup_task is not None:
+            self._session_cleanup_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._session_cleanup_task
+
         # Cancel and await all background tasks
         for task in self._background_tasks:
             task.cancel()
@@ -295,6 +322,7 @@ class Gateway(FastAPI):
     def _register_routes(self) -> None:
         """Mount all /v1/ API routes."""
         from agent_gateway.api.routes.base import GatewayAPIRoute
+        from agent_gateway.api.routes.chat import router as chat_router
         from agent_gateway.api.routes.executions import router as executions_router
         from agent_gateway.api.routes.health import router as health_router
         from agent_gateway.api.routes.introspection import router as introspection_router
@@ -303,6 +331,7 @@ class Gateway(FastAPI):
         v1 = APIRouter(prefix="/v1", route_class=GatewayAPIRoute)
         v1.include_router(health_router)
         v1.include_router(invoke_router)
+        v1.include_router(chat_router)
         v1.include_router(executions_router)
         v1.include_router(introspection_router)
 
@@ -388,6 +417,92 @@ class Gateway(FastAPI):
             )
         finally:
             self._execution_handles.pop(execution_id, None)
+
+    async def chat(
+        self,
+        agent_id: str,
+        message: str,
+        session_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        options: ExecutionOptions | None = None,
+    ) -> tuple[str, ExecutionResult]:
+        """Send a chat message programmatically (bypasses HTTP).
+
+        Args:
+            agent_id: The agent to chat with.
+            message: The user message.
+            session_id: Optional existing session ID. Creates new session if None.
+            context: Optional context dict.
+            options: Optional execution options.
+
+        Returns:
+            Tuple of (session_id, ExecutionResult).
+
+        Raises:
+            ValueError: If agent not found, engine not available, or session mismatch.
+        """
+        snapshot = self._snapshot
+        if snapshot is None or snapshot.workspace is None:
+            raise ValueError("Workspace not loaded")
+
+        agent = snapshot.workspace.agents.get(agent_id)
+        if agent is None:
+            raise ValueError(f"Agent '{agent_id}' not found")
+
+        if snapshot.engine is None:
+            raise ValueError("Execution engine not initialized")
+
+        if self._session_store is None:
+            raise ValueError("Session store not initialized")
+
+        # Get or create session
+        if session_id:
+            session = self._session_store.get_session(session_id)
+            if session is None:
+                raise ValueError(f"Session '{session_id}' not found")
+            if session.agent_id != agent_id:
+                raise ValueError(
+                    f"Session '{session_id}' belongs to agent "
+                    f"'{session.agent_id}', not '{agent_id}'"
+                )
+        else:
+            session = self._session_store.create_session(agent_id, metadata=context)
+
+        if context:
+            session.metadata.update(context)
+
+        async with session.lock:
+            session.append_user_message(message)
+            session.truncate_history(self._session_store._max_history)
+
+            system_prompt = assemble_system_prompt(agent, snapshot.workspace)
+            messages: list[dict[str, Any]] = [
+                {"role": "system", "content": system_prompt},
+                *session.messages,
+            ]
+
+            execution_id = str(uuid.uuid4())
+            handle = ExecutionHandle(execution_id=execution_id)
+            self._execution_handles[execution_id] = handle
+
+            try:
+                result = await snapshot.engine.execute(
+                    agent=agent,
+                    message=message,
+                    workspace=snapshot.workspace,
+                    context=session.metadata,
+                    options=options,
+                    handle=handle,
+                    tool_executor=execute_tool,
+                    message_history=messages,
+                )
+            finally:
+                self._execution_handles.pop(execution_id, None)
+
+            if result.raw_text:
+                session.append_assistant_message(content=result.raw_text)
+
+            return session.session_id, result
 
     async def cancel_execution(self, execution_id: str) -> bool:
         """Cancel a running execution. Returns True if cancelled."""

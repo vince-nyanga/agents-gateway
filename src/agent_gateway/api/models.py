@@ -128,3 +128,48 @@ class HealthResponse(BaseModel):
     agent_count: int = 0
     skill_count: int = 0
     tool_count: int = 0
+
+
+# --- Chat endpoint models ---
+
+
+class ChatOptions(BaseModel):
+    """Options for a chat message."""
+
+    stream: bool = False
+    timeout_ms: int | None = Field(None, ge=1000, le=300_000)
+
+    model_config = {"populate_by_name": True}
+
+
+class ChatRequest(BaseModel):
+    """Request body for POST /v1/agents/{agent_id}/chat."""
+
+    message: str = Field(..., max_length=102_400)
+    session_id: str | None = None
+    context: dict[str, Any] = Field(default_factory=dict)
+    options: ChatOptions = Field(default_factory=ChatOptions)
+
+
+class ChatResponse(BaseModel):
+    """Response body for POST /v1/agents/{agent_id}/chat (non-streaming)."""
+
+    session_id: str
+    execution_id: str
+    agent_id: str
+    status: ExecutionStatus
+    result: ResultPayload | None = None
+    usage: UsagePayload | None = None
+    error: str | None = None
+    turn_count: int = 0
+
+
+class SessionInfo(BaseModel):
+    """Session summary for introspection."""
+
+    session_id: str
+    agent_id: str
+    turn_count: int = 0
+    message_count: int = 0
+    created_at: float = 0.0
+    updated_at: float = 0.0
