@@ -18,7 +18,7 @@ router = APIRouter(route_class=GatewayAPIRoute)
 @router.get("/health", response_model=HealthResponse)
 async def health_check(request: Request) -> HealthResponse:
     """Return gateway health status and resource counts."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
 
     ws = gw.workspace
     has_errors = bool(ws.errors) if ws else True

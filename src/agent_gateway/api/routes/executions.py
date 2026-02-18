@@ -42,7 +42,7 @@ async def get_execution(
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> ExecutionResponse | JSONResponse:
     """Get execution details by ID."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
 
     record = await gw._execution_repo.get(execution_id)
     if record is None:
@@ -58,7 +58,7 @@ async def list_executions(
     limit: int = Query(50, ge=1, le=500, description="Max results"),
 ) -> list[ExecutionResponse]:
     """List executions, optionally filtered by agent."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
 
     if not agent_id:
         # TODO: add a list_all method to ExecutionRepository
@@ -74,7 +74,7 @@ async def cancel_execution(
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Cancel a running execution."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
 
     handle = gw._execution_handles.get(execution_id)
     if handle is None:

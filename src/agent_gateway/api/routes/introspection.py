@@ -25,7 +25,7 @@ _ID_PATTERN = r"^[a-zA-Z0-9_.-]+$"
 @router.get("/agents", response_model=list[AgentInfo])
 async def list_agents(request: Request) -> list[AgentInfo]:
     """List all discovered agents."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
     ws = gw.workspace
     if ws is None:
         return []
@@ -49,7 +49,7 @@ async def get_agent(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
 ) -> AgentInfo | JSONResponse:
     """Get details of a specific agent."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
     ws = gw.workspace
     if ws is None:
         return not_found("agent", agent_id)
@@ -71,7 +71,7 @@ async def get_agent(
 @router.get("/skills", response_model=list[SkillInfo])
 async def list_skills(request: Request) -> list[SkillInfo]:
     """List all discovered skills."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
     ws = gw.workspace
     if ws is None:
         return []
@@ -93,7 +93,7 @@ async def get_skill(
     skill_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
 ) -> SkillInfo | JSONResponse:
     """Get details of a specific skill."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
     ws = gw.workspace
     if ws is None:
         return not_found("skill", skill_id)
@@ -113,7 +113,7 @@ async def get_skill(
 @router.get("/tools", response_model=list[ToolInfo])
 async def list_tools(request: Request) -> list[ToolInfo]:
     """List all registered tools (file-based + code-based)."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
     reg = gw.tool_registry
     if reg is None:
         return []
@@ -135,7 +135,7 @@ async def get_tool(
     tool_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
 ) -> ToolInfo | JSONResponse:
     """Get details of a specific tool."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
     reg = gw.tool_registry
     if reg is None:
         return not_found("tool", tool_id)
@@ -155,7 +155,7 @@ async def get_tool(
 @router.post("/reload")
 async def reload_workspace(request: Request) -> JSONResponse:
     """Re-scan workspace and reload all definitions."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
 
     if not gw._reload_enabled:
         return error_response(403, "reload_disabled", "Workspace reload is disabled")

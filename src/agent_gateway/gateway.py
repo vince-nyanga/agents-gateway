@@ -86,7 +86,7 @@ class Gateway(FastAPI):
 
     def _make_lifespan(
         self, user_lifespan: Callable[..., Any] | None
-    ) -> Callable[[FastAPI], AsyncIterator[None]]:
+    ) -> Any:
         """Create a composed lifespan that wraps the user's lifespan."""
 
         @asynccontextmanager
@@ -226,6 +226,8 @@ class Gateway(FastAPI):
             try:
                 from agent_gateway.persistence.repository import (
                     AuditRepository as AuditRepo,
+                )
+                from agent_gateway.persistence.repository import (
                     ExecutionRepository as ExecRepo,
                 )
                 from agent_gateway.persistence.session import (
@@ -266,7 +268,7 @@ class Gateway(FastAPI):
             from agent_gateway.api.auth import ApiKeyAuthMiddleware
 
             valid_keys = {k.key: k.scopes for k in self._config.auth.api_keys}
-            self.add_middleware(ApiKeyAuthMiddleware, valid_keys=valid_keys)
+            self.add_middleware(ApiKeyAuthMiddleware, valid_keys=valid_keys)  # type: ignore[arg-type]
 
         agent_count = len(workspace.agents)
         logger.info(

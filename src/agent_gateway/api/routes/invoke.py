@@ -90,7 +90,7 @@ async def invoke_agent(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> InvokeResponse | JSONResponse:
     """Invoke an agent with a message."""
-    gw: Gateway = request.app  # type: ignore[assignment]
+    gw: Gateway = request.app
 
     snapshot = gw._snapshot
     if snapshot is None or snapshot.workspace is None:

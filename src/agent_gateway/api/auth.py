@@ -43,7 +43,8 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
                 content={
                     "error": {
                         "code": "auth_required",
-                        "message": "Missing or invalid Authorization header. Expected: Bearer <api_key>",
+                        "message": "Missing or invalid Authorization header."
+                        " Expected: Bearer <api_key>",
                     }
                 },
             )
