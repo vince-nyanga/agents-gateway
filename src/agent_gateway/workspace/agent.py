@@ -1,4 +1,4 @@
-"""Agent model — loaded from AGENT.md + SOUL.md + CONFIG.md."""
+"""Agent model — loaded from AGENT.md (+ optional SOUL.md / CONFIG.md)."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class AgentDefinition:
     agent_prompt: str  # Content of AGENT.md
     soul_prompt: str = ""  # Content of SOUL.md (optional)
 
-    # Parsed from CONFIG.md frontmatter
+    # Parsed from AGENT.md frontmatter (with CONFIG.md override/merge)
     skills: list[str] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
@@ -61,11 +61,12 @@ class AgentDefinition:
 
         agent_id = agent_dir.name
 
-        # Parse AGENT.md (required)
+        # Parse AGENT.md (required) — prompt body + optional frontmatter
         agent_parsed = parse_markdown_file(agent_md)
         if not agent_parsed.content.strip():
             logger.warning("Empty AGENT.md in %s, skipping agent", agent_dir)
             return None
+        agent_meta = agent_parsed.metadata
 
         # Parse SOUL.md (optional)
         soul_md = agent_dir / "SOUL.md"
@@ -74,15 +75,29 @@ class AgentDefinition:
             soul_parsed = parse_markdown_file(soul_md)
             soul_prompt = soul_parsed.content
 
-        # Parse CONFIG.md (optional)
+        # Parse CONFIG.md (optional — overrides/merges with AGENT.md frontmatter)
         config_md = agent_dir / "CONFIG.md"
-        config_metadata: dict[str, Any] = {}
+        config_meta: dict[str, Any] = {}
         if config_md.exists():
             config_parsed = parse_markdown_file(config_md)
-            config_metadata = config_parsed.metadata
+            config_meta = config_parsed.metadata
 
-        # Extract typed fields from config metadata
-        model_data = config_metadata.get("model", {})
+        # Merge lists: AGENT.md first, CONFIG.md appended, deduplicated
+        skills = list(
+            dict.fromkeys(
+                agent_meta.get("skills", []) + config_meta.get("skills", [])
+            )
+        )
+        tools = list(
+            dict.fromkeys(
+                agent_meta.get("tools", []) + config_meta.get("tools", [])
+            )
+        )
+
+        # Scalars: CONFIG.md wins over AGENT.md
+        model_data = config_meta.get("model") or agent_meta.get("model", {})
+        if not isinstance(model_data, dict):
+            model_data = {}
         model_config = AgentModelConfig(
             name=model_data.get("name"),
             temperature=model_data.get("temperature"),
@@ -90,7 +105,9 @@ class AgentDefinition:
             fallback=model_data.get("fallback"),
         )
 
-        schedules_data = config_metadata.get("schedules", [])
+        schedules_data = config_meta.get("schedules") or agent_meta.get(
+            "schedules", []
+        )
         schedules = []
         for s in schedules_data:
             try:
@@ -112,8 +129,8 @@ class AgentDefinition:
             path=agent_dir,
             agent_prompt=agent_parsed.content,
             soul_prompt=soul_prompt,
-            skills=config_metadata.get("skills", []),
-            tools=config_metadata.get("tools", []),
+            skills=skills,
+            tools=tools,
             model=model_config,
             schedules=schedules,
         )

@@ -1,7 +1,7 @@
 ---
 title: "feat: Example project E2E testing and polish"
 type: feat
-status: active
+status: completed
 date: 2026-02-18
 ---
 
@@ -67,58 +67,58 @@ Temperature is already set to 0.1 in `gateway.yaml`, which helps reduce variance
 
 ### Infrastructure
 
-- [ ] `tests/test_e2e/conftest.py` with gateway fixture using example workspace, Gemini model, in-memory SQLite
-- [ ] `@pytest.mark.e2e` marker registered in `pyproject.toml`
-- [ ] Tests skip gracefully when `GEMINI_API_KEY` is not set
-- [ ] `make test-e2e` target in Makefile
+- [x] `tests/test_e2e/conftest.py` with gateway fixture using example workspace, Gemini model, in-memory SQLite
+- [x] `@pytest.mark.e2e` marker registered in `pyproject.toml`
+- [x] Tests skip gracefully when `GEMINI_API_KEY` is not set
+- [x] `make test-e2e` target in Makefile
 
 ### Example Project Fixes
 
-- [ ] `gateway.yaml` updated to use `gemini/gemini-2.0-flash` as default model
-- [ ] `http-example` tool converted to file tool with `handler.py` (or removed if out of scope)
-- [ ] `.env.example` updated with clear instructions
+- [x] `gateway.yaml` updated to use `gemini/gemini-2.0-flash` as default model
+- [x] `http-example` tool converted to file tool with `handler.py`
+- [x] `.env.example` updated with clear instructions
 
 ### E2E Tests — Introspection & Health (no LLM)
 
-- [ ] `GET /v1/health` returns 200 with correct agent/skill/tool counts
-- [ ] `GET /v1/agents` lists `assistant` and `scheduled-reporter`
-- [ ] `GET /v1/agents/assistant` returns agent details with skills and tools
-- [ ] `GET /v1/skills` lists `math-workflow`
-- [ ] `GET /v1/tools` lists `echo`, `add-numbers`, and `http-example`
-- [ ] `GET /api/health` (custom route) returns 200
+- [x] `GET /v1/health` returns 200 with correct agent/skill/tool counts
+- [x] `GET /v1/agents` lists `assistant` and `scheduled-reporter`
+- [x] `GET /v1/agents/assistant` returns agent details with skills and tools
+- [x] `GET /v1/skills` lists `math-workflow`
+- [x] `GET /v1/tools` lists `echo`, `add-numbers`, and `http-example`
+- [x] `GET /api/health` (custom route) returns 200
 
 ### E2E Tests — Error Handling (no LLM)
 
-- [ ] `POST /v1/agents/nonexistent/invoke` returns 404 with `agent_not_found`
-- [ ] `POST /v1/agents/assistant/invoke` with empty body returns 422
-- [ ] `POST /v1/agents/assistant/chat` with bad `session_id` returns 404
+- [x] `POST /v1/agents/nonexistent/invoke` returns 404 with `agent_not_found`
+- [x] `POST /v1/agents/assistant/invoke` with empty body returns 422
+- [x] `POST /v1/agents/assistant/chat` with bad `session_id` returns 404
 
 ### E2E Tests — Invoke with Real LLM
 
-- [ ] Invoke `assistant` with a message that triggers `echo` tool — verify `usage.tool_calls >= 1`, status `completed`
-- [ ] Invoke `assistant` with a math question — verify `add_numbers` tool is called, result contains the answer
-- [ ] Invoke `assistant` with simple greeting (no tools) — verify text response
-- [ ] Invoke `scheduled-reporter` (no tools agent) — verify text response
+- [x] Invoke `assistant` with a message that triggers `echo` tool — verify `usage.tool_calls >= 1`, status `completed`
+- [x] Invoke `assistant` with a math question — verify `add_numbers` tool is called, result contains the answer
+- [x] Invoke `assistant` with simple greeting (no tools) — verify text response
+- [x] Invoke `scheduled-reporter` (no tools agent) — verify text response
 - [ ] Invoke with `http-example` tool (after fix) — verify HTTP call succeeds
 
 ### E2E Tests — Chat & Sessions (Real LLM)
 
-- [ ] Chat new session — verify `session_id` returned, `turn_count == 1`
-- [ ] Chat multi-turn — second message with same `session_id`, verify `turn_count == 2`
-- [ ] Chat with tool use — verify tool is called within chat context
-- [ ] Chat SSE streaming — verify `text/event-stream` content type, parse events, verify `session`/`token`/`done` events
-- [ ] Session CRUD — `GET /v1/sessions`, `GET /v1/sessions/{id}`, `DELETE /v1/sessions/{id}`
+- [x] Chat new session — verify `session_id` returned, `turn_count == 1`
+- [x] Chat multi-turn — second message with same `session_id`, verify `turn_count == 2`
+- [x] Chat with tool use — verify tool is called within chat context
+- [x] Chat SSE streaming — verify `text/event-stream` content type, parse events, verify `session`/`token`/`done` events
+- [x] Session CRUD — `GET /v1/sessions`, `GET /v1/sessions/{id}`, `DELETE /v1/sessions/{id}`
 
 ### E2E Tests — CLI
 
-- [ ] `agent-gateway check --workspace examples/test-project/workspace` exits 0, lists agents/skills/tools
-- [ ] `agent-gateway agents --workspace examples/test-project/workspace` lists both agents
-- [ ] `agent-gateway skills --workspace examples/test-project/workspace` lists math-workflow
+- [x] `agent-gateway check --workspace examples/test-project/workspace` exits 0, lists agents/skills/tools
+- [x] `agent-gateway agents --workspace examples/test-project/workspace` lists both agents
+- [x] `agent-gateway skills --workspace examples/test-project/workspace` lists math-workflow
 - [ ] `agent-gateway invoke assistant "What is 2+3?" --workspace examples/test-project/workspace` returns a result with "5"
 
 ### Example Project Polish
 
-- [ ] `examples/test-project/README.md` with setup instructions, prerequisites, and usage examples
+- [x] `examples/test-project/README.md` with setup instructions, prerequisites, and usage examples
 - [ ] Inline comments in `app.py` explaining key concepts
 
 ## Success Metrics

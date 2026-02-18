@@ -2,6 +2,7 @@
 
 import typer
 
+from agent_gateway.cli.chat import chat
 from agent_gateway.cli.check import check
 from agent_gateway.cli.init_cmd import init
 from agent_gateway.cli.invoke import invoke
@@ -26,6 +27,7 @@ def version() -> None:
 app.command()(init)
 app.command()(serve)
 app.command()(invoke)
+app.command()(chat)
 app.command()(check)
 app.command(name="agents")(agents)
 app.command(name="skills")(skills)

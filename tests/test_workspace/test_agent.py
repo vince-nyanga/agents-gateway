@@ -119,3 +119,65 @@ class TestAgentDefinition:
         assert agent.model.temperature == 0.0
         assert agent.model.max_tokens == 8192
         assert agent.model.fallback == "gpt-4o"
+
+    def test_frontmatter_tools_in_agent_md(self, tmp_path: Path) -> None:
+        """Tools defined in AGENT.md frontmatter are loaded."""
+        agent_dir = tmp_path / "fm-agent"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text(
+            "---\n"
+            "tools:\n  - weather\n  - flights\n"
+            "skills:\n  - planner\n"
+            "---\n"
+            "# Agent\n\nPlans trips."
+        )
+
+        agent = AgentDefinition.load(agent_dir)
+        assert agent is not None
+        assert agent.tools == ["weather", "flights"]
+        assert agent.skills == ["planner"]
+
+    def test_frontmatter_merge_agent_and_config(self, tmp_path: Path) -> None:
+        """AGENT.md and CONFIG.md lists are merged; CONFIG.md wins for scalars."""
+        agent_dir = tmp_path / "merge-agent"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text(
+            "---\n"
+            "tools:\n  - weather\n  - flights\n"
+            "model:\n  name: gpt-4o-mini\n"
+            "---\n"
+            "# Agent\n\nMerge test."
+        )
+        (agent_dir / "CONFIG.md").write_text(
+            "---\n"
+            "tools:\n  - flights\n  - hotels\n"
+            "model:\n  name: gpt-4o\n"
+            "---\n"
+        )
+
+        agent = AgentDefinition.load(agent_dir)
+        assert agent is not None
+        # Lists: union with order preserved, deduplicated
+        assert agent.tools == ["weather", "flights", "hotels"]
+        # Scalars: CONFIG.md wins
+        assert agent.model.name == "gpt-4o"
+
+    def test_frontmatter_schedules_in_agent_md(self, tmp_path: Path) -> None:
+        """Schedules defined in AGENT.md frontmatter are loaded."""
+        agent_dir = tmp_path / "sched-fm"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text(
+            "---\n"
+            "schedules:\n"
+            "  - name: nightly\n"
+            "    cron: '0 0 * * *'\n"
+            "    message: 'Run nightly'\n"
+            "---\n"
+            "# Agent\n\nScheduled via frontmatter."
+        )
+
+        agent = AgentDefinition.load(agent_dir)
+        assert agent is not None
+        assert len(agent.schedules) == 1
+        assert agent.schedules[0].name == "nightly"
+        assert agent.schedules[0].cron == "0 0 * * *"

@@ -207,10 +207,6 @@ class Gateway(FastAPI):
             logger.warning("Failed to load config, using defaults", exc_info=True)
             self._config = GatewayConfig()
 
-        # 1.5. Setup logging (never crashes)
-        with contextlib.suppress(Exception):
-            self._setup_logging()
-
         # 2. Setup telemetry (never crashes)
         try:
             from agent_gateway.telemetry import setup_telemetry
@@ -649,4 +645,5 @@ class Gateway(FastAPI):
         """Start the gateway server using uvicorn."""
         import uvicorn
 
+        self._setup_logging()
         uvicorn.run(self, host=host, port=port, **kwargs)  # type: ignore[arg-type]

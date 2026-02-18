@@ -29,6 +29,7 @@ def serve(
     effective_port = port if port != 8000 else config.server.port
 
     gw = Gateway(workspace=ws_path, reload=reload)
+    gw._setup_logging()
 
     typer.echo(f"Starting agent-gateway on {effective_host}:{effective_port}")
     uvicorn.run(

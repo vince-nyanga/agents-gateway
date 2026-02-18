@@ -1,3 +1,12 @@
+---
+skills:
+  - math-workflow
+tools:
+  - echo
+  - add-numbers
+  - http-example
+---
+
 # Assistant Agent
 
 You are a helpful assistant for testing the agent-gateway framework.
