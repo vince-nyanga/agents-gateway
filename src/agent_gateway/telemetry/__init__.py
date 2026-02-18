@@ -113,8 +113,7 @@ def _create_otlp_span_exporter(config: TelemetryConfig):  # type: ignore[no-unty
             return OTLPSpanExporter(endpoint=f"{endpoint}/v1/traces")
         except ImportError:
             logger.warning(
-                "OTLP HTTP exporter not available. "
-                "Install with: pip install agent-gateway[otlp]"
+                "OTLP HTTP exporter not available. Install with: pip install agent-gateway[otlp]"
             )
             return None
     else:
@@ -124,8 +123,7 @@ def _create_otlp_span_exporter(config: TelemetryConfig):  # type: ignore[no-unty
             return OTLPSpanExporter(endpoint=endpoint)
         except ImportError:
             logger.warning(
-                "OTLP gRPC exporter not available. "
-                "Install with: pip install agent-gateway[otlp]"
+                "OTLP gRPC exporter not available. Install with: pip install agent-gateway[otlp]"
             )
             return None
 

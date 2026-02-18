@@ -46,9 +46,7 @@ async def test_init_db_creates_tables(tmp_path):
     async with engine.connect() as conn:
         from sqlalchemy import inspect
 
-        table_names = await conn.run_sync(
-            lambda sync_conn: inspect(sync_conn).get_table_names()
-        )
+        table_names = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
 
     assert "executions" in table_names
     assert "execution_steps" in table_names

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -21,11 +22,11 @@ class ExecutionRecord(Base):
     agent_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="queued")
     message: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    context: Mapped[dict | None] = mapped_column(JSON, default=None)
-    options: Mapped[dict | None] = mapped_column(JSON, default=None)
-    result: Mapped[dict | None] = mapped_column(JSON, default=None)
+    context: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    options: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
-    usage: Mapped[dict | None] = mapped_column(JSON, default=None)
+    usage: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(
@@ -48,7 +49,7 @@ class ExecutionStep(Base):
     )
     step_type: Mapped[str] = mapped_column(String, nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
-    data: Mapped[dict | None] = mapped_column(JSON, default=None)
+    data: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -67,7 +68,7 @@ class AuditLogEntry(Base):
     actor: Mapped[str | None] = mapped_column(String, default=None)
     resource_type: Mapped[str | None] = mapped_column(String, default=None)
     resource_id: Mapped[str | None] = mapped_column(String, default=None)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, default=None)
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, default=None)
     ip_address: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -84,7 +85,7 @@ class ScheduleRecord(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     cron_expr: Mapped[str] = mapped_column(String, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    context: Mapped[dict | None] = mapped_column(JSON, default=None)
+    context: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     timezone: Mapped[str] = mapped_column(String, default="UTC")
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)

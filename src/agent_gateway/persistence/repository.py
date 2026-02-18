@@ -115,10 +115,6 @@ class AuditRepository:
     async def list_recent(self, limit: int = 100) -> list[AuditLogEntry]:
         """List recent audit log entries, most recent first."""
         async with self._session_factory() as session:
-            stmt = (
-                select(AuditLogEntry)
-                .order_by(AuditLogEntry.created_at.desc())
-                .limit(limit)
-            )
+            stmt = select(AuditLogEntry).order_by(AuditLogEntry.created_at.desc()).limit(limit)
             result = await session.execute(stmt)
             return list(result.scalars().all())

@@ -100,3 +100,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "litellm.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "opentelemetry.exporter.otlp.*"
+ignore_missing_imports = true
