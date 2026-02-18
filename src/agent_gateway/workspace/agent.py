@@ -83,16 +83,8 @@ class AgentDefinition:
             config_meta = config_parsed.metadata
 
         # Merge lists: AGENT.md first, CONFIG.md appended, deduplicated
-        skills = list(
-            dict.fromkeys(
-                agent_meta.get("skills", []) + config_meta.get("skills", [])
-            )
-        )
-        tools = list(
-            dict.fromkeys(
-                agent_meta.get("tools", []) + config_meta.get("tools", [])
-            )
-        )
+        skills = list(dict.fromkeys(agent_meta.get("skills", []) + config_meta.get("skills", [])))
+        tools = list(dict.fromkeys(agent_meta.get("tools", []) + config_meta.get("tools", [])))
 
         # Scalars: CONFIG.md wins over AGENT.md
         model_data = config_meta.get("model") or agent_meta.get("model", {})
@@ -105,9 +97,7 @@ class AgentDefinition:
             fallback=model_data.get("fallback"),
         )
 
-        schedules_data = config_meta.get("schedules") or agent_meta.get(
-            "schedules", []
-        )
+        schedules_data = config_meta.get("schedules") or agent_meta.get("schedules", [])
         schedules = []
         for s in schedules_data:
             try:

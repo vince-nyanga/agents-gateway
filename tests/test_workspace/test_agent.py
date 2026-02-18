@@ -149,10 +149,7 @@ class TestAgentDefinition:
             "# Agent\n\nMerge test."
         )
         (agent_dir / "CONFIG.md").write_text(
-            "---\n"
-            "tools:\n  - flights\n  - hotels\n"
-            "model:\n  name: gpt-4o\n"
-            "---\n"
+            "---\ntools:\n  - flights\n  - hotels\nmodel:\n  name: gpt-4o\n---\n"
         )
 
         agent = AgentDefinition.load(agent_dir)

@@ -11,16 +11,18 @@ logger = logging.getLogger(__name__)
 
 HookFn = Callable[..., Coroutine[Any, Any, None]]
 
-VALID_EVENTS = frozenset({
-    "agent.invoke.before",
-    "agent.invoke.after",
-    "tool.execute.before",
-    "tool.execute.after",
-    "llm.call.before",
-    "llm.call.after",
-    "gateway.startup",
-    "gateway.shutdown",
-})
+VALID_EVENTS = frozenset(
+    {
+        "agent.invoke.before",
+        "agent.invoke.after",
+        "tool.execute.before",
+        "tool.execute.after",
+        "llm.call.before",
+        "llm.call.after",
+        "gateway.startup",
+        "gateway.shutdown",
+    }
+)
 
 
 class HookRegistry:
