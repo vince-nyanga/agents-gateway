@@ -11,7 +11,7 @@ from agent_gateway.api.errors import error_response
 from agent_gateway.api.models import ExecutionResponse
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.engine.models import ExecutionStatus
-from agent_gateway.persistence.models import ExecutionRecord
+from agent_gateway.persistence.domain import ExecutionRecord
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway

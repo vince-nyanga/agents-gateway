@@ -11,12 +11,12 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, overload
+from typing import Any, overload
 
 from fastapi import APIRouter, FastAPI
 
 from agent_gateway.chat.session import ChatSession, SessionStore
-from agent_gateway.config import GatewayConfig
+from agent_gateway.config import GatewayConfig, PersistenceConfig
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMClient
 from agent_gateway.engine.models import (
@@ -25,15 +25,13 @@ from agent_gateway.engine.models import (
     ExecutionResult,
 )
 from agent_gateway.hooks import HookRegistry
+from agent_gateway.persistence.backend import PersistenceBackend
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
 from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
 from agent_gateway.tools.runner import execute_tool
 from agent_gateway.workspace.loader import WorkspaceState, load_workspace
 from agent_gateway.workspace.prompt import assemble_system_prompt
 from agent_gateway.workspace.registry import CodeTool, ToolRegistry
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +71,8 @@ class Gateway(FastAPI):
         self._config: GatewayConfig | None = None
         self._snapshot: WorkspaceSnapshot | None = None
         self._llm_client: LLMClient | None = None
-        self._db_engine: AsyncEngine | None = None
+        self._persistence_backend: PersistenceBackend | None = None
+        self._started = False
         self._execution_repo: ExecutionRepository = NullExecutionRepository()
         self._audit_repo: AuditRepository = NullAuditRepository()
         self._execution_handles: dict[str, ExecutionHandle] = {}
@@ -242,26 +241,19 @@ class Gateway(FastAPI):
         for code_tool in self._pending_tools:
             tool_registry.register_code_tool(code_tool)
 
-        # 5. Init persistence (graceful fallback)
-        if self._config.persistence.enabled:
-            try:
-                from agent_gateway.persistence.repository import (
-                    AuditRepository as AuditRepo,
-                )
-                from agent_gateway.persistence.repository import (
-                    ExecutionRepository as ExecRepo,
-                )
-                from agent_gateway.persistence.session import (
-                    create_db_engine,
-                    create_session_factory,
-                    init_db,
-                )
+        # 5. Init persistence
+        backend = self._persistence_backend
+        if backend is None and self._config.persistence.enabled:
+            backend = self._backend_from_config(self._config.persistence)
 
-                self._db_engine = create_db_engine(self._config.persistence)
-                await init_db(self._db_engine)
-                session_factory = create_session_factory(self._db_engine)
-                self._execution_repo = ExecRepo(session_factory)
-                self._audit_repo = AuditRepo(session_factory)
+        if backend is not None:
+            try:
+                await backend.initialize()
+                self._persistence_backend = backend
+                self._execution_repo = backend.execution_repo
+                self._audit_repo = backend.audit_repo
+            except ImportError:
+                raise  # Don't swallow missing driver errors
             except Exception:
                 logger.warning("Failed to init persistence, using null repos", exc_info=True)
 
@@ -297,6 +289,8 @@ class Gateway(FastAPI):
 
             valid_keys = {k.key: k.scopes for k in self._config.auth.api_keys}
             self.add_middleware(ApiKeyAuthMiddleware, valid_keys=valid_keys)  # type: ignore[arg-type]
+
+        self._started = True
 
         agent_count = len(workspace.agents)
         logger.info(
@@ -337,10 +331,94 @@ class Gateway(FastAPI):
         if self._llm_client:
             await self._llm_client.close()
 
-        if self._db_engine is not None:
-            await self._db_engine.dispose()
+        if self._persistence_backend is not None:
+            await self._persistence_backend.dispose()
 
+        self._started = False
         logger.info("Gateway shut down")
+
+    # --- Persistence configuration (fluent API) ---
+
+    def use_sqlite(
+        self,
+        path: str = "agent_gateway.db",
+        table_prefix: str = "",
+    ) -> Gateway:
+        """Configure SQLite persistence.
+
+        Requires: pip install agent-gateway[sqlite]
+
+        Args:
+            path: Path to the SQLite database file, or ":memory:" for in-memory.
+            table_prefix: Optional prefix for table names (e.g. "ag_").
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure persistence after gateway has started")
+        from agent_gateway.persistence.backends.sqlite import SqliteBackend
+
+        self._persistence_backend = SqliteBackend(path=path, table_prefix=table_prefix)
+        return self
+
+    def use_postgres(
+        self,
+        url: str,
+        schema: str | None = None,
+        table_prefix: str = "",
+        pool_size: int = 10,
+        max_overflow: int = 20,
+    ) -> Gateway:
+        """Configure PostgreSQL persistence.
+
+        Requires: pip install agent-gateway[postgres]
+
+        Args:
+            url: PostgreSQL DSN (e.g. "postgresql+asyncpg://user:pass@host/db").
+            schema: PostgreSQL schema name (must pre-exist).
+            table_prefix: Optional prefix for table names (e.g. "ag_").
+            pool_size: Connection pool size.
+            max_overflow: Max connections beyond pool_size.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure persistence after gateway has started")
+        from agent_gateway.persistence.backends.postgres import PostgresBackend
+
+        self._persistence_backend = PostgresBackend(
+            url=url,
+            schema=schema,
+            table_prefix=table_prefix,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+        )
+        return self
+
+    def use_persistence(self, backend: PersistenceBackend | None) -> Gateway:
+        """Configure a custom persistence backend, or None to disable.
+
+        Args:
+            backend: A PersistenceBackend implementation, or None for NullPersistence.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure persistence after gateway has started")
+        self._persistence_backend = backend
+        return self
+
+    def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
+        """Create a backend from YAML/env configuration (backward compat)."""
+        if config.backend == "sqlite":
+            from agent_gateway.persistence.backends.sqlite import SqliteBackend
+
+            # Extract path from URL: "sqlite+aiosqlite:///foo.db" -> "foo.db"
+            path = config.url.split("///", 1)[-1] if "///" in config.url else "agent_gateway.db"
+            return SqliteBackend(path=path, table_prefix=config.table_prefix)
+        elif config.backend in ("postgres", "postgresql"):
+            from agent_gateway.persistence.backends.postgres import PostgresBackend
+
+            return PostgresBackend(
+                url=config.url,
+                schema=config.db_schema,
+                table_prefix=config.table_prefix,
+            )
+        return None
 
     def _register_routes(self) -> None:
         """Mount all /v1/ API routes."""

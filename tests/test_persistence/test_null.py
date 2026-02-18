@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agent_gateway.persistence.models import ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import ExecutionRecord, ExecutionStep
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
 
 

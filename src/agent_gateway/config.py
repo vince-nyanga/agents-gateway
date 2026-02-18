@@ -70,8 +70,10 @@ class NotificationsConfig(BaseModel):
 
 class PersistenceConfig(BaseModel):
     enabled: bool = True
-    backend: str = "sqlite"  # sqlite | postgresql
+    backend: str = "sqlite"  # sqlite | postgres
     url: str = "sqlite+aiosqlite:///agent_gateway.db"
+    table_prefix: str = ""
+    db_schema: str | None = None  # PostgreSQL schema name
 
 
 class TelemetryConfig(BaseModel):

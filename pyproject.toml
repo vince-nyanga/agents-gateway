@@ -27,7 +27,6 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "litellm>=1.40",
     "sqlalchemy>=2.0",
-    "aiosqlite>=0.20",
     "python-frontmatter>=1.1",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
@@ -45,12 +44,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+sqlite = ["aiosqlite>=0.20"]
+postgres = ["asyncpg>=0.29"]
+postgresql = ["agent-gateway[postgres]"]  # backward-compat alias
 otlp = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.24",
     "opentelemetry-exporter-otlp-proto-http>=1.24",
 ]
 slack = ["slack-bolt>=1.18"]
-postgresql = ["asyncpg>=0.29", "psycopg[binary]>=3.1"]
 redis = ["redis>=5.0"]
 dev = [
     "pytest>=8.0",
@@ -61,8 +62,9 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML>=6.0",
     "types-jsonschema>=4.21",
+    "aiosqlite>=0.20",
 ]
-all = ["agent-gateway[otlp,slack,postgresql,redis]"]
+all = ["agent-gateway[sqlite,postgres,otlp,slack,redis]"]
 
 [project.scripts]
 agent-gateway = "agent_gateway.cli.main:app"

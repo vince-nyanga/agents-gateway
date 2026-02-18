@@ -27,7 +27,7 @@ from agent_gateway.engine.models import (
     ExecutionResult,
     ExecutionStatus,
 )
-from agent_gateway.persistence.models import ExecutionRecord
+from agent_gateway.persistence.domain import ExecutionRecord
 from agent_gateway.tools.runner import execute_tool
 
 if TYPE_CHECKING:

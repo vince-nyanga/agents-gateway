@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_gateway.persistence.models import AuditLogEntry, ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import AuditLogEntry, ExecutionRecord, ExecutionStep
 
 
 class NullExecutionRepository:

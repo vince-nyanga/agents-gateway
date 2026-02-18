@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from agent_gateway.persistence.models import AuditLogEntry, ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import AuditLogEntry, ExecutionRecord, ExecutionStep
 
 
 @runtime_checkable

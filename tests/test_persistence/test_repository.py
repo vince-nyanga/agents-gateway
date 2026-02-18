@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agent_gateway.persistence.models import ExecutionRecord, ExecutionStep
-from agent_gateway.persistence.repository import AuditRepository, ExecutionRepository
+from agent_gateway.persistence.backends.sql.repository import (
+    AuditRepository,
+    ExecutionRepository,
+)
+from agent_gateway.persistence.domain import ExecutionRecord, ExecutionStep
 
 
 async def test_create_and_get_execution(session_factory: async_sessionmaker[AsyncSession]):

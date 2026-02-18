@@ -1,4 +1,4 @@
-"""CRUD operations for Agent Gateway persistence."""
+"""CRUD operations for SQL persistence backends (SQLite, PostgreSQL)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agent_gateway.persistence.models import AuditLogEntry, ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import AuditLogEntry, ExecutionRecord, ExecutionStep
 
 
 class ExecutionRepository:
@@ -70,8 +70,8 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             stmt = (
                 select(ExecutionRecord)
-                .where(ExecutionRecord.agent_id == agent_id)
-                .order_by(ExecutionRecord.created_at.desc())
+                .where(ExecutionRecord.agent_id == agent_id)  # type: ignore[arg-type]
+                .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
                 .limit(limit)
             )
             result = await session.execute(stmt)
@@ -105,7 +105,7 @@ class AuditRepository:
             actor=actor,
             resource_type=resource_type,
             resource_id=resource_id,
-            metadata_=metadata,
+            metadata=metadata,
             ip_address=ip_address,
         )
         async with self._session_factory() as session:
@@ -115,6 +115,10 @@ class AuditRepository:
     async def list_recent(self, limit: int = 100) -> list[AuditLogEntry]:
         """List recent audit log entries, most recent first."""
         async with self._session_factory() as session:
-            stmt = select(AuditLogEntry).order_by(AuditLogEntry.created_at.desc()).limit(limit)
+            stmt = (
+                select(AuditLogEntry)
+                .order_by(AuditLogEntry.created_at.desc())  # type: ignore[union-attr]
+                .limit(limit)
+            )
             result = await session.execute(stmt)
             return list(result.scalars().all())
