@@ -20,9 +20,7 @@ class TestCancellation:
     @pytest.mark.asyncio
     async def test_cancel_before_execution(self) -> None:
         """Cancel event set before execution starts → CANCELLED immediately."""
-        engine, _, _ = make_engine(
-            responses=[make_llm_response(text="Should not reach this")]
-        )
+        engine, _, _ = make_engine(responses=[make_llm_response(text="Should not reach this")])
         agent = make_agent()
         workspace = make_workspace()
 

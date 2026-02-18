@@ -22,9 +22,7 @@ class TestSimpleCompletion:
     @pytest.mark.asyncio
     async def test_text_response_no_tools(self) -> None:
         """LLM returns text with no tool calls → COMPLETED."""
-        engine, mock_llm, _ = make_engine(
-            responses=[make_llm_response(text="Hello, world!")]
-        )
+        engine, mock_llm, _ = make_engine(responses=[make_llm_response(text="Hello, world!")])
         agent = make_agent()
         workspace = make_workspace()
 
@@ -37,9 +35,7 @@ class TestSimpleCompletion:
     @pytest.mark.asyncio
     async def test_empty_response(self) -> None:
         """LLM returns empty text → COMPLETED with empty text."""
-        engine, _, _ = make_engine(
-            responses=[make_llm_response(text=None)]
-        )
+        engine, _, _ = make_engine(responses=[make_llm_response(text=None)])
         agent = make_agent()
         workspace = make_workspace()
 
@@ -81,15 +77,21 @@ class TestToolCalling:
         echo_tool = make_resolved_tool(name="echo")
         engine, _, _ = make_engine(
             responses=[
-                make_llm_response(tool_calls=[
-                    make_tool_call(name="echo", arguments={"message": "1"}, call_id="c1"),
-                ]),
-                make_llm_response(tool_calls=[
-                    make_tool_call(name="echo", arguments={"message": "2"}, call_id="c2"),
-                ]),
-                make_llm_response(tool_calls=[
-                    make_tool_call(name="echo", arguments={"message": "3"}, call_id="c3"),
-                ]),
+                make_llm_response(
+                    tool_calls=[
+                        make_tool_call(name="echo", arguments={"message": "1"}, call_id="c1"),
+                    ]
+                ),
+                make_llm_response(
+                    tool_calls=[
+                        make_tool_call(name="echo", arguments={"message": "2"}, call_id="c2"),
+                    ]
+                ),
+                make_llm_response(
+                    tool_calls=[
+                        make_tool_call(name="echo", arguments={"message": "3"}, call_id="c3"),
+                    ]
+                ),
                 make_llm_response(text="Done after 3 tool calls"),
             ],
             tools=[echo_tool],
@@ -122,9 +124,7 @@ class TestToolCalling:
         agent = make_agent(tools=["echo"])
         workspace = make_workspace()
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=simple_tool_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=simple_tool_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         assert result.raw_text == "Final answer"

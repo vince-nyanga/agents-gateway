@@ -82,9 +82,7 @@ class TestStructuredOutputInExecution:
     @pytest.mark.asyncio
     async def test_valid_output_schema(self) -> None:
         """LLM returns valid JSON matching schema → output populated."""
-        engine, _, _ = make_engine(
-            responses=[make_llm_response(text='{"answer": 42}')]
-        )
+        engine, _, _ = make_engine(responses=[make_llm_response(text='{"answer": 42}')])
         agent = make_agent()
         workspace = make_workspace()
         from agent_gateway.engine.models import ExecutionOptions
@@ -139,9 +137,7 @@ class TestStructuredOutputInExecution:
     @pytest.mark.asyncio
     async def test_no_schema(self) -> None:
         """No output_schema → raw_text only, output=None."""
-        engine, _, _ = make_engine(
-            responses=[make_llm_response(text="Just text")]
-        )
+        engine, _, _ = make_engine(responses=[make_llm_response(text="Just text")])
         agent = make_agent()
         workspace = make_workspace()
 

@@ -46,9 +46,7 @@ class TestToolPermissionDenied:
     @pytest.mark.asyncio
     async def test_tool_not_permitted_for_agent(self) -> None:
         """Tool exists but is restricted → error returned, loop continues."""
-        restricted_tool = make_resolved_tool(
-            name="restricted", allowed_agents=["other-agent"]
-        )
+        restricted_tool = make_resolved_tool(name="restricted", allowed_agents=["other-agent"])
         engine, _, _ = make_engine(
             responses=[
                 make_llm_response(
@@ -93,9 +91,7 @@ class TestToolException:
         agent = make_agent(tools=["failing-tool"])
         workspace = make_workspace()
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=failing_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=failing_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         assert result.raw_text == "Tool failed, but I handled it"
@@ -126,9 +122,7 @@ class TestOversizedResult:
         agent = make_agent(tools=["big-tool"])
         workspace = make_workspace()
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=big_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=big_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         # Verify the tool result message was truncated
@@ -179,9 +173,7 @@ class TestInvalidToolArguments:
         agent = make_agent(tools=["strict-tool"])
         workspace = make_workspace()
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=simple_tool_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=simple_tool_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         assert result.raw_text == "Fixed the arguments"
@@ -204,9 +196,7 @@ class TestSanitizedErrorMessages:
         engine, mock_llm, _ = make_engine(
             responses=[
                 make_llm_response(
-                    tool_calls=[
-                        make_tool_call(name="leaky-tool", arguments={}, call_id="c1")
-                    ]
+                    tool_calls=[make_tool_call(name="leaky-tool", arguments={}, call_id="c1")]
                 ),
                 make_llm_response(text="Handled"),
             ],
@@ -215,9 +205,7 @@ class TestSanitizedErrorMessages:
         agent = make_agent(tools=["leaky-tool"])
         workspace = make_workspace()
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=leaky_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=leaky_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         tool_msg = mock_llm.calls[1]["messages"][-1]

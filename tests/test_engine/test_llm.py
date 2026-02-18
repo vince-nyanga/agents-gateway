@@ -118,9 +118,7 @@ class TestLLMClientCompletion:
         client = LLMClient(config)
 
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content="Hello!", tool_calls=None))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content="Hello!", tool_calls=None))]
         mock_response.usage = MagicMock(prompt_tokens=5, completion_tokens=10)
         mock_response.model = "gpt-4o-mini"
 

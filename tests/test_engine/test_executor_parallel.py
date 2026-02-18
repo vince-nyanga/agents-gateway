@@ -51,9 +51,7 @@ class TestParallelToolExecution:
             execution_order.append(f"end:{msg}")
             return {"echo": msg}
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=tracking_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=tracking_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         assert result.usage.tool_calls == 3
@@ -89,9 +87,7 @@ class TestParallelToolExecution:
         agent = make_agent(tools=["echo", "fail"])
         workspace = make_workspace()
 
-        result = await engine.execute(
-            agent, "test", workspace, tool_executor=mixed_executor
-        )
+        result = await engine.execute(agent, "test", workspace, tool_executor=mixed_executor)
 
         assert result.stop_reason == StopReason.COMPLETED
         assert result.usage.tool_calls == 3  # All counted
@@ -102,7 +98,5 @@ class TestParallelToolExecution:
         assert len(tool_results) == 3
 
         # Find the error result
-        error_results = [
-            m for m in tool_results if "error" in m.get("content", "").lower()
-        ]
+        error_results = [m for m in tool_results if "error" in m.get("content", "").lower()]
         assert len(error_results) == 1
