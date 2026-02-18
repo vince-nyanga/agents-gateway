@@ -18,12 +18,14 @@ from agent_gateway.queue.null import NullQueue
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
 
-_TERMINAL_STATUSES = frozenset({
-    ExecutionStatus.COMPLETED,
-    ExecutionStatus.FAILED,
-    ExecutionStatus.CANCELLED,
-    ExecutionStatus.TIMEOUT,
-})
+_TERMINAL_STATUSES = frozenset(
+    {
+        ExecutionStatus.COMPLETED,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.CANCELLED,
+        ExecutionStatus.TIMEOUT,
+    }
+)
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
@@ -119,9 +121,7 @@ async def cancel_execution(
     # 3. Check persistence for terminal or unknown state
     record = await gw._execution_repo.get(execution_id)
     if record is None:
-        return error_response(
-            404, "execution_not_found", f"Execution '{execution_id}' not found"
-        )
+        return error_response(404, "execution_not_found", f"Execution '{execution_id}' not found")
 
     if record.status in _TERMINAL_STATUSES:
         return error_response(

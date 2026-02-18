@@ -63,7 +63,9 @@ class RedisQueue:
 
         logger.info(
             "RedisQueue initialized: stream=%s, group=%s, consumer=%s",
-            self._stream_key, self._consumer_group, self._consumer_name,
+            self._stream_key,
+            self._consumer_group,
+            self._consumer_name,
         )
 
     async def _recover_stale_entries(self) -> None:
@@ -188,9 +190,7 @@ class RedisQueue:
         """Set a cancel key in Redis."""
         if self._redis is None:
             return False
-        await self._redis.set(
-            f"{_CANCEL_KEY_PREFIX}{job_id}", "1", ex=_CANCEL_TTL_S
-        )
+        await self._redis.set(f"{_CANCEL_KEY_PREFIX}{job_id}", "1", ex=_CANCEL_TTL_S)
         return True
 
     async def is_cancelled(self, job_id: str) -> bool:

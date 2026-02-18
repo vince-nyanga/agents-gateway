@@ -61,9 +61,7 @@ class WorkerPool:
         """Start worker coroutines."""
         num_workers = self._config.workers
         for i in range(num_workers):
-            task = asyncio.create_task(
-                self._worker_loop(i), name=f"queue-worker-{i}"
-            )
+            task = asyncio.create_task(self._worker_loop(i), name=f"queue-worker-{i}")
             self._tasks.append(task)
 
         logger.info("Worker pool started: %d workers", num_workers)
@@ -75,9 +73,7 @@ class WorkerPool:
 
         if self._tasks:
             # Wait for workers to finish current jobs, then cancel
-            done, pending = await asyncio.wait(
-                self._tasks, timeout=drain_timeout
-            )
+            done, pending = await asyncio.wait(self._tasks, timeout=drain_timeout)
             for task in pending:
                 task.cancel()
             if pending:
@@ -104,12 +100,11 @@ class WorkerPool:
             # Check cancel BEFORE execution
             if await self._queue.is_cancelled(job.execution_id):
                 await self._queue.ack(job.execution_id)
-                await gw._execution_repo.update_status(
-                    job.execution_id, ExecutionStatus.CANCELLED
-                )
+                await gw._execution_repo.update_status(job.execution_id, ExecutionStatus.CANCELLED)
                 logger.info(
                     "Worker %d: job %s cancelled before execution",
-                    worker_id, job.execution_id,
+                    worker_id,
+                    job.execution_id,
                 )
                 continue
 
@@ -123,7 +118,9 @@ class WorkerPool:
                 )
                 logger.warning(
                     "Worker %d: job %s exceeded max retries (%d)",
-                    worker_id, job.execution_id, self._config.max_retries,
+                    worker_id,
+                    job.execution_id,
+                    self._config.max_retries,
                 )
                 continue
 
@@ -156,7 +153,9 @@ class WorkerPool:
             except Exception as exc:
                 logger.error(
                     "Worker %d: job %s failed unexpectedly",
-                    worker_id, job.execution_id, exc_info=True,
+                    worker_id,
+                    job.execution_id,
+                    exc_info=True,
                 )
                 self._metrics.queue_jobs_failed.add(1, attrs)
                 set_span_error(span, exc)
@@ -229,12 +228,17 @@ class WorkerPool:
 
             logger.info(
                 "Worker %d: job %s completed (%s, %dms)",
-                worker_id, job.execution_id, status, duration_ms,
+                worker_id,
+                job.execution_id,
+                status,
+                duration_ms,
             )
         except Exception as e:
             logger.error(
                 "Worker %d: job %s execution failed: %s",
-                worker_id, job.execution_id, e,
+                worker_id,
+                job.execution_id,
+                e,
             )
             await gw._execution_repo.update_status(
                 job.execution_id, ExecutionStatus.FAILED, error=str(e)
@@ -252,4 +256,3 @@ class WorkerPool:
                     break
         except asyncio.CancelledError:
             pass
-

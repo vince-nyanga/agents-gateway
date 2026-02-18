@@ -87,9 +87,7 @@ async def test_worker_processes_job() -> None:
     await pool.drain()
 
     # Verify execution happened
-    gw._execution_repo.update_status.assert_any_call(
-        "exec-1", ExecutionStatus.RUNNING
-    )
+    gw._execution_repo.update_status.assert_any_call("exec-1", ExecutionStatus.RUNNING)
     gw._snapshot.engine.execute.assert_called_once()
 
     # Verify result was persisted
@@ -116,9 +114,7 @@ async def test_worker_skips_cancelled_job() -> None:
     gw._snapshot.engine.execute.assert_not_called()
 
     # Status should be CANCELLED
-    gw._execution_repo.update_status.assert_called_with(
-        "exec-1", ExecutionStatus.CANCELLED
-    )
+    gw._execution_repo.update_status.assert_called_with("exec-1", ExecutionStatus.CANCELLED)
 
 
 async def test_worker_skips_max_retries_exceeded() -> None:

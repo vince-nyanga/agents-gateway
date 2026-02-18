@@ -52,9 +52,7 @@ class RabbitMQQueue:
             aio_pika.ExchangeType.DIRECT,
             durable=True,
         )
-        dlq = await self._channel.declare_queue(
-            self._dlq_name, durable=True
-        )
+        dlq = await self._channel.declare_queue(self._dlq_name, durable=True)
         await dlq.bind(dlx_exchange, routing_key=self._queue_name)
 
         # Main execution queue with DLX
@@ -80,13 +78,12 @@ class RabbitMQQueue:
         await self._cancel_queue.bind(cancel_exchange)
 
         # Start consuming cancel messages
-        self._cancel_consumer_tag = await self._cancel_queue.consume(
-            self._on_cancel_message
-        )
+        self._cancel_consumer_tag = await self._cancel_queue.consume(self._on_cancel_message)
 
         logger.info(
             "RabbitMQQueue initialized: queue=%s, dlq=%s",
-            self._queue_name, self._dlq_name,
+            self._queue_name,
+            self._dlq_name,
         )
 
     async def _on_cancel_message(self, message: Any) -> None:
@@ -118,9 +115,7 @@ class RabbitMQQueue:
             message_id=job.execution_id,
             headers={"retry_count": job.retry_count},
         )
-        await self._channel.default_exchange.publish(
-            message, routing_key=self._queue_name
-        )
+        await self._channel.default_exchange.publish(message, routing_key=self._queue_name)
 
     async def dequeue(self, timeout: float = 0) -> ExecutionJob | None:  # noqa: ASYNC109
         """Pull a single message from the queue."""
@@ -200,9 +195,7 @@ class RabbitMQQueue:
         if self._channel is None:
             return 0
         try:
-            queue_info = await self._channel.declare_queue(
-                self._queue_name, passive=True
-            )
+            queue_info = await self._channel.declare_queue(self._queue_name, passive=True)
             return int(queue_info.declaration_result.message_count)
         except Exception:
             return 0
