@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from agent_gateway.engine.models import ExecutionStatus
+
 
 class InvokeOptions(BaseModel):
-    """Options for an agent invocation."""
+    """Options for an agent invocation.
+
+    The ``async_`` field uses ``alias="async"`` so callers can send
+    ``{"async": true}`` in JSON.  ``populate_by_name`` allows either form.
+    """
 
     async_: bool = Field(False, alias="async")
-    timeout_ms: int | None = None
-    callback_url: str | None = None
-    notify: list[str] = Field(default_factory=list)
-    stream: bool = False
+    timeout_ms: int | None = Field(None, ge=1000, le=300_000)
 
     model_config = {"populate_by_name": True}
 
@@ -42,7 +46,7 @@ class UsagePayload(BaseModel):
 class ResultPayload(BaseModel):
     """Execution result payload."""
 
-    output: dict[str, Any] | Any | None = None
+    output: Any = None
     raw_text: str = ""
     validation_errors: list[str] | None = None
 
@@ -52,7 +56,7 @@ class InvokeResponse(BaseModel):
 
     execution_id: str
     agent_id: str
-    status: str
+    status: ExecutionStatus
     result: ResultPayload | None = None
     usage: UsagePayload | None = None
     error: str | None = None
@@ -64,7 +68,6 @@ class ErrorDetail(BaseModel):
     code: str
     message: str
     execution_id: str | None = None
-    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class ErrorResponse(BaseModel):
@@ -78,15 +81,15 @@ class ExecutionResponse(BaseModel):
 
     execution_id: str
     agent_id: str
-    status: str
+    status: ExecutionStatus
     message: str
     context: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
     usage: dict[str, Any] | None = None
-    started_at: str | None = None
-    completed_at: str | None = None
-    created_at: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime | None = None
 
 
 class AgentInfo(BaseModel):
@@ -112,20 +115,16 @@ class SkillInfo(BaseModel):
 class ToolInfo(BaseModel):
     """Tool summary for introspection."""
 
-    id: str
     name: str
     description: str = ""
-    source: str = ""  # "file" or "code"
+    source: Literal["file", "code", ""] = ""
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
 class HealthResponse(BaseModel):
     """Response for GET /v1/health."""
 
-    status: str  # "ok" or "degraded"
+    status: Literal["ok", "degraded"]
     agent_count: int = 0
     skill_count: int = 0
     tool_count: int = 0
-    workspace_path: str = ""
-    startup_errors: list[str] = Field(default_factory=list)
-    startup_warnings: list[str] = Field(default_factory=list)

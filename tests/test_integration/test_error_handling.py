@@ -5,19 +5,12 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
 from agent_gateway.engine.models import ToolCall
 from agent_gateway.gateway import Gateway
 
-from .conftest import make_llm_response
-
-
-async def _make_client(gw: Gateway) -> AsyncClient:
-    """Create a test client with startup triggered."""
-    await gw._startup()
-    transport = ASGITransport(app=gw)  # type: ignore[arg-type]
-    return AsyncClient(transport=transport, base_url="http://test")
+from .conftest import make_llm_response, make_test_client
 
 
 async def test_unknown_agent_404(client: AsyncClient) -> None:
@@ -88,7 +81,7 @@ async def test_llm_failure_returns_error(
     async def _fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("LLM is down")
 
-    ac = await _make_client(gateway_app)
+    ac = await make_test_client(gateway_app)
     try:
         with patch("agent_gateway.engine.llm.LLMClient.completion", side_effect=_fail):
             resp = await ac.post(
@@ -123,7 +116,7 @@ async def test_tool_crash_during_execution(
         """A tool that crashes."""
         raise ValueError("boom!")
 
-    ac = await _make_client(gateway_app)
+    ac = await make_test_client(gateway_app)
     try:
         with mock_llm_completion(responses):
             resp = await ac.post(

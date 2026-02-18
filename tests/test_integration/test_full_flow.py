@@ -4,19 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
 from agent_gateway.engine.models import ToolCall
 from agent_gateway.gateway import Gateway
 
-from .conftest import make_llm_response
-
-
-async def _make_client(gw: Gateway) -> AsyncClient:
-    """Create a test client with startup triggered."""
-    await gw._startup()
-    transport = ASGITransport(app=gw)  # type: ignore[arg-type]
-    return AsyncClient(transport=transport, base_url="http://test")
+from .conftest import make_llm_response, make_test_client
 
 
 async def test_invoke_agent_full_flow(
@@ -31,7 +24,7 @@ async def test_invoke_agent_full_flow(
         ),
         make_llm_response(text="The echo tool returned: hello"),
     ]
-    ac = await _make_client(gateway_app)
+    ac = await make_test_client(gateway_app)
     try:
         with mock_llm_completion(responses):
             resp = await ac.post(
@@ -57,7 +50,7 @@ async def test_invoke_agent_simple_text(
 ) -> None:
     """POST /v1/agents/test-agent/invoke -> direct text response (no tools)."""
     responses = [make_llm_response(text="Hello! I'm a test agent.")]
-    ac = await _make_client(gateway_app)
+    ac = await make_test_client(gateway_app)
     try:
         with mock_llm_completion(responses):
             resp = await ac.post(
@@ -125,7 +118,7 @@ async def test_execution_id_header(
 ) -> None:
     """Response includes X-Execution-Id header."""
     responses = [make_llm_response(text="done")]
-    ac = await _make_client(gateway_app)
+    ac = await make_test_client(gateway_app)
     try:
         with mock_llm_completion(responses):
             resp = await ac.post(

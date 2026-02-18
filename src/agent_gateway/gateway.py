@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from fastapi import APIRouter, FastAPI
 
@@ -19,11 +22,26 @@ from agent_gateway.engine.models import (
     ExecutionResult,
 )
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
+from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
 from agent_gateway.tools.runner import execute_tool
 from agent_gateway.workspace.loader import WorkspaceState, load_workspace
 from agent_gateway.workspace.registry import CodeTool, ToolRegistry
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
 logger = logging.getLogger(__name__)
+
+_MAX_CONCURRENT_EXECUTIONS = 50
+
+
+@dataclass(frozen=True)
+class WorkspaceSnapshot:
+    """Immutable bundle of workspace + registry + engine for atomic reload."""
+
+    workspace: WorkspaceState
+    tool_registry: ToolRegistry
+    engine: ExecutionEngine | None
 
 
 class Gateway(FastAPI):
@@ -35,27 +53,27 @@ class Gateway(FastAPI):
 
     def __init__(
         self,
-        workspace: str = "./workspace",
-        auth: bool | None = True,
+        workspace: str | Path = "./workspace",
+        auth: bool = True,
         reload: bool = False,
         **fastapi_kwargs: Any,
     ) -> None:
-        self._workspace_path = workspace
+        self._workspace_path = str(workspace)
         self._auth_enabled = auth
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
 
         # Initialized during lifespan startup
         self._config: GatewayConfig | None = None
-        self._workspace: WorkspaceState | None = None
-        self._tool_registry: ToolRegistry | None = None
+        self._snapshot: WorkspaceSnapshot | None = None
         self._llm_client: LLMClient | None = None
-        self._engine: ExecutionEngine | None = None
-        self._db_engine: Any = None
-        self._execution_repo: Any = NullExecutionRepository()
-        self._audit_repo: Any = NullAuditRepository()
+        self._db_engine: AsyncEngine | None = None
+        self._execution_repo: ExecutionRepository = NullExecutionRepository()
+        self._audit_repo: AuditRepository = NullAuditRepository()
         self._execution_handles: dict[str, ExecutionHandle] = {}
-        self._event_hooks: dict[str, list[Callable[..., Any]]] = {}
+        self._background_tasks: set[asyncio.Task[None]] = set()
+        self._execution_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_EXECUTIONS)
+        self._reload_lock = asyncio.Lock()
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -87,6 +105,76 @@ class Gateway(FastAPI):
 
         return lifespan
 
+    # --- Public read-only accessors (010: programmatic parity) ---
+
+    @property
+    def workspace(self) -> WorkspaceState | None:
+        """Current workspace state."""
+        return self._snapshot.workspace if self._snapshot else None
+
+    @property
+    def tool_registry(self) -> ToolRegistry | None:
+        """Current tool registry."""
+        return self._snapshot.tool_registry if self._snapshot else None
+
+    @property
+    def engine(self) -> ExecutionEngine | None:
+        """Current execution engine."""
+        return self._snapshot.engine if self._snapshot else None
+
+    @property
+    def agents(self) -> dict[str, Any]:
+        """Discovered agents (empty dict if workspace not loaded)."""
+        ws = self.workspace
+        return dict(ws.agents) if ws else {}
+
+    @property
+    def skills(self) -> dict[str, Any]:
+        """Discovered skills."""
+        ws = self.workspace
+        return dict(ws.skills) if ws else {}
+
+    @property
+    def tools(self) -> dict[str, Any]:
+        """Registered tools."""
+        reg = self.tool_registry
+        return dict(reg.get_all()) if reg else {}
+
+    def health(self) -> dict[str, Any]:
+        """Return gateway health info (programmatic equivalent of GET /v1/health)."""
+        ws = self.workspace
+        errors = ws.errors if ws else ["Workspace not loaded"]
+        return {
+            "status": "ok" if not errors else "degraded",
+            "agent_count": len(ws.agents) if ws else 0,
+            "skill_count": len(ws.skills) if ws else 0,
+            "tool_count": len(self.tools),
+        }
+
+    # --- Lifecycle ---
+
+    @asynccontextmanager
+    async def managed(self) -> AsyncIterator[Gateway]:
+        """Context manager for non-ASGI usage (CLI, scripts, tests).
+
+        Usage::
+
+            async with Gateway(workspace="./ws") as gw:
+                result = await gw.invoke("agent", "hello")
+        """
+        await self._startup()
+        try:
+            yield self
+        finally:
+            await self._shutdown()
+
+    async def __aenter__(self) -> Gateway:
+        await self._startup()
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self._shutdown()
+
     async def _startup(self) -> None:
         """Initialize all gateway components on startup."""
         ws_path = Path(self._workspace_path)
@@ -107,14 +195,15 @@ class Gateway(FastAPI):
             logger.warning("Failed to setup telemetry", exc_info=True)
 
         # 3. Load workspace (never crashes)
+        workspace: WorkspaceState
         try:
-            self._workspace = load_workspace(ws_path)
-            if self._workspace.errors:
-                for err in self._workspace.errors:
+            workspace = load_workspace(ws_path)
+            if workspace.errors:
+                for err in workspace.errors:
                     logger.warning("Workspace error: %s", err)
         except Exception:
             logger.warning("Failed to load workspace", exc_info=True)
-            self._workspace = WorkspaceState(
+            workspace = WorkspaceState(
                 path=ws_path,
                 agents={},
                 skills={},
@@ -127,18 +216,17 @@ class Gateway(FastAPI):
             )
 
         # 4. Build tool registry
-        self._tool_registry = ToolRegistry()
-        if self._workspace:
-            self._tool_registry.register_file_tools(self._workspace.tools)
+        tool_registry = ToolRegistry()
+        tool_registry.register_file_tools(workspace.tools)
         for code_tool in self._pending_tools:
-            self._tool_registry.register_code_tool(code_tool)
+            tool_registry.register_code_tool(code_tool)
 
         # 5. Init persistence (graceful fallback)
         if self._config.persistence.enabled:
             try:
                 from agent_gateway.persistence.repository import (
-                    AuditRepository,
-                    ExecutionRepository,
+                    AuditRepository as AuditRepo,
+                    ExecutionRepository as ExecRepo,
                 )
                 from agent_gateway.persistence.session import (
                     create_db_engine,
@@ -149,28 +237,38 @@ class Gateway(FastAPI):
                 self._db_engine = create_db_engine(self._config.persistence)
                 await init_db(self._db_engine)
                 session_factory = create_session_factory(self._db_engine)
-                self._execution_repo = ExecutionRepository(session_factory)
-                self._audit_repo = AuditRepository(session_factory)
+                self._execution_repo = ExecRepo(session_factory)
+                self._audit_repo = AuditRepo(session_factory)
             except Exception:
                 logger.warning("Failed to init persistence, using null repos", exc_info=True)
-                self._execution_repo = NullExecutionRepository()
-                self._audit_repo = NullAuditRepository()
-        else:
-            self._execution_repo = NullExecutionRepository()
-            self._audit_repo = NullAuditRepository()
 
         # 6. Build LLM client and execution engine
+        engine: ExecutionEngine | None = None
         try:
             self._llm_client = LLMClient(self._config)
-            self._engine = ExecutionEngine(
+            engine = ExecutionEngine(
                 llm_client=self._llm_client,
-                tool_registry=self._tool_registry,
+                tool_registry=tool_registry,
                 config=self._config,
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
 
-        agent_count = len(self._workspace.agents) if self._workspace else 0
+        # 7. Atomic snapshot
+        self._snapshot = WorkspaceSnapshot(
+            workspace=workspace,
+            tool_registry=tool_registry,
+            engine=engine,
+        )
+
+        # 8. Wire auth middleware if enabled
+        if self._auth_enabled and self._config.auth.enabled and self._config.auth.api_keys:
+            from agent_gateway.api.auth import ApiKeyAuthMiddleware
+
+            valid_keys = {k.key: k.scopes for k in self._config.auth.api_keys}
+            self.add_middleware(ApiKeyAuthMiddleware, valid_keys=valid_keys)
+
+        agent_count = len(workspace.agents)
         logger.info(
             "Gateway started: %d agents, workspace=%s",
             agent_count,
@@ -179,6 +277,13 @@ class Gateway(FastAPI):
 
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
+        # Cancel and await all background tasks
+        for task in self._background_tasks:
+            task.cancel()
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks.clear()
+
         if self._llm_client:
             await self._llm_client.close()
 
@@ -203,30 +308,37 @@ class Gateway(FastAPI):
 
         self.include_router(v1)
 
-    async def _reload_workspace(self) -> None:
-        """Reload workspace from disk and rebuild registry."""
-        ws_path = Path(self._workspace_path)
-        new_workspace = load_workspace(ws_path)
+    async def reload(self) -> None:
+        """Reload workspace from disk and rebuild registry (atomic snapshot swap)."""
+        async with self._reload_lock:
+            ws_path = Path(self._workspace_path)
+            new_workspace = load_workspace(ws_path)
 
-        # Rebuild tool registry with new file tools + existing code tools
-        new_registry = ToolRegistry()
-        new_registry.register_file_tools(new_workspace.tools)
-        for code_tool in self._pending_tools:
-            new_registry.register_code_tool(code_tool)
+            new_registry = ToolRegistry()
+            new_registry.register_file_tools(new_workspace.tools)
+            for code_tool in self._pending_tools:
+                new_registry.register_code_tool(code_tool)
 
-        # Atomic swap
-        self._workspace = new_workspace
-        self._tool_registry = new_registry
+            new_engine: ExecutionEngine | None = None
+            if self._llm_client and self._config:
+                new_engine = ExecutionEngine(
+                    llm_client=self._llm_client,
+                    tool_registry=new_registry,
+                    config=self._config,
+                )
 
-        # Update engine with new registry
-        if self._engine and self._config:
-            self._engine = ExecutionEngine(
-                llm_client=self._llm_client,  # type: ignore[arg-type]
+            # Single atomic reference swap
+            self._snapshot = WorkspaceSnapshot(
+                workspace=new_workspace,
                 tool_registry=new_registry,
-                config=self._config,
+                engine=new_engine,
             )
 
-        logger.info("Workspace reloaded: %d agents", len(new_workspace.agents))
+            logger.info("Workspace reloaded: %d agents", len(new_workspace.agents))
+
+    async def _reload_workspace(self) -> None:
+        """Alias for backward compatibility."""
+        await self.reload()
 
     async def invoke(
         self,
@@ -249,46 +361,41 @@ class Gateway(FastAPI):
         Raises:
             ValueError: If agent not found or engine not available.
         """
-        if self._workspace is None:
+        snapshot = self._snapshot
+        if snapshot is None or snapshot.workspace is None:
             raise ValueError("Workspace not loaded")
 
-        agent = self._workspace.agents.get(agent_id)
+        agent = snapshot.workspace.agents.get(agent_id)
         if agent is None:
-            available = sorted(self._workspace.agents.keys())
-            raise ValueError(
-                f"Agent '{agent_id}' not found. Available: {', '.join(available)}"
-            )
+            raise ValueError(f"Agent '{agent_id}' not found")
 
-        if self._engine is None:
+        if snapshot.engine is None:
             raise ValueError("Execution engine not initialized")
 
-        handle = ExecutionHandle(execution_id="programmatic")
-        return await self._engine.execute(
-            agent=agent,
-            message=message,
-            workspace=self._workspace,
-            context=context,
-            options=options,
-            handle=handle,
-            tool_executor=execute_tool,
-        )
+        execution_id = str(uuid.uuid4())
+        handle = ExecutionHandle(execution_id=execution_id)
+        self._execution_handles[execution_id] = handle
 
-    def on(
-        self, event: str
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register an event hook.
+        try:
+            return await snapshot.engine.execute(
+                agent=agent,
+                message=message,
+                workspace=snapshot.workspace,
+                context=context,
+                options=options,
+                handle=handle,
+                tool_executor=execute_tool,
+            )
+        finally:
+            self._execution_handles.pop(execution_id, None)
 
-        Usage:
-            @gw.on("execution.completed")
-            async def on_complete(data):
-                ...
-        """
-
-        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
-            self._event_hooks.setdefault(event, []).append(fn)
-            return fn
-
-        return decorator
+    async def cancel_execution(self, execution_id: str) -> bool:
+        """Cancel a running execution. Returns True if cancelled."""
+        handle = self._execution_handles.get(execution_id)
+        if handle is None:
+            return False
+        handle.cancel()
+        return True
 
     @overload
     def tool(self, fn: Callable[..., Any]) -> Callable[..., Any]: ...

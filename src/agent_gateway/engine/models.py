@@ -28,8 +28,6 @@ class ExecutionStatus(StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     TIMEOUT = "timeout"
-    APPROVAL_PENDING = "approval_pending"
-    DENIED = "denied"
 
 
 @dataclass
@@ -100,9 +98,6 @@ class ExecutionOptions:
 
     async_execution: bool = False
     timeout_ms: int | None = None
-    stream: bool = False
-    callback_url: str | None = None
-    notify: bool = True
     output_schema: dict[str, Any] | None = None
 
 

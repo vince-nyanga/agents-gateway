@@ -57,17 +57,18 @@ def gateway_app() -> Gateway:
 
 @pytest.fixture
 async def client(gateway_app: Gateway) -> AsyncClient:
-    """Create an async test client for the gateway.
-
-    Manually triggers startup/shutdown since ASGITransport doesn't handle lifespan.
-    """
-    await gateway_app._startup()
-    try:
+    """Create an async test client for the gateway."""
+    async with gateway_app:
         transport = ASGITransport(app=gateway_app)  # type: ignore[arg-type]
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac  # type: ignore[misc]
-    finally:
-        await gateway_app._shutdown()
+
+
+async def make_test_client(gw: Gateway) -> AsyncClient:
+    """Create a test client with startup triggered. Caller must close both."""
+    await gw._startup()
+    transport = ASGITransport(app=gw)  # type: ignore[arg-type]
+    return AsyncClient(transport=transport, base_url="http://test")
 
 
 @pytest.fixture

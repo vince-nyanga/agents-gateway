@@ -33,9 +33,9 @@ class TestStopReason:
 
 class TestExecutionStatus:
     def test_all_states(self) -> None:
-        assert len(ExecutionStatus) == 8
+        assert len(ExecutionStatus) == 6
         assert ExecutionStatus.QUEUED.value == "queued"
-        assert ExecutionStatus.APPROVAL_PENDING.value == "approval_pending"
+        assert ExecutionStatus.CANCELLED.value == "cancelled"
 
 
 class TestToolCall:
@@ -107,7 +107,6 @@ class TestExecutionOptions:
         opts = ExecutionOptions()
         assert opts.async_execution is False
         assert opts.timeout_ms is None
-        assert opts.stream is False
         assert opts.output_schema is None
 
 

@@ -56,26 +56,20 @@ async def _invoke_agent(workspace: str, agent_id: str, message: str) -> dict[str
     """Run the agent invocation via Gateway.invoke()."""
     from agent_gateway.gateway import Gateway
 
-    gw = Gateway(workspace=workspace, auth=False)
-
-    # Manually run startup since we're not going through uvicorn
-    await gw._startup()
-
-    try:
-        result = await gw.invoke(agent_id, message)
-        return {
-            "status": result.stop_reason.value,
-            "result": result.to_dict(),
-        }
-    except ValueError as e:
-        return {
-            "status": "error",
-            "result": {"raw_text": str(e)},
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "result": {"raw_text": f"Invocation failed: {e}"},
-        }
-    finally:
-        await gw._shutdown()
+    async with Gateway(workspace=workspace, auth=False) as gw:
+        try:
+            result = await gw.invoke(agent_id, message)
+            return {
+                "status": result.stop_reason.value,
+                "result": result.to_dict(),
+            }
+        except ValueError as e:
+            return {
+                "status": "error",
+                "result": {"raw_text": str(e)},
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "result": {"raw_text": f"Invocation failed: {e}"},
+            }

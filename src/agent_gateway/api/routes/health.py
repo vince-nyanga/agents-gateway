@@ -7,36 +7,29 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Request
 
 from agent_gateway.api.models import HealthResponse
+from agent_gateway.api.routes.base import GatewayAPIRoute
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
-
-from agent_gateway.api.routes.base import GatewayAPIRoute
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check(request: Request) -> HealthResponse:
-    """Return gateway health status, startup errors, and resource counts."""
+    """Return gateway health status and resource counts."""
     gw: Gateway = request.app  # type: ignore[assignment]
 
-    workspace = gw._workspace
-    errors = workspace.errors if workspace else ["Workspace not loaded"]
-    warnings = workspace.warnings if workspace else []
+    ws = gw.workspace
+    has_errors = bool(ws.errors) if ws else True
 
-    agent_count = len(workspace.agents) if workspace else 0
-    skill_count = len(workspace.skills) if workspace else 0
-    tool_count = len(gw._tool_registry.get_all()) if gw._tool_registry else 0
-
-    status = "ok" if not errors else "degraded"
+    agent_count = len(ws.agents) if ws else 0
+    skill_count = len(ws.skills) if ws else 0
+    tool_count = len(gw.tools)
 
     return HealthResponse(
-        status=status,
+        status="degraded" if has_errors else "ok",
         agent_count=agent_count,
         skill_count=skill_count,
         tool_count=tool_count,
-        workspace_path=str(gw._workspace_path),
-        startup_errors=errors,
-        startup_warnings=warnings,
     )
