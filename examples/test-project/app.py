@@ -1,6 +1,13 @@
 """Test project for agent-gateway development."""
 
+import os
+
+import httpx
+from dotenv import load_dotenv
+
 from agent_gateway import Gateway
+
+load_dotenv()
 
 gw = Gateway(workspace="./workspace", auth=False, title="Test Project")
 
@@ -20,23 +27,43 @@ async def add_numbers(a: float, b: float) -> dict:
 class WeatherService:
     """Example: registering a class method as a tool."""
 
-    def __init__(self, default_unit: str = "celsius"):
-        self.default_unit = default_unit
+    BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
+
+    def __init__(self, api_key: str | None = None, units: str = "metric"):
+        self.api_key = api_key or os.environ.get("WEATHER_API_KEY", "")
+        self.units = units
 
     async def get_weather(self, destination: str, date: str) -> dict:
         """Get the weather forecast for a destination on a given date."""
-        return {
-            "destination": destination,
-            "date": date,
-            "condition": "Sunny",
-            "temperature_celsius": 25,
-            "humidity_percent": 45,
-            "wind_kmh": 12,
-            "unit": self.default_unit,
-        }
+        if not self.api_key:
+            return {"error": "OPENWEATHER_API_KEY not set", "destination": destination}
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                self.BASE_URL,
+                params={"q": destination, "appid": self.api_key, "units": self.units},
+            )
+            if resp.status_code != 200:
+                return {
+                    "error": f"OpenWeather API error: {resp.status_code}",
+                    "destination": destination,
+                    "date": date,
+                }
+            data = resp.json()
+            weather = data.get("weather", [{}])[0]
+            main = data.get("main", {})
+            wind = data.get("wind", {})
+            return {
+                "destination": destination,
+                "date": date,
+                "condition": weather.get("description", "unknown"),
+                "temperature_celsius": main.get("temp"),
+                "humidity_percent": main.get("humidity"),
+                "wind_kmh": round((wind.get("speed", 0)) * 3.6, 1),
+            }
 
 
-weather = WeatherService(default_unit="celsius")
+weather = WeatherService()
 gw.tool(name="get-weather")(weather.get_weather)
 
 
