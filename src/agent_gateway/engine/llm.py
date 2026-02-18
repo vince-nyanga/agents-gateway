@@ -254,18 +254,15 @@ class LLMClient:
         # Emit final usage
         cost = 0.0
         try:
-            if accumulated_model:
-                cost = float(
-                    litellm.cost_per_token(
-                        model=accumulated_model,
-                        prompt_tokens=accumulated_input_tokens,
-                        completion_tokens=accumulated_output_tokens,
-                    )[2]
-                    if accumulated_input_tokens or accumulated_output_tokens
-                    else 0.0
+            if accumulated_model and (accumulated_input_tokens or accumulated_output_tokens):
+                prompt_cost, completion_cost = litellm.cost_per_token(
+                    model=accumulated_model,
+                    prompt_tokens=accumulated_input_tokens,
+                    completion_tokens=accumulated_output_tokens,
                 )
+                cost = float(prompt_cost + completion_cost)
         except Exception:
-            pass
+            logger.debug("Could not extract streaming cost", exc_info=True)
 
         yield {
             "type": "usage",
