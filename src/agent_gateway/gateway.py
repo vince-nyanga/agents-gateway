@@ -84,9 +84,7 @@ class Gateway(FastAPI):
         # Register routes eagerly (they don't depend on workspace state)
         self._register_routes()
 
-    def _make_lifespan(
-        self, user_lifespan: Callable[..., Any] | None
-    ) -> Any:
+    def _make_lifespan(self, user_lifespan: Callable[..., Any] | None) -> Any:
         """Create a composed lifespan that wraps the user's lifespan."""
 
         @asynccontextmanager

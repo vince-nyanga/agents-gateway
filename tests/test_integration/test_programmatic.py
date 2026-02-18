@@ -44,9 +44,7 @@ async def test_programmatic_invoke_with_tools(mock_llm_completion: Any) -> None:
     async with gw:
         responses = [
             make_llm_response(
-                tool_calls=[
-                    ToolCall(name="echo", arguments={"message": "World"}, call_id="c1")
-                ]
+                tool_calls=[ToolCall(name="echo", arguments={"message": "World"}, call_id="c1")]
             ),
             make_llm_response(text="I echoed World for you."),
         ]

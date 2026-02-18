@@ -74,10 +74,9 @@ async def test_cancel_unknown_execution_404(client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
-async def test_llm_failure_returns_error(
-    gateway_app: Gateway, mock_llm_completion: Any
-) -> None:
+async def test_llm_failure_returns_error(gateway_app: Gateway, mock_llm_completion: Any) -> None:
     """LLM exception during execution -> execution completes with error."""
+
     async def _fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("LLM is down")
 
@@ -98,15 +97,11 @@ async def test_llm_failure_returns_error(
         await gateway_app._shutdown()
 
 
-async def test_tool_crash_during_execution(
-    gateway_app: Gateway, mock_llm_completion: Any
-) -> None:
+async def test_tool_crash_during_execution(gateway_app: Gateway, mock_llm_completion: Any) -> None:
     """Tool crash -> error returned to LLM, loop continues, execution completes."""
     responses = [
         make_llm_response(
-            tool_calls=[
-                ToolCall(name="crash-tool", arguments={}, call_id="call_1")
-            ]
+            tool_calls=[ToolCall(name="crash-tool", arguments={}, call_id="call_1")]
         ),
         make_llm_response(text="The tool failed, but I recovered."),
     ]

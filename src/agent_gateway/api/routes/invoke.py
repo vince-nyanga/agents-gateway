@@ -132,9 +132,7 @@ async def invoke_agent(
         handle = ExecutionHandle(execution_id)
         gw._execution_handles[execution_id] = handle
         task = asyncio.create_task(
-            _run_background_execution(
-                gw, agent, body, execution_id, exec_options, handle
-            ),
+            _run_background_execution(gw, agent, body, execution_id, exec_options, handle),
             name=f"exec-{execution_id}",
         )
         gw._background_tasks.add(task)
@@ -166,9 +164,7 @@ async def invoke_agent(
         )
     except Exception as e:
         logger.error("Execution failed: %s", e)
-        await gw._execution_repo.update_status(
-            execution_id, ExecutionStatus.FAILED, error=str(e)
-        )
+        await gw._execution_repo.update_status(execution_id, ExecutionStatus.FAILED, error=str(e))
         return error_response(
             500, "execution_error", "Internal execution error", execution_id=execution_id
         )

@@ -12,15 +12,11 @@ from agent_gateway.gateway import Gateway
 from .conftest import make_llm_response, make_test_client
 
 
-async def test_invoke_agent_full_flow(
-    gateway_app: Gateway, mock_llm_completion: Any
-) -> None:
+async def test_invoke_agent_full_flow(gateway_app: Gateway, mock_llm_completion: Any) -> None:
     """POST /v1/agents/test-agent/invoke -> tool call -> text response."""
     responses = [
         make_llm_response(
-            tool_calls=[
-                ToolCall(name="echo", arguments={"message": "hello"}, call_id="call_1")
-            ]
+            tool_calls=[ToolCall(name="echo", arguments={"message": "hello"}, call_id="call_1")]
         ),
         make_llm_response(text="The echo tool returned: hello"),
     ]
@@ -45,9 +41,7 @@ async def test_invoke_agent_full_flow(
         await gateway_app._shutdown()
 
 
-async def test_invoke_agent_simple_text(
-    gateway_app: Gateway, mock_llm_completion: Any
-) -> None:
+async def test_invoke_agent_simple_text(gateway_app: Gateway, mock_llm_completion: Any) -> None:
     """POST /v1/agents/test-agent/invoke -> direct text response (no tools)."""
     responses = [make_llm_response(text="Hello! I'm a test agent.")]
     ac = await make_test_client(gateway_app)
@@ -113,9 +107,7 @@ async def test_get_tool(client: AsyncClient) -> None:
     assert data["source"] == "code"
 
 
-async def test_execution_id_header(
-    gateway_app: Gateway, mock_llm_completion: Any
-) -> None:
+async def test_execution_id_header(gateway_app: Gateway, mock_llm_completion: Any) -> None:
     """Response includes X-Execution-Id header."""
     responses = [make_llm_response(text="done")]
     ac = await make_test_client(gateway_app)

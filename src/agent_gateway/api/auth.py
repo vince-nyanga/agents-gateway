@@ -27,9 +27,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._valid_keys = valid_keys  # {key_value: [scopes]}
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
 
         # Skip auth for non-API and public paths
