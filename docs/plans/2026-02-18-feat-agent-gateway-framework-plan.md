@@ -414,11 +414,11 @@ tests/test_workspace/test_schedule.py
 
 #### 1.5 Tool Registry
 
-- [ ] `src/agent_gateway/workspace/registry.py` — Unified registry for file-based + code-based tools
-- [ ] Tool schema generation from Python type hints (`Annotated`, Pydantic, bare types, explicit dict)
-- [ ] `@gw.tool()` decorator implementation with all 4 input spec modes
+- [x] `src/agent_gateway/workspace/registry.py` — Unified registry for file-based + code-based tools
+- [x] Tool schema generation from Python type hints (`Annotated`, Pydantic, bare types, explicit dict)
+- [x] `@gw.tool()` decorator implementation with all 4 input spec modes
 - [ ] Parameter validation against JSON Schema before tool execution
-- [ ] Tool permission checking (`allowed_agents`)
+- [x] Tool permission checking (`allowed_agents`)
 
 ```python
 # src/agent_gateway/workspace/registry.py

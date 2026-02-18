@@ -60,6 +60,36 @@ class ToolDefinition:
     script: ScriptConfig | None = None
     instructions: str = ""  # Markdown body
     handler_path: Path | None = None  # Path to handler.py (for function tools)
+    permissions: dict[str, Any] = field(default_factory=dict)
+
+    def to_json_schema(self) -> dict[str, Any]:
+        """Convert parameters to JSON Schema object."""
+        properties: dict[str, Any] = {}
+        required: list[str] = []
+
+        for param in self.parameters:
+            prop: dict[str, Any] = {"type": param.type, "description": param.description}
+            if param.enum is not None:
+                prop["enum"] = param.enum
+            properties[param.name] = prop
+            if param.required:
+                required.append(param.name)
+
+        schema: dict[str, Any] = {"type": "object", "properties": properties}
+        if required:
+            schema["required"] = required
+        return schema
+
+    def to_llm_declaration(self) -> dict[str, Any]:
+        """Convert to LLM function-calling tool declaration."""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.to_json_schema(),
+            },
+        }
 
     @classmethod
     def load(cls, tool_dir: Path) -> ToolDefinition | None:
@@ -123,6 +153,15 @@ class ToolDefinition:
                 timeout_ms=script_data.get("timeout_ms", 30_000),
             )
 
+        # Parse permissions
+        perms_data = meta.get("permissions", {})
+        permissions: dict[str, Any] = {}
+        if isinstance(perms_data, dict):
+            if "allowed_agents" in perms_data:
+                permissions["allowed_agents"] = perms_data["allowed_agents"]
+            if "require_approval" in perms_data:
+                permissions["require_approval"] = bool(perms_data["require_approval"])
+
         # Check for handler.py (function tools)
         handler_path = tool_dir / "handler.py"
         has_handler = handler_path.exists() if tool_type == "function" else False
@@ -138,4 +177,5 @@ class ToolDefinition:
             script=script_config,
             instructions=parsed.content,
             handler_path=handler_path if has_handler else None,
+            permissions=permissions,
         )

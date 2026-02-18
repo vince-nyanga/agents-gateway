@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.3: Tool Registry & @gw.tool Decorator"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [01, 02]
 blocks: [04, 05, 08]
@@ -346,9 +346,9 @@ def tool(
 
 ## Acceptance Criteria
 
-- [ ] `@gw.tool` decorator works in all 4 modes
-- [ ] `ToolRegistry` merges file and code tools correctly
-- [ ] Code tools override file tools with same name
-- [ ] `resolve_for_agent()` filters by permissions
-- [ ] `to_llm_declarations()` produces correct format
-- [ ] All tests pass
+- [x] `@gw.tool` decorator works in all 4 modes
+- [x] `ToolRegistry` merges file and code tools correctly
+- [x] Code tools override file tools with same name
+- [x] `resolve_for_agent()` filters by permissions
+- [x] `to_llm_declarations()` produces correct format
+- [x] All tests pass
