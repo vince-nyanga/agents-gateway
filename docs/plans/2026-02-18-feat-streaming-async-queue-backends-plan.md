@@ -1,7 +1,7 @@
 ---
 title: "feat: Streaming, Async Execution & Pluggable Queue Backends"
 type: feat
-status: active
+status: completed
 date: 2026-02-18
 depends_on: [08, 08b]
 blocks: [10]
@@ -628,25 +628,25 @@ stateDiagram-v2
 ## Acceptance Criteria
 
 ### Functional
-- [ ] Agents can declare `execution_mode: async` in AGENT.md frontmatter
-- [ ] `execution_mode: async` agents always return 202, regardless of request options
-- [ ] `execution_mode: sync` agents honour request-level `async: true` escalation
-- [ ] Streaming + async returns 400 Bad Request
-- [ ] `gw.use_memory_queue()` works identically to current async behaviour
-- [ ] `gw.use_redis_queue()` enqueues to Redis Streams with consumer groups
-- [ ] `gw.use_rabbitmq_queue()` enqueues to RabbitMQ durable queue
-- [ ] Worker pool starts N workers, drains gracefully on shutdown
-- [ ] Cancel works for both queued and in-flight jobs across all backends
-- [ ] Jobs exceeding `max_retries` are dead-lettered
-- [ ] `--worker-only` mode runs full Gateway without HTTP server
-- [ ] `--worker-only` rejects memory backend with clear error
-- [ ] Callback URL called with HMAC on completion (when configured)
+- [x] Agents can declare `execution_mode: async` in AGENT.md frontmatter
+- [x] `execution_mode: async` agents always return 202, regardless of request options
+- [x] `execution_mode: sync` agents honour request-level `async: true` escalation
+- [x] Streaming + async returns 400 Bad Request
+- [x] `gw.use_memory_queue()` works identically to current async behaviour
+- [x] `gw.use_redis_queue()` enqueues to Redis Streams with consumer groups
+- [x] `gw.use_rabbitmq_queue()` enqueues to RabbitMQ durable queue
+- [x] Worker pool starts N workers, drains gracefully on shutdown
+- [x] Cancel works for both queued and in-flight jobs across all backends
+- [x] Jobs exceeding `max_retries` are dead-lettered
+- [x] `--worker-only` mode runs full Gateway without HTTP server
+- [x] `--worker-only` rejects memory backend with clear error
+- [ ] Callback URL called with HMAC on completion (when configured) — deferred to Phase 10 (notifications)
 
 ### Non-Functional
-- [ ] Queue depth, job latency, and worker utilisation metrics emitted
-- [ ] Memory backend limitations documented in docstrings and README
-- [ ] All backends pass the same integration test suite (parameterised)
-- [ ] Redis/RabbitMQ tests skipped without the service running (graceful skip)
+- [x] Queue depth, job latency, and worker utilisation metrics emitted
+- [x] Memory backend limitations documented in docstrings and README
+- [x] All backends pass the same integration test suite (parameterised)
+- [x] Redis/RabbitMQ tests skipped without the service running (graceful skip)
 
 ## References
 
