@@ -168,7 +168,6 @@ class LLMClient:
         Yields dicts with keys:
         - {"type": "token", "content": str}
         - {"type": "tool_call", "index": int, "name": str, "arguments": str, "call_id": str}
-        - {"type": "tool_call_delta", "index": int, "arguments": str}
         - {"type": "usage", "input_tokens": int, "output_tokens": int, "cost": float, "model": str}
         """
         kwargs: dict[str, Any] = {

@@ -39,15 +39,6 @@ class TestChatSession:
         assert session.messages[0]["tool_calls"] == tool_calls
         assert "content" not in session.messages[0]
 
-    def test_append_tool_result(self) -> None:
-        session = ChatSession(session_id="sess_1", agent_id="test-agent")
-        session.append_tool_result("tc1", '{"result": "ok"}')
-        assert session.messages[0] == {
-            "role": "tool",
-            "tool_call_id": "tc1",
-            "content": '{"result": "ok"}',
-        }
-
     def test_turn_count(self) -> None:
         session = ChatSession(session_id="sess_1", agent_id="test-agent")
         session.append_user_message("msg1")
@@ -78,7 +69,7 @@ class TestChatSession:
         session.append_assistant_message(
             tool_calls=[{"id": "tc1", "function": {"name": "echo", "arguments": "{}"}}]
         )
-        session.append_tool_result("tc1", '{"result": "ok"}')
+        session.messages.append({"role": "tool", "tool_call_id": "tc1", "content": '{"result": "ok"}'})
         session.append_user_message("msg2")
         session.append_assistant_message(content="reply")
         # 5 messages total, truncate to 3 — naive slice would start at tool result

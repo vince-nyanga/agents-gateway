@@ -62,13 +62,6 @@ class ChatSession:
         self.messages.append(msg)
         self._touch()
 
-    def append_tool_result(self, tool_call_id: str, content: str) -> None:
-        """Add a tool result message."""
-        self.messages.append(
-            {"role": "tool", "tool_call_id": tool_call_id, "content": content}
-        )
-        self._touch()
-
     def truncate_history(self, max_messages: int) -> None:
         """Keep only the most recent messages, preserving tool-call sequences.
 

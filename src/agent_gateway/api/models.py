@@ -139,8 +139,6 @@ class ChatOptions(BaseModel):
     stream: bool = False
     timeout_ms: int | None = Field(None, ge=1000, le=300_000)
 
-    model_config = {"populate_by_name": True}
-
 
 class ChatRequest(BaseModel):
     """Request body for POST /v1/agents/{agent_id}/chat."""
