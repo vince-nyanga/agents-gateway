@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-gateway"
-version = "0.1.0"
+version = "0.0.0"
 description = "An opinionated FastAPI extension for building API-first AI agent services"
 readme = "README.md"
 license = "MIT"
@@ -87,6 +87,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests requiring real LLM API keys (GEMINI_API_KEY)",
+]
 
 [tool.mypy]
 python_version = "3.11"

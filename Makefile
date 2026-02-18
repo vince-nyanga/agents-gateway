@@ -1,10 +1,13 @@
-.PHONY: dev test lint check typecheck
+.PHONY: dev test test-e2e lint check typecheck
 
 dev:  ## Run the test project
 	uv run --directory examples/test-project python app.py
 
-test:  ## Run library tests
-	uv run pytest
+test:  ## Run library tests (excludes e2e)
+	uv run pytest -m "not e2e"
+
+test-e2e:  ## Run e2e tests (requires GEMINI_API_KEY)
+	uv run pytest -m e2e -v
 
 lint:  ## Lint with ruff
 	uv run ruff check src/ tests/

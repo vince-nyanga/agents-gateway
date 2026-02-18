@@ -11,6 +11,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      semVer: ${{ steps.gitversion.outputs.semVer }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3.2.1
+        with:
+          versionSpec: "6.x"
+      - name: Determine version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3.2.1
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -58,3 +74,16 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  tag:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [version, lint, typecheck, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create tag v${{ needs.version.outputs.semVer }}
+        run: |
+          git tag "v${{ needs.version.outputs.semVer }}"
+          git push origin "v${{ needs.version.outputs.semVer }}"
