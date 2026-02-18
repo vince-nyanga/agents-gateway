@@ -31,7 +31,10 @@ from agent_gateway.engine.models import (
 from agent_gateway.persistence.domain import ExecutionRecord
 from agent_gateway.queue.models import ExecutionJob
 from agent_gateway.queue.null import NullQueue
+from agent_gateway.telemetry.metrics import create_metrics
 from agent_gateway.tools.runner import execute_tool
+
+_metrics = create_metrics()
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
@@ -166,6 +169,8 @@ async def invoke_agent(
                 enqueued_at=datetime.now(UTC).isoformat(),
             )
             await gw._queue.enqueue(job)
+            _metrics.queue_jobs_enqueued.add(1, {"agent_id": agent_id})
+            _metrics.queue_depth.add(1, {"agent_id": agent_id})
 
         return JSONResponse(
             status_code=202,

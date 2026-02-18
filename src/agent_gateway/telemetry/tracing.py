@@ -91,6 +91,28 @@ def output_validate_span(**extra: Any) -> Generator[Span, None, None]:
         yield span
 
 
+@contextmanager
+def queue_process_span(
+    execution_id: str,
+    agent_id: str,
+    worker_id: int,
+    **extra: Any,
+) -> Generator[Span, None, None]:
+    """Create a span for processing a queue job."""
+    tracer = get_tracer()
+    with tracer.start_as_current_span(
+        attr.OP_QUEUE_PROCESS,
+        attributes={
+            attr.GEN_AI_OPERATION_NAME: attr.OP_QUEUE_PROCESS,
+            attr.AGW_EXECUTION_ID: execution_id,
+            attr.AGW_AGENT_ID: agent_id,
+            attr.AGW_WORKER_ID: worker_id,
+            **extra,
+        },
+    ) as span:
+        yield span
+
+
 def set_span_error(span: Span, error: Exception) -> None:
     """Record an error on a span."""
     span.set_status(StatusCode.ERROR, str(error))

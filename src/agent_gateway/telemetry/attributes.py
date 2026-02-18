@@ -26,6 +26,8 @@ AGW_TOOL_TYPE = "agw.tool.type"
 AGW_STOP_REASON = "agw.stop_reason"
 AGW_COST_USD = "agw.cost_usd"
 AGW_SCHEDULE_ID = "agw.schedule.id"
+AGW_QUEUE_BACKEND = "agw.queue.backend"
+AGW_WORKER_ID = "agw.worker.id"
 
 # Operation names
 OP_AGENT_INVOKE = "agent.invoke"
@@ -34,3 +36,4 @@ OP_TOOL_EXECUTE = "tool.execute"
 OP_OUTPUT_VALIDATE = "output.validate"
 OP_PROMPT_ASSEMBLE = "prompt.assemble"
 OP_NOTIFICATION_SEND = "notification.send"
+OP_QUEUE_PROCESS = "queue.process"

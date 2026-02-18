@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from opentelemetry.metrics import Counter, Histogram, Meter, get_meter
+from opentelemetry.metrics import Counter, Histogram, Meter, UpDownCounter, get_meter
 
 
 @dataclass
@@ -21,6 +21,13 @@ class AgentGatewayMetrics:
     tools_calls_total: Counter
     tools_duration: Histogram
     schedules_runs_total: Counter
+
+    # Queue metrics
+    queue_jobs_enqueued: Counter
+    queue_jobs_completed: Counter
+    queue_jobs_failed: Counter
+    queue_job_duration: Histogram
+    queue_depth: UpDownCounter
 
 
 def create_metrics(meter: Meter | None = None) -> AgentGatewayMetrics:
@@ -81,6 +88,31 @@ def create_metrics(meter: Meter | None = None) -> AgentGatewayMetrics:
         schedules_runs_total=meter.create_counter(
             "agw.schedules.runs.total",
             description="Total number of scheduled agent runs",
+            unit="1",
+        ),
+        queue_jobs_enqueued=meter.create_counter(
+            "agw.queue.jobs.enqueued",
+            description="Total number of jobs enqueued",
+            unit="1",
+        ),
+        queue_jobs_completed=meter.create_counter(
+            "agw.queue.jobs.completed",
+            description="Total number of jobs completed successfully",
+            unit="1",
+        ),
+        queue_jobs_failed=meter.create_counter(
+            "agw.queue.jobs.failed",
+            description="Total number of jobs that failed",
+            unit="1",
+        ),
+        queue_job_duration=meter.create_histogram(
+            "agw.queue.job.duration_ms",
+            description="Duration of queue job processing in milliseconds",
+            unit="ms",
+        ),
+        queue_depth=meter.create_up_down_counter(
+            "agw.queue.depth",
+            description="Approximate queue depth (incremented on enqueue, decremented on ack)",
             unit="1",
         ),
     )

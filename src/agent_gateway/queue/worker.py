@@ -16,6 +16,8 @@ from agent_gateway.engine.models import (
     StopReason,
 )
 from agent_gateway.queue.models import ExecutionJob
+from agent_gateway.telemetry.metrics import create_metrics
+from agent_gateway.telemetry.tracing import queue_process_span, set_span_error, set_span_ok
 from agent_gateway.tools.runner import execute_tool
 
 if TYPE_CHECKING:
@@ -51,6 +53,7 @@ class WorkerPool:
         self._queue = queue
         self._gateway = gateway
         self._config = config
+        self._metrics = create_metrics()
         self._tasks: list[asyncio.Task[None]] = []
         self._shutting_down = False
 
@@ -62,6 +65,7 @@ class WorkerPool:
                 self._worker_loop(i), name=f"queue-worker-{i}"
             )
             self._tasks.append(task)
+
         logger.info("Worker pool started: %d workers", num_workers)
 
     async def drain(self) -> None:
@@ -129,22 +133,34 @@ class WorkerPool:
         """Execute a single job with error handling and ack/nack."""
         gw = self._gateway
         semaphore = gw._execution_semaphore
+        attrs = {"agent_id": job.agent_id, "worker_id": worker_id}
 
         if semaphore is None:
             logger.error("Worker %d: execution semaphore not initialized", worker_id)
+            self._metrics.queue_jobs_failed.add(1, attrs)
             await self._queue.nack(job.execution_id)
             return
 
-        try:
-            async with semaphore:
-                await self._run_execution(worker_id, job)
-            await self._queue.ack(job.execution_id)
-        except Exception:
-            logger.error(
-                "Worker %d: job %s failed unexpectedly",
-                worker_id, job.execution_id, exc_info=True,
-            )
-            await self._queue.nack(job.execution_id)
+        start = time.monotonic()
+        with queue_process_span(job.execution_id, job.agent_id, worker_id) as span:
+            try:
+                async with semaphore:
+                    await self._run_execution(worker_id, job)
+                await self._queue.ack(job.execution_id)
+
+                duration_ms = int((time.monotonic() - start) * 1000)
+                self._metrics.queue_jobs_completed.add(1, attrs)
+                self._metrics.queue_job_duration.record(duration_ms, attrs)
+                self._metrics.queue_depth.add(-1, {"agent_id": job.agent_id})
+                set_span_ok(span)
+            except Exception as exc:
+                logger.error(
+                    "Worker %d: job %s failed unexpectedly",
+                    worker_id, job.execution_id, exc_info=True,
+                )
+                self._metrics.queue_jobs_failed.add(1, attrs)
+                set_span_error(span, exc)
+                await self._queue.nack(job.execution_id)
 
     async def _run_execution(self, worker_id: int, job: ExecutionJob) -> None:
         """Run the agent execution for a job."""
@@ -236,3 +252,4 @@ class WorkerPool:
                     break
         except asyncio.CancelledError:
             pass
+
