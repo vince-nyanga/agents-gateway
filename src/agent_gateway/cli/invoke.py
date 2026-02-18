@@ -53,12 +53,29 @@ def invoke(
 
 
 async def _invoke_agent(workspace: str, agent_id: str, message: str) -> dict[str, object]:
-    """Run the agent invocation."""
-    # gw.invoke() is not yet implemented (Phase 8), so return a placeholder
-    # Once implemented, this will create a Gateway and call gw.invoke(agent_id, message)
-    return {
-        "status": "error",
-        "result": {
-            "raw_text": "Programmatic invocation not yet available (requires Phase 8: API Layer)."
-        },
-    }
+    """Run the agent invocation via Gateway.invoke()."""
+    from agent_gateway.gateway import Gateway
+
+    gw = Gateway(workspace=workspace, auth=False)
+
+    # Manually run startup since we're not going through uvicorn
+    await gw._startup()
+
+    try:
+        result = await gw.invoke(agent_id, message)
+        return {
+            "status": result.stop_reason.value,
+            "result": result.to_dict(),
+        }
+    except ValueError as e:
+        return {
+            "status": "error",
+            "result": {"raw_text": str(e)},
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "result": {"raw_text": f"Invocation failed: {e}"},
+        }
+    finally:
+        await gw._shutdown()

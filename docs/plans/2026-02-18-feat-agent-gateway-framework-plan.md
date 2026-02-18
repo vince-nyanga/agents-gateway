@@ -583,13 +583,13 @@ CREATE INDEX idx_schedules_next_run ON schedules(next_run_at) WHERE enabled = TR
 
 #### 1.12 API Layer
 
-- [ ] `src/agent_gateway/api/routes/invoke.py` — `POST /v1/agents/{agent_id}/invoke`
-- [ ] `src/agent_gateway/api/routes/executions.py` — Execution CRUD + cancel
-- [ ] `src/agent_gateway/api/routes/introspection.py` — List agents/skills/tools
-- [ ] `src/agent_gateway/api/routes/health.py` — Health check + startup error reporting
+- [x] `src/agent_gateway/api/routes/invoke.py` — `POST /v1/agents/{agent_id}/invoke`
+- [x] `src/agent_gateway/api/routes/executions.py` — Execution CRUD + cancel
+- [x] `src/agent_gateway/api/routes/introspection.py` — List agents/skills/tools
+- [x] `src/agent_gateway/api/routes/health.py` — Health check + startup error reporting
 - [ ] `src/agent_gateway/api/routes/schedules.py` — Schedule introspection + manual trigger + pause/resume
-- [ ] Custom `APIRoute` subclass for agent endpoints (auto-inject execution_id, trace context)
-- [ ] Request validation: max message length (configurable, default 100KB), required fields
+- [x] Custom `APIRoute` subclass for agent endpoints (auto-inject execution_id, trace context)
+- [x] Request validation: max message length (configurable, default 100KB), required fields
 
 **Agent route auto-generation:**
 - On startup (and hot-reload), register `POST /v1/agents/{agent_id}/invoke` for each discovered agent
@@ -598,7 +598,7 @@ CREATE INDEX idx_schedules_next_run ON schedules(next_run_at) WHERE enabled = TR
 
 #### 1.13 Gateway Class
 
-- [ ] `src/agent_gateway/gateway.py` — `Gateway(FastAPI)` subclass
+- [x] `src/agent_gateway/gateway.py` — `Gateway(FastAPI)` subclass
 
 **Critical patterns:**
 - Lifespan composition: wrap user's lifespan with gateway's, using nested `@asynccontextmanager`
