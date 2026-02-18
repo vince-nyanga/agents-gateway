@@ -596,6 +596,14 @@ CREATE INDEX idx_schedules_next_run ON schedules(next_run_at) WHERE enabled = TR
 - Agents without routes return 404 with clear error message
 - OpenAPI docs include agent-specific parameter and output schema info
 
+#### 1.12b Multi-Turn Chat Endpoint
+
+- [ ] `src/agent_gateway/chat/session.py` — Session model and in-memory store with TTL
+- [ ] `src/agent_gateway/api/routes/chat.py` — `POST /v1/agents/{agent_id}/chat` with SSE streaming
+- [ ] `src/agent_gateway/engine/streaming.py` — SSE event streaming wrapper
+- [ ] Session management endpoints (GET/DELETE /v1/sessions)
+- [ ] LLM streaming support via `litellm.acompletion(stream=True)`
+
 #### 1.13 Gateway Class
 
 - [x] `src/agent_gateway/gateway.py` — `Gateway(FastAPI)` subclass
