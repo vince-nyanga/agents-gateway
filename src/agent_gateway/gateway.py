@@ -326,11 +326,22 @@ class Gateway(FastAPI):
             from agent_gateway.auth.middleware import AuthMiddleware
 
             public = frozenset(self._config.auth.public_paths)
-            self.add_middleware(
-                AuthMiddleware,
-                provider=auth_provider,
-                public_paths=public,
-            )
+            if self.middleware_stack is not None:
+                # Lifespan path (uvicorn): middleware_stack already built,
+                # add_middleware() would raise, so wrap directly.
+                self.middleware_stack = AuthMiddleware(
+                    app=self.middleware_stack,
+                    provider=auth_provider,
+                    public_paths=public,
+                )
+            else:
+                # __aenter__ path (tests/scripts): middleware_stack not yet
+                # built, so add_middleware() is safe.
+                self.add_middleware(
+                    AuthMiddleware,
+                    provider=auth_provider,
+                    public_paths=public,
+                )
 
         self._started = True
 

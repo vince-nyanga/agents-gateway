@@ -14,9 +14,9 @@ async def test_health_endpoint(client: AsyncClient) -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
-    assert data["agent_count"] == 3
+    assert data["agent_count"] == 4
     assert data["skill_count"] == 1
-    assert data["tool_count"] >= 7  # echo, add-numbers, http-example + 4 travel tools
+    assert data["tool_count"] >= 8  # echo, add-numbers, process-data, http-example + travel tools
 
 
 async def test_list_agents(client: AsyncClient) -> None:
@@ -26,6 +26,7 @@ async def test_list_agents(client: AsyncClient) -> None:
     data = resp.json()
     agent_ids = [a["id"] for a in data]
     assert "assistant" in agent_ids
+    assert "data-processor" in agent_ids
     assert "scheduled-reporter" in agent_ids
     assert "travel-planner" in agent_ids
 

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Test project for agent-gateway development"
 requires-python = ">=3.11"
 dependencies = [
-    "agent-gateway",
+    "agent-gateway[postgres,rabbitmq]",
 ]
 
 [tool.uv.sources]

@@ -5,14 +5,6 @@ model:
   default: "gemini/gemini-2.0-flash"
   temperature: 0.1
 
-auth:
-  enabled: false
-
-persistence:
-  enabled: true
-  backend: sqlite
-  url: "sqlite+aiosqlite:///test_project.db"
-
 telemetry:
   enabled: true
   exporter: console

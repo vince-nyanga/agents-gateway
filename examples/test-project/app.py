@@ -1,5 +1,6 @@
 """Test project for agent-gateway development."""
 
+import asyncio
 import os
 
 import httpx
@@ -9,7 +10,33 @@ from agent_gateway import Gateway
 
 load_dotenv()
 
-gw = Gateway(workspace="./workspace", auth=False, title="Test Project")
+gw = Gateway(workspace="./workspace", title="Test Project")
+
+# --- Pluggable backends (fluent API) ---
+
+gw.use_postgres(
+    url=os.environ.get(
+        "POSTGRES_URL",
+        "postgresql+asyncpg://agentgw:agentgw_dev@localhost:54320/agent_gateway",
+    ),
+)
+gw.use_rabbitmq_queue(
+    url=os.environ.get(
+        "RABBITMQ_URL",
+        "amqp://agentgw:agentgw_dev@localhost:56720/",
+    ),
+)
+gw.use_api_keys(
+    [
+        {
+            "name": "dev",
+            "key": os.environ.get("AGENT_GATEWAY_API_KEY", "dev-api-key-change-me"),
+            "scopes": ["*"],
+        }
+    ]
+)
+
+# --- Code tools ---
 
 
 @gw.tool()
@@ -22,6 +49,23 @@ async def echo(message: str) -> dict:
 async def add_numbers(a: float, b: float) -> dict:
     """Add two numbers - for testing structured params."""
     return {"result": a + b}
+
+
+@gw.tool(
+    name="process-data",
+    description="Simulate a long-running data processing task. Returns a summary after processing.",
+)
+async def process_data(query: str, duration_seconds: float = 5.0) -> dict:
+    """Simulate a long-running data processing task."""
+    duration_seconds = min(max(duration_seconds, 1.0), 30.0)  # clamp 1-30s
+    await asyncio.sleep(duration_seconds)
+    return {
+        "query": query,
+        "processing_time_seconds": duration_seconds,
+        "records_processed": 1_247,
+        "summary": f"Processed data for query '{query}' in {duration_seconds}s. "
+        "Found 1,247 matching records across 3 data sources.",
+    }
 
 
 class WeatherService:
