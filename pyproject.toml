@@ -104,6 +104,9 @@ markers = [
     "rabbitmq: RabbitMQ integration tests requiring Docker",
 ]
 
+[tool.coverage.run]
+omit = ["examples/*"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
