@@ -329,8 +329,8 @@ class Gateway(FastAPI):
             if self.middleware_stack is not None:
                 # Lifespan path (uvicorn): middleware_stack already built,
                 # add_middleware() would raise, so wrap directly.
-                self.middleware_stack = AuthMiddleware(
-                    app=self.middleware_stack,
+                self.middleware_stack = AuthMiddleware(  # type: ignore[assignment]
+                    app=self.middleware_stack,  # type: ignore[arg-type]
                     provider=auth_provider,
                     public_paths=public,
                 )
