@@ -333,6 +333,164 @@ class TestSchedulerEngineGetSchedules:
         await engine.stop()
 
 
+class TestSchedulerEngineDispatch:
+    async def test_dispatch_enqueues_to_real_queue(self) -> None:
+        """When a real queue is configured, dispatch should enqueue the job."""
+        execution_repo = AsyncMock()
+        queue = AsyncMock()
+        # Make isinstance check for NullQueue return False
+        queue.__class__ = type("RealQueue", (), {})
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo, queue=queue)
+        await engine.start(schedules=[sched], agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            context={"source": "scheduled", "schedule_name": "daily-report"},
+        )
+
+        execution_repo.create.assert_called_once()
+        queue.enqueue.assert_called_once()
+
+        await engine.stop()
+
+    async def test_dispatch_exception_clears_active_and_updates(self) -> None:
+        """When dispatch fails, active set should be cleared and last_run updated."""
+        execution_repo = AsyncMock()
+        execution_repo.create.side_effect = RuntimeError("db error")
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo)
+        await engine.start(schedules=[sched], agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            context={"source": "scheduled"},
+        )
+
+        # Active set should be cleared after failure
+        assert "reporter:daily-report" not in engine._active_scheduled
+
+        await engine.stop()
+
+    async def test_dispatch_direct_invoke_when_null_queue(self) -> None:
+        """With NullQueue, dispatch should invoke directly and clean up."""
+        invoke_fn = AsyncMock()
+        execution_repo = AsyncMock()
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(
+            invoke_fn=invoke_fn,
+            execution_repo=execution_repo,
+            queue=NullQueue(),
+        )
+        await engine.start(schedules=[sched], agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            context={"source": "scheduled"},
+        )
+
+        execution_repo.create.assert_called_once()
+        invoke_fn.assert_called_once()
+        # Active set should be cleared after direct invoke
+        assert "reporter:daily-report" not in engine._active_scheduled
+
+        await engine.stop()
+
+
+class TestSchedulerEngineTriggerExecution:
+    async def test_trigger_creates_execution_record(self) -> None:
+        """Trigger should create an execution record in the repo."""
+        execution_repo = AsyncMock()
+        invoke_fn = AsyncMock()
+        invoke_fn.return_value = MagicMock(
+            to_dict=lambda: {"raw_text": "done"},
+            usage=MagicMock(to_dict=lambda: {"tokens": 10}),
+        )
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo, invoke_fn=invoke_fn)
+        await engine.start(schedules=[sched], agents={"reporter": agent})
+
+        execution_id = await engine.trigger("reporter:daily-report")
+        assert execution_id is not None
+
+        await asyncio.sleep(0.2)
+
+        execution_repo.create.assert_called_once()
+        # Should have updated status to completed
+        execution_repo.update_status.assert_called_once()
+        execution_repo.update_result.assert_called_once()
+
+        await engine.stop()
+
+    async def test_trigger_failure_marks_execution_failed(self) -> None:
+        """When invoke fails, trigger should mark execution as failed."""
+        execution_repo = AsyncMock()
+        invoke_fn = AsyncMock(side_effect=RuntimeError("LLM error"))
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo, invoke_fn=invoke_fn)
+        await engine.start(schedules=[sched], agents={"reporter": agent})
+
+        execution_id = await engine.trigger("reporter:daily-report")
+        assert execution_id is not None
+
+        await asyncio.sleep(0.2)
+
+        execution_repo.create.assert_called_once()
+        execution_repo.update_status.assert_called_once()
+        call_args = execution_repo.update_status.call_args
+        assert call_args[0][1] == "failed"
+        assert "LLM error" in call_args[1]["error"]
+
+        await engine.stop()
+
+
+class TestSchedulerEngineEdgeCases:
+    async def test_pause_returns_false_when_scheduler_none(self) -> None:
+        """Pause should return False if scheduler is not running."""
+        engine = _make_engine()
+        # Don't start — scheduler is None
+        result = await engine.pause("reporter:daily-report")
+        assert result is False
+
+    async def test_resume_returns_false_when_scheduler_none(self) -> None:
+        """Resume should return False if scheduler is not running."""
+        engine = _make_engine()
+        result = await engine.resume("reporter:daily-report")
+        assert result is False
+
+    async def test_resume_nonexistent_returns_false(self) -> None:
+        """Resume should return False for unknown schedule."""
+        engine = _make_engine()
+        await engine.start(schedules=[], agents={})
+
+        result = await engine.resume("nonexistent:schedule")
+        assert result is False
+
+        await engine.stop()
+
+    async def test_get_next_run_time_none_when_scheduler_stopped(self) -> None:
+        """_get_next_run_time should return None when scheduler is None."""
+        engine = _make_engine()
+        result = engine._get_next_run_time("reporter:daily-report")
+        assert result is None
+
+
 class TestSchedulerEngineStop:
     async def test_stop_shuts_down_apscheduler(self) -> None:
         engine = _make_engine()
