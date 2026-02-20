@@ -5,6 +5,10 @@ schedules:
     message: "Generate a daily status report"
     enabled: true
     timezone: "Europe/London"
+  - name: heartbeat
+    cron: "0 * * * *"
+    message: "Generate a one-sentence system heartbeat status"
+    enabled: true
 ---
 
 # Scheduled Reporter
