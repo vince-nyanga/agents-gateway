@@ -54,6 +54,14 @@ class GuardrailTriggered(ExecutionError):
         super().__init__(f"Guardrail triggered: {reason}", execution_id)
 
 
+class InputValidationError(AgentGatewayError):
+    """Raised when input context fails schema validation."""
+
+    def __init__(self, message: str, errors: list[str] | None = None) -> None:
+        self.errors = errors or []
+        super().__init__(message)
+
+
 class AuthError(AgentGatewayError):
     """Authentication or authorization failure."""
 

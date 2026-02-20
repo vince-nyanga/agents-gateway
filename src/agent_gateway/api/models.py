@@ -120,6 +120,7 @@ class AgentInfo(BaseModel):
     schedules: list[str] = Field(default_factory=list)
     execution_mode: str = "sync"
     notifications: NotificationConfigInfo | None = None
+    input_schema: dict[str, Any] | None = None
 
 
 class SkillInfo(BaseModel):

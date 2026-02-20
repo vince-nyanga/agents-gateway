@@ -114,6 +114,18 @@ async def invoke_agent(
     if snapshot.engine is None:
         return error_response(503, "engine_unavailable", "Execution engine not initialized")
 
+    # Validate context against agent's input_schema (before creating execution record)
+    if agent.input_schema:
+        from agent_gateway.engine.input import validate_input
+
+        errors = validate_input(body.context, agent.input_schema)
+        if errors:
+            return error_response(
+                422,
+                "input_validation_failed",
+                f"Context validation failed: {'; '.join(errors)}",
+            )
+
     # Generate execution ID
     execution_id = str(uuid.uuid4())
 

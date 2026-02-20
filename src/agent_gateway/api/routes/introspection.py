@@ -70,6 +70,7 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             schedules=[s.name for s in agent.schedules],
             execution_mode=agent.execution_mode,
             notifications=_build_notification_config(agent),
+            input_schema=agent.input_schema,
         )
         for agent in ws.agents.values()
     ]
@@ -103,6 +104,7 @@ async def get_agent(
         schedules=[s.name for s in agent.schedules],
         execution_mode=agent.execution_mode,
         notifications=_build_notification_config(agent),
+        input_schema=agent.input_schema,
     )
 
 

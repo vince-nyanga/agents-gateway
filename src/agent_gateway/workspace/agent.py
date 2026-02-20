@@ -51,6 +51,7 @@ class AgentDefinition:
     schedules: list[ScheduleConfig] = field(default_factory=list)
     execution_mode: str = "sync"  # "sync" | "async"
     notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
+    input_schema: dict[str, Any] | None = None
 
     @classmethod
     def load(cls, agent_dir: Path) -> AgentDefinition | None:
@@ -115,6 +116,16 @@ class AgentDefinition:
         raw_notif = config_meta.get("notifications") or agent_meta.get("notifications", {})
         notifications = _parse_notification_config(raw_notif, agent_dir)
 
+        # Input schema: CONFIG.md wins (scalar precedence)
+        input_schema = _parse_input_schema(
+            config_meta.get("input_schema") or agent_meta.get("input_schema"),
+            agent_dir,
+        )
+
+        # Validate schedule contexts against input_schema at load time
+        if input_schema:
+            _validate_schedule_contexts(schedules, input_schema, agent_dir)
+
         return cls(
             id=agent_id,
             path=agent_dir,
@@ -126,7 +137,58 @@ class AgentDefinition:
             schedules=schedules,
             execution_mode=execution_mode,
             notifications=notifications,
+            input_schema=input_schema,
         )
+
+
+def _parse_input_schema(
+    raw: Any,
+    agent_dir: Path,
+) -> dict[str, Any] | None:
+    """Parse and validate an input_schema from agent frontmatter.
+
+    Returns the schema dict if valid, None otherwise.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        logger.warning("Invalid input_schema (not a dict) in %s, ignoring", agent_dir)
+        return None
+
+    # Validate that the schema itself is a valid JSON Schema
+    import jsonschema
+
+    try:
+        jsonschema.Draft202012Validator.check_schema(raw)
+    except jsonschema.SchemaError as e:
+        logger.warning(
+            "Invalid JSON Schema in input_schema for %s: %s, ignoring",
+            agent_dir,
+            e.message,
+        )
+        return None
+
+    return raw
+
+
+def _validate_schedule_contexts(
+    schedules: list[ScheduleConfig],
+    input_schema: dict[str, Any],
+    agent_dir: Path,
+) -> None:
+    """Validate schedule contexts against the agent's input_schema at load time."""
+    import jsonschema
+
+    for schedule in schedules:
+        try:
+            jsonschema.validate(instance=schedule.context, schema=input_schema)
+        except jsonschema.ValidationError as e:
+            logger.warning(
+                "Schedule '%s' in %s has context that violates input_schema: %s",
+                schedule.name,
+                agent_dir,
+                e.message,
+            )
 
 
 def _parse_schedules(

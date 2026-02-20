@@ -86,6 +86,7 @@ class Gateway(FastAPI):
         self._auth_setting = auth
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
+        self._pending_input_schemas: dict[str, dict[str, Any] | type] = {}
         self._hooks = HookRegistry()
 
         # Initialized during lifespan startup
@@ -347,6 +348,9 @@ class Gateway(FastAPI):
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
+
+        # 7.5. Apply code-registered input schemas (overrides frontmatter)
+        self._apply_pending_input_schemas(workspace)
 
         # 8. Atomic snapshot
         self._snapshot = WorkspaceSnapshot(
@@ -992,6 +996,24 @@ class Gateway(FastAPI):
 
         return None
 
+    def _apply_pending_input_schemas(self, workspace: WorkspaceState) -> None:
+        """Apply code-registered input schemas to workspace agents."""
+        if not self._pending_input_schemas:
+            return
+
+        from agent_gateway.engine.input import resolve_input_schema
+
+        for agent_id, schema in self._pending_input_schemas.items():
+            agent = workspace.agents.get(agent_id)
+            if agent is None:
+                logger.warning(
+                    "set_input_schema: agent '%s' not found in workspace, skipping",
+                    agent_id,
+                )
+                continue
+            json_schema, _ = resolve_input_schema(schema)
+            agent.input_schema = json_schema
+
     def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
         """Create a backend from YAML/env configuration (backward compat)."""
         if config.backend == "sqlite":
@@ -1049,6 +1071,9 @@ class Gateway(FastAPI):
                     config=self._config,
                     hooks=self._hooks,
                 )
+
+            # Re-apply code-registered input schemas
+            self._apply_pending_input_schemas(new_workspace)
 
             # Single atomic reference swap
             self._snapshot = WorkspaceSnapshot(
@@ -1150,6 +1175,18 @@ class Gateway(FastAPI):
 
         if snapshot.engine is None:
             raise ValueError("Execution engine not initialized")
+
+        # Validate context against agent's input_schema
+        if agent.input_schema:
+            from agent_gateway.engine.input import validate_input
+            from agent_gateway.exceptions import InputValidationError
+
+            errors = validate_input(context, agent.input_schema)
+            if errors:
+                raise InputValidationError(
+                    f"Context validation failed for agent '{agent_id}': {'; '.join(errors)}",
+                    errors=errors,
+                )
 
         execution_id = str(uuid.uuid4())
         handle = ExecutionHandle(execution_id=execution_id)
@@ -1408,6 +1445,29 @@ class Gateway(FastAPI):
         if fn is not None:
             return decorator(fn)
         return decorator
+
+    def set_input_schema(
+        self,
+        agent_id: str,
+        schema: dict[str, Any] | type,
+    ) -> None:
+        """Set the input schema for an agent.
+
+        Can be called with a JSON Schema dict or a Pydantic BaseModel class.
+        Call before ``startup()`` — the schema is applied when the workspace loads.
+        Code-registered schemas override AGENT.md frontmatter schemas.
+
+        Usage::
+
+            from pydantic import BaseModel
+
+            class DealInput(BaseModel):
+                deal_id: str
+                amount: float
+
+            gw.set_input_schema("underwriting", DealInput)
+        """
+        self._pending_input_schemas[agent_id] = schema
 
     def on(self, event: str) -> Callable[..., Any]:
         """Register a lifecycle hook callback.
