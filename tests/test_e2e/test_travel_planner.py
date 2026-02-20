@@ -13,10 +13,13 @@ async def test_invoke_travel_planner(client: AsyncClient) -> None:
     resp = await client.post(
         "/v1/agents/travel-planner/invoke",
         json={
-            "message": (
-                "Plan a trip to Paris from London on 2025-07-15. "
-                "Check out on 2025-07-18. Use all available tools."
-            )
+            "message": "Plan the trip. Use all available tools.",
+            "input": {
+                "destination": "Paris",
+                "origin": "London",
+                "departure_date": "2025-07-15",
+                "nights": 3,
+            },
         },
         timeout=60,
     )

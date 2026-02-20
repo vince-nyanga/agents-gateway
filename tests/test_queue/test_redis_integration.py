@@ -57,7 +57,7 @@ def _make_job(execution_id: str = "exec-1") -> ExecutionJob:
         execution_id=execution_id,
         agent_id="agent-a",
         message="Hello",
-        context={"key": "value"},
+        input={"key": "value"},
         enqueued_at="2026-02-18T10:00:00+00:00",
     )
 
@@ -72,7 +72,7 @@ async def test_enqueue_dequeue_round_trip(redis_queue: RedisQueue) -> None:
     assert result.execution_id == "exec-1"
     assert result.agent_id == "agent-a"
     assert result.message == "Hello"
-    assert result.context == {"key": "value"}
+    assert result.input == {"key": "value"}
 
 
 async def test_dequeue_empty_returns_none(redis_queue: RedisQueue) -> None:

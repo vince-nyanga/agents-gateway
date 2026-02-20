@@ -31,7 +31,7 @@ async def run_scheduled_job(
     schedule_id: str,
     agent_id: str,
     message: str,
-    context: dict[str, Any],
+    input: dict[str, Any],
 ) -> None:
     """Entry point called by APScheduler when a cron trigger fires.
 
@@ -46,5 +46,5 @@ async def run_scheduled_job(
         schedule_id=schedule_id,
         agent_id=agent_id,
         message=message,
-        context=context,
+        input=input,
     )

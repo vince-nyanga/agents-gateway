@@ -20,7 +20,7 @@ class ScheduleConfig:
     name: str
     cron: str
     message: str
-    context: dict[str, Any] = field(default_factory=dict)
+    input: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
     timezone: str | None = None
 
@@ -176,15 +176,15 @@ def _validate_schedule_contexts(
     input_schema: dict[str, Any],
     agent_dir: Path,
 ) -> None:
-    """Validate schedule contexts against the agent's input_schema at load time."""
+    """Validate schedule inputs against the agent's input_schema at load time."""
     import jsonschema
 
     for schedule in schedules:
         try:
-            jsonschema.validate(instance=schedule.context, schema=input_schema)
+            jsonschema.validate(instance=schedule.input, schema=input_schema)
         except jsonschema.ValidationError as e:
             logger.warning(
-                "Schedule '%s' in %s has context that violates input_schema: %s",
+                "Schedule '%s' in %s has input that violates input_schema: %s",
                 schedule.name,
                 agent_dir,
                 e.message,
@@ -254,7 +254,7 @@ def _parse_schedules(
                 name=name,
                 cron=cron_expr,
                 message=message,
-                context=s.get("context", {}),
+                input=s.get("input", {}),
                 enabled=s.get("enabled", True),
                 timezone=tz,
             )

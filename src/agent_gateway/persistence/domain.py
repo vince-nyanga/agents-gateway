@@ -19,7 +19,7 @@ class ExecutionRecord:
     agent_id: str
     status: str = "queued"
     message: str = ""
-    context: dict[str, Any] | None = None
+    input: dict[str, Any] | None = None
     options: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
@@ -68,7 +68,7 @@ class ScheduleRecord:
     name: str
     cron_expr: str
     message: str
-    context: dict[str, Any] | None = None
+    input: dict[str, Any] | None = None
     enabled: bool = True
     timezone: str = "UTC"
     last_run_at: datetime | None = None

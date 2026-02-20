@@ -247,7 +247,7 @@ class TestSchedulerEngineOverlap:
             schedule_id="reporter:daily-report",
             agent_id="reporter",
             message="Generate report",
-            context={"source": "scheduled"},
+            input={"source": "scheduled"},
         )
 
         # No execution record should be created (overlap skipped)
@@ -285,7 +285,7 @@ class TestSchedulerEngineOverlap:
             schedule_id="reporter:daily-report",
             agent_id="reporter",
             message="Generate report",
-            context={"source": "scheduled"},
+            input={"source": "scheduled"},
         )
 
         # Should have created an execution record (not skipped)
@@ -350,7 +350,7 @@ class TestSchedulerEngineDispatch:
             schedule_id="reporter:daily-report",
             agent_id="reporter",
             message="Generate report",
-            context={"source": "scheduled", "schedule_name": "daily-report"},
+            input={"source": "scheduled", "schedule_name": "daily-report"},
         )
 
         execution_repo.create.assert_called_once()
@@ -372,7 +372,7 @@ class TestSchedulerEngineDispatch:
             schedule_id="reporter:daily-report",
             agent_id="reporter",
             message="Generate report",
-            context={"source": "scheduled"},
+            input={"source": "scheduled"},
         )
 
         # Active set should be cleared after failure
@@ -398,7 +398,7 @@ class TestSchedulerEngineDispatch:
             schedule_id="reporter:daily-report",
             agent_id="reporter",
             message="Generate report",
-            context={"source": "scheduled"},
+            input={"source": "scheduled"},
         )
 
         execution_repo.create.assert_called_once()

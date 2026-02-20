@@ -138,7 +138,7 @@ class RabbitMQQueue:
                     execution_id=job.execution_id,
                     agent_id=job.agent_id,
                     message=job.message,
-                    context=job.context,
+                    input=job.input,
                     timeout_ms=job.timeout_ms,
                     output_schema=job.output_schema,
                     enqueued_at=job.enqueued_at,

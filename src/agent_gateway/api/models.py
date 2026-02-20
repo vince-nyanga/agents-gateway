@@ -29,7 +29,7 @@ class InvokeRequest(BaseModel):
     """Request body for POST /v1/agents/{agent_id}/invoke."""
 
     message: str = Field(..., max_length=102_400)
-    context: dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] = Field(default_factory=dict)
     options: InvokeOptions = Field(default_factory=InvokeOptions)
 
 
@@ -85,7 +85,7 @@ class ExecutionResponse(BaseModel):
     agent_id: str
     status: ExecutionStatus
     message: str
-    context: dict[str, Any] | None = None
+    input: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
     usage: dict[str, Any] | None = None
@@ -165,7 +165,7 @@ class ChatRequest(BaseModel):
 
     message: str = Field(..., max_length=102_400)
     session_id: str | None = None
-    context: dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] = Field(default_factory=dict)
     options: ChatOptions = Field(default_factory=ChatOptions)
 
 
@@ -211,7 +211,7 @@ class ScheduleInfo(BaseModel):
 
 
 class ScheduleDetailInfo(ScheduleInfo):
-    """Schedule detail with message and context."""
+    """Schedule detail with message and input."""
 
     message: str = ""
-    context: dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] = Field(default_factory=dict)

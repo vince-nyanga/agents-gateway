@@ -46,7 +46,7 @@ class TestNotificationJobSerialization:
             error="boom",
             usage={"input_tokens": 100, "output_tokens": 50},
             duration_ms=1500,
-            context={"user": "alice"},
+            input={"user": "alice"},
             enqueued_at="2026-01-01T00:00:00Z",
         )
         restored = NotificationJob.from_json(job.to_json())
@@ -71,7 +71,7 @@ class TestNotificationJobSerialization:
         assert job.error is None
         assert job.usage is None
         assert job.duration_ms == 0
-        assert job.context is None
+        assert job.input is None
         assert job.enqueued_at == ""
 
 

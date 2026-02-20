@@ -270,7 +270,7 @@ class TestWebhookBackendEdgeCases:
         event = _make_event(
             result={"output": "summary here"},
             usage={"total_tokens": 500},
-            context={"user_id": "u-1"},
+            input={"user_id": "u-1"},
         )
         target = NotificationTarget(channel="webhook", url="https://example.com/hook")
 
@@ -290,7 +290,7 @@ class TestWebhookBackendEdgeCases:
             assert payload["duration_ms"] == 3200
             # Internal metrics should not be in the default payload
             assert "usage" not in payload
-            assert "context" not in payload
+            assert "input" not in payload
             assert "result" not in payload
 
         await backend.dispose()

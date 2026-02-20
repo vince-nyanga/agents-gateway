@@ -28,7 +28,7 @@ input_schema:
 
 # Schema Agent
 
-You process deals. Use the deal_id and amount from context.
+You process deals. Use the deal_id and amount from input.
 """
 
 NO_SCHEMA_AGENT_MD = """\
@@ -65,7 +65,7 @@ class TestHttpInvokeValidation:
     async def test_valid_context_passes(
         self, schema_workspace: Path, mock_llm_completion: Any
     ) -> None:
-        """Valid context passes validation and reaches the LLM."""
+        """Valid input passes validation and reaches the LLM."""
         gw = Gateway(workspace=str(schema_workspace), auth=False)
         client = await make_test_client(gw)
         try:
@@ -75,7 +75,7 @@ class TestHttpInvokeValidation:
                     "/v1/agents/schema-agent/invoke",
                     json={
                         "message": "Process this deal",
-                        "context": {"deal_id": "D-123", "amount": 50000},
+                        "input": {"deal_id": "D-123", "amount": 50000},
                     },
                 )
             assert resp.status_code == 200
@@ -95,7 +95,7 @@ class TestHttpInvokeValidation:
                 "/v1/agents/schema-agent/invoke",
                 json={
                     "message": "Process this deal",
-                    "context": {"amount": 50000},
+                    "input": {"amount": 50000},
                 },
             )
             assert resp.status_code == 422
@@ -108,7 +108,7 @@ class TestHttpInvokeValidation:
 
     @pytest.mark.asyncio
     async def test_empty_context_with_required_returns_422(self, schema_workspace: Path) -> None:
-        """Empty context dict when schema has required fields returns 422."""
+        """Empty input dict when schema has required fields returns 422."""
         gw = Gateway(workspace=str(schema_workspace), auth=False)
         client = await make_test_client(gw)
         try:
@@ -133,7 +133,7 @@ class TestHttpInvokeValidation:
                 "/v1/agents/schema-agent/invoke",
                 json={
                     "message": "Process this deal",
-                    "context": {"deal_id": 123},
+                    "input": {"deal_id": 123},
                 },
             )
             assert resp.status_code == 422
@@ -145,7 +145,7 @@ class TestHttpInvokeValidation:
     async def test_no_schema_agent_accepts_any_context(
         self, schema_workspace: Path, mock_llm_completion: Any
     ) -> None:
-        """Agent without input_schema accepts any context (backward compat)."""
+        """Agent without input_schema accepts any input (backward compat)."""
         gw = Gateway(workspace=str(schema_workspace), auth=False)
         client = await make_test_client(gw)
         try:
@@ -155,7 +155,7 @@ class TestHttpInvokeValidation:
                     "/v1/agents/plain-agent/invoke",
                     json={
                         "message": "Hi",
-                        "context": {"anything": "goes", "number": 42},
+                        "input": {"anything": "goes", "number": 42},
                     },
                 )
             assert resp.status_code == 200
@@ -172,26 +172,26 @@ class TestProgrammaticInvokeValidation:
     async def test_valid_context_passes(
         self, schema_workspace: Path, mock_llm_completion: Any
     ) -> None:
-        """Valid context passes validation via gw.invoke()."""
+        """Valid input passes validation via gw.invoke()."""
         async with Gateway(workspace=str(schema_workspace), auth=False) as gw:
             responses = [make_llm_response(text="Done.")]
             with mock_llm_completion(responses):
                 result = await gw.invoke(
                     "schema-agent",
                     "Process deal",
-                    context={"deal_id": "D-1", "amount": 100},
+                    input={"deal_id": "D-1", "amount": 100},
                 )
             assert result.raw_text == "Done."
 
     @pytest.mark.asyncio
     async def test_invalid_context_raises_error(self, schema_workspace: Path) -> None:
-        """Invalid context raises InputValidationError."""
+        """Invalid input raises InputValidationError."""
         async with Gateway(workspace=str(schema_workspace), auth=False) as gw:
             with pytest.raises(InputValidationError, match="deal_id"):
                 await gw.invoke(
                     "schema-agent",
                     "Process deal",
-                    context={"amount": 100},
+                    input={"amount": 100},
                 )
 
     @pytest.mark.asyncio
@@ -199,18 +199,18 @@ class TestProgrammaticInvokeValidation:
         """InputValidationError includes structured errors list."""
         async with Gateway(workspace=str(schema_workspace), auth=False) as gw:
             with pytest.raises(InputValidationError) as exc_info:
-                await gw.invoke("schema-agent", "Process", context={})
+                await gw.invoke("schema-agent", "Process", input={})
             assert len(exc_info.value.errors) > 0
 
     @pytest.mark.asyncio
     async def test_no_schema_agent_accepts_any(
         self, schema_workspace: Path, mock_llm_completion: Any
     ) -> None:
-        """Agent without schema accepts any context programmatically."""
+        """Agent without schema accepts any input programmatically."""
         async with Gateway(workspace=str(schema_workspace), auth=False) as gw:
             responses = [make_llm_response(text="Hi!")]
             with mock_llm_completion(responses):
-                result = await gw.invoke("plain-agent", "Hi", context={"whatever": True})
+                result = await gw.invoke("plain-agent", "Hi", input={"whatever": True})
             assert result.raw_text == "Hi!"
 
 
@@ -276,7 +276,7 @@ class TestSetInputSchema:
 
             # And it validates
             with pytest.raises(InputValidationError, match="deal_id"):
-                await gw.invoke("plain-agent", "Hi", context={})
+                await gw.invoke("plain-agent", "Hi", input={})
 
     @pytest.mark.asyncio
     async def test_dict_schema_registration(self, schema_workspace: Path) -> None:

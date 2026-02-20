@@ -19,7 +19,7 @@ class ExecutionJob:
     execution_id: str
     agent_id: str
     message: str
-    context: dict[str, Any] | None = None
+    input: dict[str, Any] | None = None
     timeout_ms: int | None = None
     output_schema: dict[str, Any] | None = None
     enqueued_at: str = ""  # ISO 8601 string
@@ -33,7 +33,7 @@ class ExecutionJob:
                 "execution_id": self.execution_id,
                 "agent_id": self.agent_id,
                 "message": self.message,
-                "context": self.context,
+                "input": self.input,
                 "timeout_ms": self.timeout_ms,
                 "output_schema": self.output_schema,
                 "enqueued_at": self.enqueued_at,
@@ -50,7 +50,7 @@ class ExecutionJob:
             execution_id=parsed["execution_id"],
             agent_id=parsed["agent_id"],
             message=parsed["message"],
-            context=parsed.get("context"),
+            input=parsed.get("input"),
             timeout_ms=parsed.get("timeout_ms"),
             output_schema=parsed.get("output_schema"),
             enqueued_at=parsed.get("enqueued_at", ""),

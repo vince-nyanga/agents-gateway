@@ -96,7 +96,7 @@ class ExecutionEngine:
         agent: AgentDefinition,
         message: str,
         workspace: WorkspaceState,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
         handle: ExecutionHandle | None = None,
         tool_executor: ToolExecutorFn | None = None,
@@ -108,7 +108,7 @@ class ExecutionEngine:
             agent: The agent definition to execute.
             message: The user's message (used when message_history is None).
             workspace: The loaded workspace state.
-            context: Optional context dict from the request.
+            input: Optional input dict from the request.
             options: Execution options (timeout, output_schema, etc.).
             handle: Optional handle for cancellation.
             tool_executor: Optional callable to execute tools. If not provided,
@@ -154,16 +154,22 @@ class ExecutionEngine:
         if message_history is not None:
             messages = list(message_history)
         else:
+            # Inject structured input into the user message when available
+            user_content = message
+            if input and agent.input_schema:
+                input_block = json.dumps(input, indent=2)
+                user_content = f"{message}\n\n## Input\n```json\n{input_block}\n```"
+
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
+                {"role": "user", "content": user_content},
             ]
 
         # Tool context for executors
         tool_context = ToolContext(
             execution_id=execution_id,
             agent_id=agent.id,
-            metadata=context or {},
+            metadata=input or {},
         )
 
         exec_start = time.monotonic()

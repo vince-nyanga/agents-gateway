@@ -37,7 +37,7 @@ def _record_to_response(record: ExecutionRecord) -> ExecutionResponse:
         agent_id=record.agent_id,
         status=record.status,
         message=record.message,
-        context=record.context,
+        input=record.input,
         result=record.result,
         error=record.error,
         usage=record.usage,

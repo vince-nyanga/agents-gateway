@@ -23,7 +23,7 @@ class NotificationEvent:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     duration_ms: int = 0
-    context: dict[str, Any] | None = None
+    input: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -109,7 +109,7 @@ class NotificationJob:
     error: str | None = None
     usage: dict[str, Any] | None = None
     duration_ms: int = 0
-    context: dict[str, Any] | None = None
+    input: dict[str, Any] | None = None
     enqueued_at: str = ""  # ISO 8601 string
 
     def to_json(self) -> str:
@@ -125,7 +125,7 @@ class NotificationJob:
                 "error": self.error,
                 "usage": self.usage,
                 "duration_ms": self.duration_ms,
-                "context": self.context,
+                "input": self.input,
                 "enqueued_at": self.enqueued_at,
             }
         )
@@ -144,7 +144,7 @@ class NotificationJob:
             error=parsed.get("error"),
             usage=parsed.get("usage"),
             duration_ms=parsed.get("duration_ms", 0),
-            context=parsed.get("context"),
+            input=parsed.get("input"),
             enqueued_at=parsed.get("enqueued_at", ""),
         )
 
@@ -161,7 +161,7 @@ def build_notification_job(
     error: str | None = None,
     usage: dict[str, Any] | None = None,
     duration_ms: int = 0,
-    context: dict[str, Any] | None = None,
+    input: dict[str, Any] | None = None,
     enqueued_at: str = "",
 ) -> NotificationJob:
     """Build a NotificationJob from execution result data."""
@@ -176,7 +176,7 @@ def build_notification_job(
         error=error,
         usage=usage,
         duration_ms=duration_ms,
-        context=context,
+        input=input,
         enqueued_at=enqueued_at,
     )
 
@@ -201,7 +201,7 @@ def build_notification_event(
     started_at: datetime | None = None,
     completed_at: datetime | None = None,
     duration_ms: int = 0,
-    context: dict[str, Any] | None = None,
+    input: dict[str, Any] | None = None,
 ) -> NotificationEvent:
     """Build a NotificationEvent from execution result data."""
     event_type = _EVENT_TYPE_MAP.get(status, f"execution.{status}")
@@ -218,5 +218,5 @@ def build_notification_event(
         started_at=started_at,
         completed_at=completed_at,
         duration_ms=duration_ms,
-        context=context,
+        input=input,
     )

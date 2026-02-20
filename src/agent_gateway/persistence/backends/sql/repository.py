@@ -122,7 +122,7 @@ class ScheduleRepository:
                 existing.name = record.name
                 existing.cron_expr = record.cron_expr
                 existing.message = record.message
-                existing.context = record.context
+                existing.input = record.input
                 existing.enabled = record.enabled
                 existing.timezone = record.timezone
                 existing.next_run_at = record.next_run_at

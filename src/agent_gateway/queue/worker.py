@@ -219,7 +219,7 @@ class WorkerPool:
                     agent=agent,
                     message=job.message,
                     workspace=snapshot.workspace,
-                    context=job.context,
+                    input=job.input,
                     options=exec_options,
                     handle=handle,
                     tool_executor=execute_tool,
@@ -257,7 +257,7 @@ class WorkerPool:
                 "config": agent.notifications,
                 "result": result.to_dict() if result.raw_text else None,
                 "usage": result.usage.to_dict() if result.usage else None,
-                "context": job.context,
+                "input": job.input,
                 "duration_ms": duration_ms,
             }
         except Exception as e:
@@ -278,7 +278,7 @@ class WorkerPool:
                 "message": job.message,
                 "config": agent.notifications,
                 "error": str(e),
-                "context": job.context,
+                "input": job.input,
             }
         finally:
             gw._execution_handles.pop(job.execution_id, None)

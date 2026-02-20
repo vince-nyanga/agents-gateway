@@ -1,4 +1,4 @@
-"""Input context validation — validate caller-provided context against agent input schemas."""
+"""Input validation — validate caller-provided input against agent input schemas."""
 
 from __future__ import annotations
 
@@ -26,16 +26,16 @@ def resolve_input_schema(
 
 
 def validate_input(
-    context: dict[str, Any] | None,
+    input_data: dict[str, Any] | None,
     schema: dict[str, Any],
 ) -> list[str]:
-    """Validate context against a JSON Schema.
+    """Validate input against a JSON Schema.
 
     Returns:
         List of error messages. Empty list means validation passed.
     """
     # Treat None as empty object — if schema has required fields, this will fail
-    instance = context if context is not None else {}
+    instance = input_data if input_data is not None else {}
 
     try:
         jsonschema.validate(instance=instance, schema=schema)
@@ -46,15 +46,15 @@ def validate_input(
 
 
 def validate_input_pydantic(
-    context: dict[str, Any] | None,
+    input_data: dict[str, Any] | None,
     model_cls: type[BaseModel],
 ) -> list[str]:
-    """Validate context against a Pydantic model.
+    """Validate input against a Pydantic model.
 
     Returns:
         List of error messages. Empty list means validation passed.
     """
-    instance = context if context is not None else {}
+    instance = input_data if input_data is not None else {}
 
     try:
         model_cls.model_validate(instance)

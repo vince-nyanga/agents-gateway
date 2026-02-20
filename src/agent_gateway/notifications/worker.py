@@ -75,7 +75,7 @@ class NotificationWorker:
                 error=job.error,
                 usage=job.usage,
                 duration_ms=job.duration_ms,
-                context=job.context,
+                input=job.input,
             )
             config = AgentNotificationConfig.from_dict(job.config)
 

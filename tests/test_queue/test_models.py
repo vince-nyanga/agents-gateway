@@ -13,7 +13,7 @@ def test_job_round_trip_json() -> None:
         execution_id="exec-1",
         agent_id="agent-a",
         message="Hello",
-        context={"key": "value"},
+        input={"key": "value"},
         timeout_ms=30000,
         output_schema={"type": "object"},
         enqueued_at="2026-02-18T10:00:00+00:00",
@@ -39,7 +39,7 @@ def test_job_round_trip_minimal() -> None:
     assert restored.execution_id == "exec-2"
     assert restored.agent_id == "agent-b"
     assert restored.message == "Hi"
-    assert restored.context is None
+    assert restored.input is None
     assert restored.timeout_ms is None
     assert restored.retry_count == 0
 

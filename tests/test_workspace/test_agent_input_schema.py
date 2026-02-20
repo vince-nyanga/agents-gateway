@@ -97,8 +97,8 @@ class TestInputSchemaParsing:
         assert agent is not None
         assert agent.input_schema is None
 
-    def test_schedule_context_validated_against_schema(self, tmp_path: Path) -> None:
-        """Schedule with invalid context logs warning but still loads."""
+    def test_schedule_input_validated_against_schema(self, tmp_path: Path) -> None:
+        """Schedule with invalid input logs warning but still loads."""
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text(
@@ -114,7 +114,7 @@ class TestInputSchemaParsing:
             "  - name: daily\n"
             "    cron: '0 9 * * *'\n"
             "    message: 'Run daily'\n"
-            "    context:\n"
+            "    input:\n"
             "      wrong_field: value\n"
             "---\n"
             "# Agent\n\nScheduled agent."
@@ -123,12 +123,12 @@ class TestInputSchemaParsing:
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
         assert agent.input_schema is not None
-        # Schedule still loads despite invalid context
+        # Schedule still loads despite invalid input
         assert len(agent.schedules) == 1
         assert agent.schedules[0].name == "daily"
 
-    def test_schedule_context_valid_against_schema(self, tmp_path: Path) -> None:
-        """Schedule with valid context loads without issues."""
+    def test_schedule_input_valid_against_schema(self, tmp_path: Path) -> None:
+        """Schedule with valid input loads without issues."""
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text(
@@ -144,7 +144,7 @@ class TestInputSchemaParsing:
             "  - name: daily\n"
             "    cron: '0 9 * * *'\n"
             "    message: 'Run daily'\n"
-            "    context:\n"
+            "    input:\n"
             "      deal_id: D-123\n"
             "---\n"
             "# Agent\n\nScheduled agent."

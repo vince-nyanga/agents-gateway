@@ -127,10 +127,10 @@ class SchedulerEngine:
 
         trigger = CronTrigger.from_crontab(sched_config.cron, timezone=tz)
 
-        context = dict(sched_config.context) if sched_config.context else {}
-        context["source"] = "scheduled"
-        context["schedule_id"] = schedule_id
-        context["schedule_name"] = sched_config.name
+        input_data = dict(sched_config.input) if sched_config.input else {}
+        input_data["source"] = "scheduled"
+        input_data["schedule_id"] = schedule_id
+        input_data["schedule_name"] = sched_config.name
 
         self._scheduler.add_job(
             run_scheduled_job,
@@ -141,7 +141,7 @@ class SchedulerEngine:
                 "schedule_id": schedule_id,
                 "agent_id": agent_id,
                 "message": sched_config.message,
-                "context": context,
+                "input": input_data,
             },
             replace_existing=True,
             coalesce=self._config.coalesce,
@@ -169,7 +169,7 @@ class SchedulerEngine:
                     name=sched.name,
                     cron_expr=sched.cron,
                     message=sched.message,
-                    context=dict(sched.context) if sched.context else None,
+                    input=dict(sched.input) if sched.input else None,
                     enabled=sched.enabled,
                     timezone=sched.timezone or self._timezone,
                     next_run_at=next_run,
@@ -192,7 +192,7 @@ class SchedulerEngine:
         schedule_id: str,
         agent_id: str,
         message: str,
-        context: dict[str, Any],
+        input: dict[str, Any],
     ) -> None:
         """Dispatch a scheduled agent execution. Called by the handler module."""
         # Overlap check with safety valve: auto-clear after 2x misfire grace
@@ -217,7 +217,7 @@ class SchedulerEngine:
             self._active_scheduled[schedule_id] = time.monotonic()
 
         try:
-            await self._do_dispatch(schedule_id, agent_id, message, context)
+            await self._do_dispatch(schedule_id, agent_id, message, input)
         except Exception:
             logger.exception("Scheduled execution for '%s' failed", schedule_id)
             async with self._active_lock:
@@ -230,7 +230,7 @@ class SchedulerEngine:
         schedule_id: str,
         agent_id: str,
         message: str,
-        context: dict[str, Any],
+        input: dict[str, Any],
     ) -> None:
         """Internal dispatch — either enqueue to worker pool or invoke directly."""
         from agent_gateway.persistence.domain import ExecutionRecord
@@ -243,9 +243,9 @@ class SchedulerEngine:
             agent_id=agent_id,
             status="queued",
             message=message,
-            context=context,
+            input=input,
             schedule_id=schedule_id,
-            schedule_name=context.get("schedule_name", ""),
+            schedule_name=input.get("schedule_name", ""),
             created_at=datetime.now(UTC),
         )
         await self._execution_repo.create(record)
@@ -257,7 +257,7 @@ class SchedulerEngine:
                 execution_id=execution_id,
                 agent_id=agent_id,
                 message=message,
-                context=context,
+                input=input,
                 enqueued_at=datetime.now(UTC).isoformat(),
                 schedule_id=schedule_id,
             )
@@ -270,7 +270,7 @@ class SchedulerEngine:
             )
         else:
             try:
-                await self._invoke_fn(agent_id, message, context=context)
+                await self._invoke_fn(agent_id, message, input=input)
             finally:
                 async with self._active_lock:
                     self._active_scheduled.pop(schedule_id, None)
@@ -330,10 +330,10 @@ class SchedulerEngine:
             return None
 
         execution_id = str(uuid.uuid4())
-        context: dict[str, Any] = dict(config.context) if config.context else {}
-        context["source"] = "manual_trigger"
-        context["schedule_id"] = schedule_id
-        context["schedule_name"] = config.name
+        input_data: dict[str, Any] = dict(config.input) if config.input else {}
+        input_data["source"] = "manual_trigger"
+        input_data["schedule_id"] = schedule_id
+        input_data["schedule_name"] = config.name
 
         from agent_gateway.persistence.domain import ExecutionRecord
 
@@ -342,7 +342,7 @@ class SchedulerEngine:
             agent_id=agent_id,
             status="queued",
             message=config.message,
-            context=context,
+            input=input_data,
             schedule_id=schedule_id,
             schedule_name=config.name,
             created_at=datetime.now(UTC),
@@ -351,7 +351,7 @@ class SchedulerEngine:
 
         # Dispatch via gateway invoke (direct, not queued)
         task = asyncio.create_task(
-            self._run_manual_trigger(execution_id, agent_id, config.message, context),
+            self._run_manual_trigger(execution_id, agent_id, config.message, input_data),
             name=f"manual-trigger-{execution_id}",
         )
         self._track_task(task)
@@ -362,11 +362,11 @@ class SchedulerEngine:
         execution_id: str,
         agent_id: str,
         message: str,
-        context: dict[str, Any],
+        input: dict[str, Any],
     ) -> None:
         """Run a manually triggered schedule execution in the background."""
         try:
-            result = await self._invoke_fn(agent_id, message, context=context)
+            result = await self._invoke_fn(agent_id, message, input=input)
             await self._execution_repo.update_status(
                 execution_id,
                 "completed",
@@ -420,7 +420,7 @@ class SchedulerEngine:
             "name": rec.name,
             "cron_expr": rec.cron_expr,
             "message": rec.message,
-            "context": rec.context or {},
+            "input": rec.input or {},
             "enabled": rec.enabled,
             "timezone": rec.timezone,
             "next_run_at": next_run,

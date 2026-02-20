@@ -52,7 +52,7 @@ def _make_job(execution_id: str = "exec-1") -> ExecutionJob:
         execution_id=execution_id,
         agent_id="agent-a",
         message="Hello",
-        context={"key": "value"},
+        input={"key": "value"},
         enqueued_at="2026-02-18T10:00:00+00:00",
     )
 

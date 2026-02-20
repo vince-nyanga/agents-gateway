@@ -1100,7 +1100,7 @@ class Gateway(FastAPI):
         error: str | None = None,
         usage: dict[str, Any] | None = None,
         duration_ms: int = 0,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
     ) -> None:
         """Fire notifications via queue (if available) or as a background task.
 
@@ -1122,7 +1122,7 @@ class Gateway(FastAPI):
                 error=error,
                 usage=usage,
                 duration_ms=duration_ms,
-                context=context,
+                input=input,
             )
             task = asyncio.create_task(self._notification_queue.enqueue(job))
             self._background_tasks.add(task)
@@ -1138,7 +1138,7 @@ class Gateway(FastAPI):
                 error=error,
                 usage=usage,
                 duration_ms=duration_ms,
-                context=context,
+                input=input,
             )
             task = asyncio.create_task(self._notification_engine.notify(event, config))
             self._background_tasks.add(task)
@@ -1148,7 +1148,7 @@ class Gateway(FastAPI):
         self,
         agent_id: str,
         message: str,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
     ) -> ExecutionResult:
         """Invoke an agent programmatically (bypasses HTTP).
@@ -1156,7 +1156,7 @@ class Gateway(FastAPI):
         Args:
             agent_id: The agent to invoke.
             message: The user message.
-            context: Optional context dict.
+            input: Optional input dict.
             options: Optional execution options.
 
         Returns:
@@ -1176,15 +1176,15 @@ class Gateway(FastAPI):
         if snapshot.engine is None:
             raise ValueError("Execution engine not initialized")
 
-        # Validate context against agent's input_schema
+        # Validate input against agent's input_schema
         if agent.input_schema:
             from agent_gateway.engine.input import validate_input
             from agent_gateway.exceptions import InputValidationError
 
-            errors = validate_input(context, agent.input_schema)
+            errors = validate_input(input, agent.input_schema)
             if errors:
                 raise InputValidationError(
-                    f"Context validation failed for agent '{agent_id}': {'; '.join(errors)}",
+                    f"Input validation failed for agent '{agent_id}': {'; '.join(errors)}",
                     errors=errors,
                 )
 
@@ -1197,7 +1197,7 @@ class Gateway(FastAPI):
                 agent=agent,
                 message=message,
                 workspace=snapshot.workspace,
-                context=context,
+                input=input,
                 options=options,
                 handle=handle,
                 tool_executor=execute_tool,
@@ -1212,7 +1212,7 @@ class Gateway(FastAPI):
                 config=agent.notifications,
                 result=result.to_dict() if result.raw_text else None,
                 usage=result.usage.to_dict() if result.usage else None,
-                context=context,
+                input=input,
             )
 
             return result
@@ -1224,7 +1224,7 @@ class Gateway(FastAPI):
         agent_id: str,
         message: str,
         session_id: str | None = None,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
     ) -> tuple[str, ExecutionResult]:
         """Send a chat message programmatically (bypasses HTTP).
@@ -1233,7 +1233,7 @@ class Gateway(FastAPI):
             agent_id: The agent to chat with.
             message: The user message.
             session_id: Optional existing session ID. Creates new session if None.
-            context: Optional context dict.
+            input: Optional input dict.
             options: Optional execution options.
 
         Returns:
@@ -1267,10 +1267,10 @@ class Gateway(FastAPI):
                     f"'{session.agent_id}', not '{agent_id}'"
                 )
         else:
-            session = self._session_store.create_session(agent_id, metadata=context)
+            session = self._session_store.create_session(agent_id, metadata=input)
 
-        if context:
-            session.merge_metadata(context)
+        if input:
+            session.merge_metadata(input)
 
         async with session.lock:
             session.append_user_message(message)
@@ -1292,7 +1292,7 @@ class Gateway(FastAPI):
                     agent=agent,
                     message=message,
                     workspace=snapshot.workspace,
-                    context=session.metadata,
+                    input=session.metadata,
                     options=options,
                     handle=handle,
                     tool_executor=execute_tool,

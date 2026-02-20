@@ -18,13 +18,13 @@ async def test_run_scheduled_job_dispatches() -> None:
             schedule_id="agent:daily",
             agent_id="agent",
             message="hello",
-            context={"source": "scheduled"},
+            input={"source": "scheduled"},
         )
         engine.dispatch_scheduled_execution.assert_called_once_with(
             schedule_id="agent:daily",
             agent_id="agent",
             message="hello",
-            context={"source": "scheduled"},
+            input={"source": "scheduled"},
         )
     finally:
         set_scheduler_engine(None)
@@ -38,5 +38,5 @@ async def test_run_scheduled_job_no_engine(caplog: object) -> None:
         schedule_id="agent:daily",
         agent_id="agent",
         message="hello",
-        context={},
+        input={},
     )

@@ -55,7 +55,7 @@ class GuardrailTriggered(ExecutionError):
 
 
 class InputValidationError(AgentGatewayError):
-    """Raised when input context fails schema validation."""
+    """Raised when input fails schema validation."""
 
     def __init__(self, message: str, errors: list[str] | None = None) -> None:
         self.errors = errors or []

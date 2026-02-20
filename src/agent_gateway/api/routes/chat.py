@@ -70,7 +70,7 @@ async def chat_with_agent(
             agent_id=agent_id,
             message=body.message,
             session_id=body.session_id,
-            context=body.context or None,
+            input=body.input or None,
             options=ExecutionOptions(timeout_ms=body.options.timeout_ms),
         )
     except ValueError as e:
@@ -147,10 +147,10 @@ def _create_streaming_response(
             if session.agent_id != agent_id:
                 return
         else:
-            session = session_store.create_session(agent_id, metadata=body.context or None)
+            session = session_store.create_session(agent_id, metadata=body.input or None)
 
-        if body.context:
-            session.metadata.update(body.context)
+        if body.input:
+            session.metadata.update(body.input)
 
         # Append user message and build messages (inside generator, before lock)
         session.append_user_message(body.message)
