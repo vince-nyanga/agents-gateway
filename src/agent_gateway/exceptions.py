@@ -68,3 +68,15 @@ class AuthError(AgentGatewayError):
     def __init__(self, message: str, code: str = "auth_error") -> None:
         self.code = code
         super().__init__(message)
+
+
+class MemoryError(AgentGatewayError):
+    """Base for memory-related errors."""
+
+
+class MemoryBackendError(MemoryError):
+    """Memory backend failure (connection, query, etc.)."""
+
+
+class MemoryCompactionError(MemoryError):
+    """LLM compaction failed."""

@@ -26,6 +26,16 @@ class ScheduleConfig:
 
 
 @dataclass
+class AgentMemoryConfig:
+    """Per-agent memory configuration from AGENT.md frontmatter."""
+
+    enabled: bool = False
+    auto_extract: bool = False
+    max_injected_chars: int = 4000
+    max_memory_md_lines: int = 200
+
+
+@dataclass
 class AgentModelConfig:
     """Per-agent model configuration from AGENT.md frontmatter."""
 
@@ -61,6 +71,9 @@ class AgentDefinition:
     # RAG context
     context_content: list[str] = field(default_factory=list)  # loaded static file contents
     retrievers: list[str] = field(default_factory=list)  # named retriever references
+
+    # Memory
+    memory_config: AgentMemoryConfig = field(default_factory=AgentMemoryConfig)
 
     @classmethod
     def load(cls, agent_dir: Path) -> AgentDefinition | None:
@@ -158,6 +171,8 @@ class AgentDefinition:
             )
             retrievers = []
 
+        memory_config = _parse_memory_config(agent_meta.get("memory", {}), agent_dir)
+
         return cls(
             id=agent_id,
             path=agent_dir,
@@ -175,6 +190,7 @@ class AgentDefinition:
             input_schema=input_schema,
             context_content=context_content,
             retrievers=retrievers,
+            memory_config=memory_config,
         )
 
 
@@ -246,6 +262,22 @@ def _load_context_files(
             logger.warning("Failed to read context file: %s", target, exc_info=True)
 
     return contents
+
+
+def _parse_memory_config(
+    raw: Any,
+    agent_dir: Path,
+) -> AgentMemoryConfig:
+    """Parse memory configuration from agent frontmatter."""
+    if not isinstance(raw, dict):
+        return AgentMemoryConfig()
+
+    return AgentMemoryConfig(
+        enabled=bool(raw.get("enabled", False)),
+        auto_extract=bool(raw.get("auto_extract", False)),
+        max_injected_chars=int(raw.get("max_injected_chars", 4000)),
+        max_memory_md_lines=int(raw.get("max_memory_md_lines", 200)),
+    )
 
 
 def _parse_input_schema(
