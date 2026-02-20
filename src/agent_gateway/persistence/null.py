@@ -39,9 +39,7 @@ class NullExecutionRepository:
     async def list_by_agent(self, agent_id: str, limit: int = 50) -> list[ExecutionRecord]:
         return []
 
-    async def list_by_schedule(
-        self, schedule_id: str, limit: int = 20
-    ) -> list[ExecutionRecord]:
+    async def list_by_schedule(self, schedule_id: str, limit: int = 20) -> list[ExecutionRecord]:
         return []
 
     async def add_step(self, step: ExecutionStep) -> None:

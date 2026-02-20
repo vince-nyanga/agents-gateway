@@ -155,9 +155,7 @@ def _parse_schedules(
 
         # Enforce uniqueness per agent
         if name in seen_names:
-            logger.warning(
-                "Duplicate schedule name '%s' in %s, skipping", name, agent_dir
-            )
+            logger.warning("Duplicate schedule name '%s' in %s, skipping", name, agent_dir)
             continue
         seen_names.add(name)
 
@@ -170,7 +168,9 @@ def _parse_schedules(
             except (ZoneInfoNotFoundError, KeyError):
                 logger.warning(
                     "Invalid timezone '%s' for schedule '%s' in %s, skipping",
-                    tz, name, agent_dir,
+                    tz,
+                    name,
+                    agent_dir,
                 )
                 continue
 
@@ -180,7 +180,10 @@ def _parse_schedules(
         except (ValueError, KeyError) as e:
             logger.warning(
                 "Invalid cron expression '%s' for schedule '%s' in %s: %s",
-                cron_expr, name, agent_dir, e,
+                cron_expr,
+                name,
+                agent_dir,
+                e,
             )
             continue
 

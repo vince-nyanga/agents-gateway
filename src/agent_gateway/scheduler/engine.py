@@ -392,17 +392,19 @@ class SchedulerEngine:
         for rec in records:
             # Get live next_run_at from APScheduler if available
             next_run = self._get_next_run_time(rec.id) or rec.next_run_at
-            result.append({
-                "id": rec.id,
-                "agent_id": rec.agent_id,
-                "name": rec.name,
-                "cron_expr": rec.cron_expr,
-                "enabled": rec.enabled,
-                "timezone": rec.timezone,
-                "next_run_at": next_run,
-                "last_run_at": rec.last_run_at,
-                "created_at": rec.created_at,
-            })
+            result.append(
+                {
+                    "id": rec.id,
+                    "agent_id": rec.agent_id,
+                    "name": rec.name,
+                    "cron_expr": rec.cron_expr,
+                    "enabled": rec.enabled,
+                    "timezone": rec.timezone,
+                    "next_run_at": next_run,
+                    "last_run_at": rec.last_run_at,
+                    "created_at": rec.created_at,
+                }
+            )
         return result
 
     async def get_schedule(self, schedule_id: str) -> dict[str, Any] | None:
