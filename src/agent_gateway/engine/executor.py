@@ -145,6 +145,7 @@ class ExecutionEngine:
             workspace,
             query=message,
             retriever_registry=self._retriever_registry,
+            context_retrieval_config=self._config.context_retrieval,
         )
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)

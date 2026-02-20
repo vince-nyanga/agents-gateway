@@ -6,6 +6,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 
+from agent_gateway.config import ContextRetrievalConfig
 from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.workspace.agent import AgentDefinition
@@ -21,6 +22,7 @@ async def assemble_system_prompt(
     *,
     query: str = "",
     retriever_registry: RetrieverRegistry | None = None,
+    context_retrieval_config: ContextRetrievalConfig | None = None,
 ) -> str:
     """Build the full system prompt for an agent.
 
@@ -58,8 +60,21 @@ async def assemble_system_prompt(
         parts.append(agent.behavior_prompt)
 
     # 5. Static context files
+    cfg = context_retrieval_config or ContextRetrievalConfig()
     if agent.context_content:
-        context_section = "## Reference Material\n\n" + "\n\n---\n\n".join(agent.context_content)
+        max_file = cfg.max_context_file_chars
+        trimmed_content: list[str] = []
+        for content in agent.context_content:
+            if len(content) > max_file:
+                logger.warning(
+                    "Static context file for agent '%s' truncated from %d to %d chars",
+                    agent.id,
+                    len(content),
+                    max_file,
+                )
+                content = content[:max_file]
+            trimmed_content.append(content)
+        context_section = "## Reference Material\n\n" + "\n\n---\n\n".join(trimmed_content)
         parts.append(context_section)
 
     # 6. Dynamic retriever results
@@ -68,6 +83,7 @@ async def assemble_system_prompt(
             agent=agent,
             query=query,
             registry=retriever_registry,
+            config=cfg,
         )
         if retrieved:
             parts.append("## Retrieved Context\n\n" + "\n\n---\n\n".join(retrieved))
@@ -83,27 +99,28 @@ async def assemble_system_prompt(
     return "\n\n---\n\n".join(parts)
 
 
-_RETRIEVER_TIMEOUT_SECONDS = 10.0
-
-
 async def _fetch_retriever_context(
     agent: AgentDefinition,
     query: str,
     registry: RetrieverRegistry,
+    config: ContextRetrievalConfig,
 ) -> list[str]:
     """Call each retriever for the agent concurrently, collecting results.
 
-    Each retriever is given a timeout of ``_RETRIEVER_TIMEOUT_SECONDS``.
+    Each retriever is given a timeout from ``config.retriever_timeout_seconds``.
+    Total retrieved content is capped at ``config.max_retrieved_chars``.
     Failures and timeouts are logged and skipped — never crash the prompt assembly.
     """
     retrievers = registry.resolve_for_agent(agent.retrievers)
     if not retrievers:
         return []
 
+    timeout = config.retriever_timeout_seconds
+
     async def _call_one(retriever: ContextRetriever) -> list[str]:
         return await asyncio.wait_for(
             retriever.retrieve(query=query, agent_id=agent.id),
-            timeout=_RETRIEVER_TIMEOUT_SECONDS,
+            timeout=timeout,
         )
 
     settled = await asyncio.gather(
@@ -111,13 +128,13 @@ async def _fetch_retriever_context(
         return_exceptions=True,
     )
 
-    results: list[str] = []
+    raw: list[str] = []
     for outcome in settled:
         if isinstance(outcome, TimeoutError):
             logger.warning(
                 "Retriever timed out for agent '%s' after %.1fs",
                 agent.id,
-                _RETRIEVER_TIMEOUT_SECONDS,
+                timeout,
             )
         elif isinstance(outcome, BaseException):
             logger.warning(
@@ -126,7 +143,23 @@ async def _fetch_retriever_context(
                 exc_info=outcome,
             )
         else:
-            results.extend(outcome)
+            raw.extend(outcome)
+
+    # Apply size cap
+    max_chars = config.max_retrieved_chars
+    results: list[str] = []
+    total = 0
+    for chunk in raw:
+        if total + len(chunk) > max_chars:
+            logger.warning(
+                "Retrieved context truncated for agent '%s' at %d/%d chars",
+                agent.id,
+                total,
+                max_chars,
+            )
+            break
+        results.append(chunk)
+        total += len(chunk)
     return results
 
 

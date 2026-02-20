@@ -20,7 +20,12 @@ if TYPE_CHECKING:
 
 from agent_gateway.auth.protocols import AuthProvider
 from agent_gateway.chat.session import ChatSession, SessionStore
-from agent_gateway.config import GatewayConfig, NotificationsConfig, PersistenceConfig
+from agent_gateway.config import (
+    ContextRetrievalConfig,
+    GatewayConfig,
+    NotificationsConfig,
+    PersistenceConfig,
+)
 from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.engine.executor import ExecutionEngine
@@ -69,6 +74,7 @@ class WorkspaceSnapshot:
     tool_registry: ToolRegistry
     engine: ExecutionEngine | None
     retriever_registry: RetrieverRegistry | None = None
+    context_retrieval_config: ContextRetrievalConfig | None = None
 
 
 class Gateway(FastAPI):
@@ -375,6 +381,7 @@ class Gateway(FastAPI):
             tool_registry=tool_registry,
             engine=engine,
             retriever_registry=retriever_registry,
+            context_retrieval_config=self._config.context_retrieval if self._config else None,
         )
 
         # 9. Initialize session store for multi-turn chat
@@ -1129,6 +1136,7 @@ class Gateway(FastAPI):
                 tool_registry=new_registry,
                 engine=new_engine,
                 retriever_registry=self._retriever_registry,
+                context_retrieval_config=self._config.context_retrieval if self._config else None,
             )
 
             logger.info("Workspace reloaded: %d agents", len(new_workspace.agents))
@@ -1331,6 +1339,7 @@ class Gateway(FastAPI):
                 snapshot.workspace,
                 query=message,
                 retriever_registry=retriever_reg,
+                context_retrieval_config=snapshot.context_retrieval_config,
             )
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},

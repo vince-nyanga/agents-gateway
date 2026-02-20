@@ -170,6 +170,12 @@ class SchedulerConfig(BaseModel):
     coalesce: bool = True
 
 
+class ContextRetrievalConfig(BaseModel):
+    retriever_timeout_seconds: float = 10.0
+    max_retrieved_chars: int = 50_000
+    max_context_file_chars: int = 100_000
+
+
 class GatewayConfig(BaseSettings):
     """Root configuration for the Agent Gateway.
 
@@ -189,6 +195,7 @@ class GatewayConfig(BaseSettings):
     telemetry: TelemetryConfig = TelemetryConfig()
     queue: QueueConfig = QueueConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
+    context_retrieval: ContextRetrievalConfig = ContextRetrievalConfig()
     context: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod

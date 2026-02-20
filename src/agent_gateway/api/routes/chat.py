@@ -162,6 +162,7 @@ def _create_streaming_response(
             snapshot.workspace,
             query=body.message,
             retriever_registry=retriever_reg,
+            context_retrieval_config=snapshot.context_retrieval_config,
         )
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},

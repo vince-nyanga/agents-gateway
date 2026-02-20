@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+from agent_gateway.config import ContextRetrievalConfig
 from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.workspace.loader import load_workspace
 from agent_gateway.workspace.prompt import assemble_system_prompt
@@ -169,8 +170,6 @@ class TestPromptWithDynamicRetriever:
         assert "Instructions" in prompt
 
     async def test_slow_retriever_times_out(self, tmp_path: Path) -> None:
-        import agent_gateway.workspace.prompt as prompt_mod
-
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
         (agent_dir / "AGENT.md").write_text(
@@ -183,14 +182,14 @@ class TestPromptWithDynamicRetriever:
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]
 
-        original_timeout = prompt_mod._RETRIEVER_TIMEOUT_SECONDS
-        prompt_mod._RETRIEVER_TIMEOUT_SECONDS = 0.1  # 100ms for fast test
-        try:
-            prompt = await assemble_system_prompt(
-                agent, state, query="hello", retriever_registry=registry
-            )
-        finally:
-            prompt_mod._RETRIEVER_TIMEOUT_SECONDS = original_timeout
+        cfg = ContextRetrievalConfig(retriever_timeout_seconds=0.1)
+        prompt = await assemble_system_prompt(
+            agent,
+            state,
+            query="hello",
+            retriever_registry=registry,
+            context_retrieval_config=cfg,
+        )
 
         assert "should not appear" not in prompt
         assert "Retrieved Context" not in prompt
@@ -253,6 +252,52 @@ class TestPromptWithDynamicRetriever:
         assert "Retrieved Context" not in prompt
         assert "Reference Material" not in prompt
         assert "Just instructions" in prompt
+
+
+class TestContextSizeLimits:
+    async def test_retriever_output_truncated(self, tmp_path: Path) -> None:
+        agent_dir = tmp_path / "agents" / "my-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text(
+            "---\nretrievers:\n  - big\n---\n# Agent\n\nInstructions."
+        )
+
+        registry = RetrieverRegistry()
+        registry.register("big", _FakeRetriever(["A" * 500, "B" * 500, "C" * 500]))
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+
+        cfg = ContextRetrievalConfig(max_retrieved_chars=800)
+        prompt = await assemble_system_prompt(
+            agent,
+            state,
+            query="hello",
+            retriever_registry=registry,
+            context_retrieval_config=cfg,
+        )
+
+        # First chunk (500) fits, second (500) would exceed 800, so truncated
+        assert "A" * 500 in prompt
+        assert "B" * 500 not in prompt
+
+    async def test_static_context_file_truncated(self, tmp_path: Path) -> None:
+        agent_dir = tmp_path / "agents" / "my-agent"
+        context_dir = agent_dir / "context"
+        context_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text("# Agent\n\nInstructions.")
+        (context_dir / "big.md").write_text("X" * 2000)
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+
+        cfg = ContextRetrievalConfig(max_context_file_chars=500)
+        prompt = await assemble_system_prompt(agent, state, context_retrieval_config=cfg)
+
+        assert "Reference Material" in prompt
+        # Content should be truncated to 500 chars
+        assert "X" * 500 in prompt
+        assert "X" * 501 not in prompt
 
 
 class TestCrossReferenceValidation:
