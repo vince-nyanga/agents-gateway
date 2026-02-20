@@ -366,9 +366,24 @@ class SchedulerEngine:
     ) -> None:
         """Run a manually triggered schedule execution in the background."""
         try:
-            await self._invoke_fn(agent_id, message, context=context)
-        except Exception:
+            result = await self._invoke_fn(agent_id, message, context=context)
+            await self._execution_repo.update_status(
+                execution_id,
+                "completed",
+                completed_at=datetime.now(UTC),
+            )
+            await self._execution_repo.update_result(
+                execution_id,
+                result=result.to_dict(),
+                usage=result.usage.to_dict(),
+            )
+        except Exception as exc:
             logger.exception("Manual trigger execution %s failed", execution_id)
+            await self._execution_repo.update_status(
+                execution_id,
+                "failed",
+                error=str(exc),
+            )
 
     async def get_schedules(self) -> list[dict[str, Any]]:
         """List all schedules with live next_run_at from APScheduler."""
