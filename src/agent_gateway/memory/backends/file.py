@@ -27,6 +27,8 @@ _MEMORY_LINE = re.compile(
     r"^- (?:\[([^\]]+)\] )?(.+)$"  # optional [id] prefix, then content
 )
 
+_SAFE_AGENT_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+
 _TYPE_TO_HEADING: dict[MemoryType, str] = {
     MemoryType.SEMANTIC: "Semantic",
     MemoryType.EPISODIC: "Episodic",
@@ -49,7 +51,13 @@ class FileMemoryRepository:
         return self._locks[agent_id]
 
     def _memory_path(self, agent_id: str) -> Path:
-        return self._root / "agents" / agent_id / "MEMORY.md"
+        if not _SAFE_AGENT_ID.match(agent_id):
+            raise ValueError(f"Invalid agent_id: {agent_id!r}")
+        path = self._root / "agents" / agent_id / "MEMORY.md"
+        # Defense-in-depth: verify resolved path stays within workspace
+        if not path.resolve().is_relative_to(self._root.resolve()):
+            raise ValueError(f"Path traversal detected for agent_id: {agent_id!r}")
+        return path
 
     def _parse_file(self, agent_id: str) -> list[MemoryRecord]:
         """Parse MEMORY.md into MemoryRecord objects."""

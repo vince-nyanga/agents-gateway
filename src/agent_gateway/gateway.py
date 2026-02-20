@@ -129,6 +129,9 @@ class Gateway(FastAPI):
         self._schedule_repo: ScheduleRepository = NullScheduleRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
+        self._extraction_cooldowns: dict[str, float] = {}
+        _EXTRACTION_DEBOUNCE_SECONDS = 30.0
+        self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -587,7 +590,7 @@ class Gateway(FastAPI):
         # Dispose memory backend
         if self._memory_manager is not None:
             try:
-                await self._memory_manager._backend.dispose()
+                await self._memory_manager.dispose()
             except Exception:
                 logger.warning("Failed to dispose memory backend", exc_info=True)
             self._memory_manager = None
@@ -1510,25 +1513,29 @@ class Gateway(FastAPI):
             if result.raw_text:
                 session.append_assistant_message(content=result.raw_text)
 
-            # Auto-extract memories from conversation (fire-and-forget)
+            # Auto-extract memories from conversation (fire-and-forget, debounced)
             if (
                 self._memory_manager is not None
                 and agent_mem
                 and agent_mem.auto_extract
                 and self._llm_client is not None
             ):
-                recent_messages = session.messages[-10:]
-                mm = self._memory_manager
+                now = time.monotonic()
+                last_extraction = self._extraction_cooldowns.get(agent_id, 0.0)
+                if now - last_extraction >= self._extraction_debounce:
+                    self._extraction_cooldowns[agent_id] = now
+                    recent_messages = session.messages[-10:]
+                    mm = self._memory_manager
 
-                async def _extract() -> None:
-                    await mm.extract_memories(agent_id, recent_messages)
+                    async def _extract() -> None:
+                        await mm.extract_memories(agent_id, recent_messages)
 
-                task = asyncio.create_task(
-                    _extract(),
-                    name=f"memory-extract-{agent_id}",
-                )
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
+                    task = asyncio.create_task(
+                        _extract(),
+                        name=f"memory-extract-{agent_id}",
+                    )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
             return session.session_id, result
 

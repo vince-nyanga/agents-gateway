@@ -80,6 +80,10 @@ class MemoryManager:
         self._llm = llm_client
         self._config = config
 
+    async def dispose(self) -> None:
+        """Dispose the underlying memory backend."""
+        await self._backend.dispose()
+
     @property
     def repo(self) -> Any:
         return self._backend.memory_repo
@@ -181,7 +185,9 @@ class MemoryManager:
     async def compact(self, agent_id: str) -> CompactionResult:
         """Synthesize and compact memories using the LLM.
 
-        Transactional: originals are preserved if the LLM call fails.
+        Originals are preserved if the LLM call fails. New records are saved
+        before old ones are deleted, so a crash leaves duplicates rather than
+        data loss. Custom backend implementers should wrap in a DB transaction.
         """
         all_memories = await self._backend.memory_repo.list_memories(agent_id, limit=500)
         if not all_memories:
@@ -241,11 +247,14 @@ class MemoryManager:
                 f"LLM returned empty compaction result for agent '{agent_id}'"
             )
 
-        # Transactional: delete old, save new
-        old_ids = [m.id for m in all_memories]
-        await self._backend.memory_repo.delete_all(agent_id)
+        # Save new records first, then delete old ones.
+        # This ordering ensures a crash leaves duplicates rather than data loss.
+        # Note: custom backend implementers should wrap this in a DB transaction.
         for record in compacted_records:
             await self._backend.memory_repo.save(record)
+        old_ids = [m.id for m in all_memories]
+        for old_id in old_ids:
+            await self._backend.memory_repo.delete(agent_id, old_id)
 
         logger.info(
             "Compacted memories for agent '%s': %d → %d",

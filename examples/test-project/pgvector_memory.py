@@ -17,12 +17,15 @@ Usage:
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
+
+_SAFE_IDENT = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
 import numpy as np
 from pgvector.asyncpg import register_vector
 from sentence_transformers import SentenceTransformer
@@ -52,11 +55,19 @@ def _embed(text: str) -> np.ndarray:
 
 @dataclass
 class PgVectorMemoryRepository:
-    """Memory repository backed by PostgreSQL + pgvector."""
+    """Memory repository backed by PostgreSQL + pgvector.
+
+    IMPORTANT: ``table`` must be a trusted, validated SQL identifier —
+    never derived from user input.
+    """
 
     pool: asyncpg.Pool
     table: str = "agent_memories"
     dimensions: int = 384
+
+    def __post_init__(self) -> None:
+        if not _SAFE_IDENT.match(self.table):
+            raise ValueError(f"Unsafe table name: {self.table!r}")
 
     async def create_table(self) -> None:
         await self.pool.execute("CREATE EXTENSION IF NOT EXISTS vector")

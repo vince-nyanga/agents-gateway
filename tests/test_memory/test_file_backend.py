@@ -135,6 +135,14 @@ class TestFileMemoryRepository:
         await repo.save(_make_record(memory_id="a"))
         assert await repo.count("test-agent") == 1
 
+    async def test_path_traversal_rejected(self, repo: FileMemoryRepository) -> None:
+        with pytest.raises(ValueError, match="Invalid agent_id"):
+            await repo.get("../../etc", "some-id")
+
+    async def test_path_traversal_dotdot_rejected(self, repo: FileMemoryRepository) -> None:
+        with pytest.raises(ValueError, match="Invalid agent_id"):
+            await repo.count("../other-agent")
+
     async def test_agent_isolation(self, repo: FileMemoryRepository, workspace: Path) -> None:
         (workspace / "agents" / "other-agent").mkdir(parents=True)
         await repo.save(_make_record(agent_id="test-agent", memory_id="a"))

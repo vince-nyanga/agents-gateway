@@ -186,6 +186,8 @@ class MemoryConfig(BaseModel):
     extraction_model: str | None = None
     auto_extract: bool = False
     max_memory_md_lines: int = 200
+    extraction_prompt: str | None = None
+    compaction_prompt: str | None = None
 
 
 class GatewayConfig(BaseSettings):

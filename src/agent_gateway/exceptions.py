@@ -70,13 +70,13 @@ class AuthError(AgentGatewayError):
         super().__init__(message)
 
 
-class MemoryError(AgentGatewayError):
+class AgentMemoryError(AgentGatewayError):
     """Base for memory-related errors."""
 
 
-class MemoryBackendError(MemoryError):
+class MemoryBackendError(AgentMemoryError):
     """Memory backend failure (connection, query, etc.)."""
 
 
-class MemoryCompactionError(MemoryError):
+class MemoryCompactionError(AgentMemoryError):
     """LLM compaction failed."""
