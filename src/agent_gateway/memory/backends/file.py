@@ -38,7 +38,15 @@ _HEADING_TO_TYPE: dict[str, MemoryType] = {v: k for k, v in _TYPE_TO_HEADING.ite
 
 
 class FileMemoryRepository:
-    """Repository that reads/writes structured markdown files."""
+    """Repository that reads/writes structured markdown files.
+
+    .. note::
+        All file I/O is synchronous (stdlib ``pathlib``/``open``).  This is
+        intentional for the default zero-dependency backend: memory operations
+        are infrequent and the files are small (< 100 KB).  For
+        high-throughput scenarios, swap in an async backend (e.g. pgvector)
+        via ``gateway.set_memory_backend()``.
+    """
 
     def __init__(self, workspace_root: Path, max_lines: int = 200) -> None:
         self._root = workspace_root

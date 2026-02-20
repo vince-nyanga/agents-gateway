@@ -54,6 +54,9 @@ class NullMemoryRepository:
 class NullMemoryBackend:
     """No-op backend — used when memory is disabled."""
 
+    def __init__(self) -> None:
+        self._repo = NullMemoryRepository()
+
     async def initialize(self) -> None:
         pass
 
@@ -62,4 +65,4 @@ class NullMemoryBackend:
 
     @property
     def memory_repo(self) -> NullMemoryRepository:
-        return NullMemoryRepository()
+        return self._repo

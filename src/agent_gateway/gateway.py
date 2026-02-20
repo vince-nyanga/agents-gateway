@@ -404,7 +404,11 @@ class Gateway(FastAPI):
 
                 from agent_gateway.memory.manager import MemoryManager
 
-                assert self._llm_client is not None  # guarded by step 7
+                if self._llm_client is None:
+                    logger.warning(
+                        "Memory requires an LLM client — skipping memory initialization"
+                    )
+                    return
                 self._memory_manager = MemoryManager(
                     backend=memory_backend,
                     llm_client=self._llm_client,
@@ -1237,6 +1241,27 @@ class Gateway(FastAPI):
                     retriever_registry=self._retriever_registry,
                 )
 
+            # Re-register memory tools for agents that have memory enabled
+            if self._memory_manager is not None:
+                memory_agents = [
+                    aid
+                    for aid, a in new_workspace.agents.items()
+                    if a.memory_config and a.memory_config.enabled
+                ]
+                if memory_agents:
+                    from agent_gateway.memory.tools import make_memory_tools
+
+                    mem_tools = make_memory_tools(self._memory_manager)
+                    for tool_def in mem_tools:
+                        code_tool = CodeTool(
+                            name=tool_def["name"],
+                            description=tool_def["description"],
+                            fn=tool_def["func"],
+                            parameters_schema=tool_def["parameters"],
+                            allowed_agents=memory_agents,
+                        )
+                        new_registry.register_code_tool(code_tool)
+
             # Re-apply code-registered input schemas
             self._apply_pending_input_schemas(new_workspace)
 
@@ -1311,6 +1336,20 @@ class Gateway(FastAPI):
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 
+    async def _get_memory_block(self, agent_id: str, message: str, memory_config: Any) -> str:
+        """Fetch the memory context block for an agent, returning empty string on failure."""
+        if self._memory_manager is None or not memory_config or not memory_config.enabled:
+            return ""
+        try:
+            return await self._memory_manager.get_context_block(
+                agent_id,
+                query=message,
+                max_chars=memory_config.max_injected_chars,
+            )
+        except Exception:
+            logger.warning("Failed to fetch memory for agent '%s'", agent_id, exc_info=True)
+            return ""
+
     async def invoke(
         self,
         agent_id: str,
@@ -1355,21 +1394,7 @@ class Gateway(FastAPI):
                     errors=errors,
                 )
 
-        # Build memory block for agents with memory enabled
-        memory_block = ""
-        if (
-            self._memory_manager is not None
-            and agent.memory_config
-            and agent.memory_config.enabled
-        ):
-            try:
-                memory_block = await self._memory_manager.get_context_block(
-                    agent_id,
-                    query=message,
-                    max_chars=agent.memory_config.max_injected_chars,
-                )
-            except Exception:
-                logger.warning("Failed to fetch memory for agent '%s'", agent_id, exc_info=True)
+        memory_block = await self._get_memory_block(agent_id, message, agent.memory_config)
 
         execution_id = str(uuid.uuid4())
         handle = ExecutionHandle(execution_id=execution_id)
@@ -1460,20 +1485,8 @@ class Gateway(FastAPI):
             session.append_user_message(message)
             session.truncate_history(self._session_store._max_history)
 
-            # Build memory block for agents with memory enabled
-            memory_block = ""
             agent_mem = agent.memory_config
-            if self._memory_manager is not None and agent_mem and agent_mem.enabled:
-                try:
-                    memory_block = await self._memory_manager.get_context_block(
-                        agent_id,
-                        query=message,
-                        max_chars=agent_mem.max_injected_chars,
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to fetch memory for agent '%s'", agent_id, exc_info=True
-                    )
+            memory_block = await self._get_memory_block(agent_id, message, agent_mem)
 
             retriever_reg = snapshot.retriever_registry if snapshot else None
             system_prompt = await assemble_system_prompt(

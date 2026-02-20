@@ -72,6 +72,9 @@ def make_memory_tools(
         if context is None:
             return {"error": "No tool context available"}
 
+        if len(content) > 2000:
+            return {"error": "Content exceeds maximum length of 2000 characters"}
+
         try:
             mt = MemoryType(memory_type)
         except ValueError:
@@ -148,6 +151,7 @@ def make_memory_tools(
                     "content": {
                         "type": "string",
                         "description": "The fact, knowledge, or pattern to remember.",
+                        "maxLength": 2000,
                     },
                     "memory_type": {
                         "type": "string",
