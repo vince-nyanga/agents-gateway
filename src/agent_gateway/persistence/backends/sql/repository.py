@@ -144,7 +144,7 @@ class ScheduleRepository:
                 stmt = stmt.where(
                     ScheduleRecord.agent_id == agent_id  # type: ignore[arg-type]
                 )
-            stmt = stmt.order_by(ScheduleRecord.created_at)  # type: ignore[union-attr]
+            stmt = stmt.order_by(ScheduleRecord.created_at)  # type: ignore[arg-type]
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
@@ -163,6 +163,19 @@ class ScheduleRepository:
             record.next_run_at = next_run_at
             await session.commit()
 
+    async def update_next_run(
+        self,
+        schedule_id: str,
+        next_run_at: datetime | None,
+    ) -> None:
+        """Update only the next run time for a schedule."""
+        async with self._session_factory() as session:
+            record = await session.get(ScheduleRecord, schedule_id)
+            if record is None:
+                return
+            record.next_run_at = next_run_at
+            await session.commit()
+
     async def update_enabled(self, schedule_id: str, enabled: bool) -> None:
         """Update the enabled state of a schedule."""
         async with self._session_factory() as session:
@@ -173,13 +186,12 @@ class ScheduleRepository:
             await session.commit()
 
     async def soft_delete(self, schedule_id: str) -> None:
-        """Soft-delete a schedule by setting deleted_at."""
+        """Mark a schedule as deleted without removing it."""
         async with self._session_factory() as session:
             record = await session.get(ScheduleRecord, schedule_id)
             if record is None:
                 return
             record.deleted_at = datetime.now(UTC)
-            record.enabled = False
             await session.commit()
 
 

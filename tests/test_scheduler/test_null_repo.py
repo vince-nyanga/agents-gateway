@@ -93,3 +93,23 @@ async def test_null_schedule_soft_delete() -> None:
     result = await repo.get("agent:daily")
     assert result is not None
     assert result.deleted_at is not None
+
+
+async def test_null_schedule_update_next_run() -> None:
+    repo = NullScheduleRepository()
+    record = ScheduleRecord(
+        id="agent:daily",
+        agent_id="agent",
+        name="daily",
+        cron_expr="0 9 * * *",
+        message="Run daily",
+        created_at=datetime.now(UTC),
+    )
+    await repo.upsert(record)
+
+    now = datetime.now(UTC)
+    await repo.update_next_run("agent:daily", now)
+
+    result = await repo.get("agent:daily")
+    assert result is not None
+    assert result.next_run_at == now

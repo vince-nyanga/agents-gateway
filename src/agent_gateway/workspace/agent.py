@@ -22,7 +22,7 @@ class ScheduleConfig:
     message: str
     context: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
-    timezone: str = "UTC"
+    timezone: str | None = None
 
 
 @dataclass
@@ -161,21 +161,22 @@ def _parse_schedules(
             continue
         seen_names.add(name)
 
-        tz = s.get("timezone", "UTC")
+        tz: str | None = s.get("timezone")
 
-        # Validate timezone
-        try:
-            ZoneInfo(tz)
-        except (ZoneInfoNotFoundError, KeyError):
-            logger.warning(
-                "Invalid timezone '%s' for schedule '%s' in %s, skipping",
-                tz, name, agent_dir,
-            )
-            continue
+        # Validate timezone if explicitly set
+        if tz is not None:
+            try:
+                ZoneInfo(tz)
+            except (ZoneInfoNotFoundError, KeyError):
+                logger.warning(
+                    "Invalid timezone '%s' for schedule '%s' in %s, skipping",
+                    tz, name, agent_dir,
+                )
+                continue
 
         # Validate cron expression
         try:
-            CronTrigger.from_crontab(cron_expr, timezone=tz)
+            CronTrigger.from_crontab(cron_expr, timezone=tz or "UTC")
         except (ValueError, KeyError) as e:
             logger.warning(
                 "Invalid cron expression '%s' for schedule '%s' in %s: %s",

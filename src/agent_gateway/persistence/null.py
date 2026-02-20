@@ -77,18 +77,26 @@ class NullScheduleRepository:
             record.last_run_at = last_run_at
             record.next_run_at = next_run_at
 
+    async def update_next_run(
+        self,
+        schedule_id: str,
+        next_run_at: datetime | None,
+    ) -> None:
+        record = self._store.get(schedule_id)
+        if record is not None:
+            record.next_run_at = next_run_at
+
     async def update_enabled(self, schedule_id: str, enabled: bool) -> None:
         record = self._store.get(schedule_id)
         if record is not None:
             record.enabled = enabled
 
     async def soft_delete(self, schedule_id: str) -> None:
+        from datetime import UTC
+
         record = self._store.get(schedule_id)
         if record is not None:
-            from datetime import UTC
-
             record.deleted_at = datetime.now(UTC)
-            record.enabled = False
 
 
 class NullAuditRepository:

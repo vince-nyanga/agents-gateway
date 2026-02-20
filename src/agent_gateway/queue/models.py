@@ -24,6 +24,7 @@ class ExecutionJob:
     output_schema: dict[str, Any] | None = None
     enqueued_at: str = ""  # ISO 8601 string
     retry_count: int = 0
+    schedule_id: str | None = None
 
     def to_json(self) -> str:
         """Serialise to JSON string."""
@@ -37,6 +38,7 @@ class ExecutionJob:
                 "output_schema": self.output_schema,
                 "enqueued_at": self.enqueued_at,
                 "retry_count": self.retry_count,
+                "schedule_id": self.schedule_id,
             }
         )
 
@@ -53,4 +55,5 @@ class ExecutionJob:
             output_schema=parsed.get("output_schema"),
             enqueued_at=parsed.get("enqueued_at", ""),
             retry_count=parsed.get("retry_count", 0),
+            schedule_id=parsed.get("schedule_id"),
         )

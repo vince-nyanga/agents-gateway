@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
-
 from datetime import datetime
+from typing import Any, Protocol, runtime_checkable
 
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
@@ -54,6 +53,12 @@ class ScheduleRepository(Protocol):
         self,
         schedule_id: str,
         last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None: ...
+
+    async def update_next_run(
+        self,
+        schedule_id: str,
         next_run_at: datetime | None,
     ) -> None: ...
 

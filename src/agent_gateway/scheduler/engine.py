@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -16,9 +17,11 @@ from agent_gateway.persistence.domain import ScheduleRecord
 from agent_gateway.scheduler.handler import run_scheduled_job, set_scheduler_engine
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
     from agent_gateway.config import SchedulerConfig
-    from agent_gateway.gateway import Gateway
-    from agent_gateway.persistence.protocols import ScheduleRepository
+    from agent_gateway.persistence.protocols import ExecutionRepository, ScheduleRepository
+    from agent_gateway.queue.protocol import ExecutionQueue
     from agent_gateway.workspace.agent import AgentDefinition, ScheduleConfig
 
 logger = logging.getLogger(__name__)
@@ -33,23 +36,27 @@ class SchedulerEngine:
 
     def __init__(
         self,
-        gateway: Gateway,
         config: SchedulerConfig,
         schedule_repo: ScheduleRepository,
+        execution_repo: ExecutionRepository,
+        queue: ExecutionQueue,
+        invoke_fn: Callable[..., Coroutine[Any, Any, Any]],
+        track_task: Callable[[asyncio.Task[None]], None],
         timezone: str = "UTC",
-        job_store: Any | None = None,
     ) -> None:
-        self._gateway = gateway
         self._config = config
         self._schedule_repo = schedule_repo
+        self._execution_repo = execution_repo
+        self._queue = queue
+        self._invoke_fn = invoke_fn
+        self._track_task = track_task
         self._timezone = timezone
-        self._job_store = job_store
 
         # APScheduler instance, created in start()
         self._scheduler: AsyncIOScheduler | None = None
 
-        # Overlap prevention: tracks schedule_ids with in-flight executions
-        self._active_scheduled: set[str] = set()
+        # Overlap prevention: tracks schedule_ids with monotonic fire time
+        self._active_scheduled: dict[str, float] = {}
         self._active_lock = asyncio.Lock()
 
         # Schedule definitions keyed by schedule_id for lookup at fire time
@@ -69,15 +76,11 @@ class SchedulerEngine:
                 self._schedule_configs[schedule_id] = sched
                 self._agent_map[schedule_id] = agent.id
 
-        # Configure APScheduler
-        jobstores: dict[str, Any] = {}
-        if self._job_store is not None:
-            jobstores["default"] = self._job_store
-        else:
-            jobstores["default"] = MemoryJobStore()
-
+        # Configure APScheduler with in-memory job store.
+        # SQLAlchemyJobStore is intentionally avoided because APScheduler 3.x
+        # uses pickle serialization which is an RCE risk.
         self._scheduler = AsyncIOScheduler(
-            jobstores=jobstores,
+            jobstores={"default": MemoryJobStore()},
             timezone=self._timezone,
         )
 
@@ -119,14 +122,8 @@ class SchedulerEngine:
         if self._scheduler is None:
             return
 
-        # Resolve timezone: per-schedule > gateway default
-        tz = sched_config.timezone if sched_config.timezone != "UTC" else self._timezone
-        # But if the schedule explicitly sets UTC, use UTC
-        if sched_config.timezone == "UTC" and self._timezone != "UTC":
-            tz = self._timezone
-        # If the schedule has a non-UTC timezone, always prefer it
-        if sched_config.timezone != "UTC":
-            tz = sched_config.timezone
+        # Per-schedule timezone takes priority; fall back to gateway default
+        tz = sched_config.timezone or self._timezone
 
         trigger = CronTrigger.from_crontab(sched_config.cron, timezone=tz)
 
@@ -174,7 +171,7 @@ class SchedulerEngine:
                     message=sched.message,
                     context=dict(sched.context) if sched.context else None,
                     enabled=sched.enabled,
-                    timezone=sched.timezone,
+                    timezone=sched.timezone or self._timezone,
                     next_run_at=next_run,
                     created_at=datetime.now(UTC),
                 )
@@ -198,22 +195,33 @@ class SchedulerEngine:
         context: dict[str, Any],
     ) -> None:
         """Dispatch a scheduled agent execution. Called by the handler module."""
-        # Overlap check
+        # Overlap check with safety valve: auto-clear after 2x misfire grace
+        timeout = self._config.misfire_grace_seconds * 2
         async with self._active_lock:
-            if schedule_id in self._active_scheduled:
+            fire_time = self._active_scheduled.get(schedule_id)
+            if fire_time is not None:
+                elapsed = time.monotonic() - fire_time
+                if elapsed < timeout:
+                    logger.warning(
+                        "Schedule '%s' still running (%.0fs), skipping overlapping fire",
+                        schedule_id,
+                        elapsed,
+                    )
+                    return
                 logger.warning(
-                    "Schedule '%s' still running, skipping overlapping fire",
+                    "Schedule '%s' stuck for %.0fs (timeout=%ds), force-clearing",
                     schedule_id,
+                    elapsed,
+                    timeout,
                 )
-                return
-            self._active_scheduled.add(schedule_id)
+            self._active_scheduled[schedule_id] = time.monotonic()
 
         try:
             await self._do_dispatch(schedule_id, agent_id, message, context)
         except Exception:
             logger.exception("Scheduled execution for '%s' failed", schedule_id)
             async with self._active_lock:
-                self._active_scheduled.discard(schedule_id)
+                self._active_scheduled.pop(schedule_id, None)
             # Update last_run_at even on failure
             await self._update_after_run(schedule_id)
 
@@ -225,13 +233,10 @@ class SchedulerEngine:
         context: dict[str, Any],
     ) -> None:
         """Internal dispatch — either enqueue to worker pool or invoke directly."""
+        from agent_gateway.persistence.domain import ExecutionRecord
         from agent_gateway.queue.null import NullQueue
 
-        gw = self._gateway
         execution_id = str(uuid.uuid4())
-
-        # Create execution record with schedule linkage
-        from agent_gateway.persistence.domain import ExecutionRecord
 
         record = ExecutionRecord(
             id=execution_id,
@@ -243,10 +248,9 @@ class SchedulerEngine:
             schedule_name=context.get("schedule_name", ""),
             created_at=datetime.now(UTC),
         )
-        await gw._execution_repo.create(record)
+        await self._execution_repo.create(record)
 
-        if not isinstance(gw._queue, NullQueue):
-            # Enqueue to worker pool — completion tracked via on_execution_complete
+        if not isinstance(self._queue, NullQueue):
             from agent_gateway.queue.models import ExecutionJob
 
             job = ExecutionJob(
@@ -255,8 +259,9 @@ class SchedulerEngine:
                 message=message,
                 context=context,
                 enqueued_at=datetime.now(UTC).isoformat(),
+                schedule_id=schedule_id,
             )
-            await gw._queue.enqueue(job)
+            await self._queue.enqueue(job)
             logger.info(
                 "Scheduled execution '%s' enqueued: agent=%s, execution=%s",
                 schedule_id,
@@ -264,12 +269,11 @@ class SchedulerEngine:
                 execution_id,
             )
         else:
-            # No queue — invoke directly and clean up
             try:
-                await gw.invoke(agent_id, message, context=context)
+                await self._invoke_fn(agent_id, message, context=context)
             finally:
                 async with self._active_lock:
-                    self._active_scheduled.discard(schedule_id)
+                    self._active_scheduled.pop(schedule_id, None)
                 await self._update_after_run(schedule_id)
 
     async def on_execution_complete(self, schedule_id: str) -> None:
@@ -278,7 +282,7 @@ class SchedulerEngine:
         Removes the schedule from the active set and updates last_run_at.
         """
         async with self._active_lock:
-            self._active_scheduled.discard(schedule_id)
+            self._active_scheduled.pop(schedule_id, None)
         await self._update_after_run(schedule_id)
 
     async def _update_after_run(self, schedule_id: str) -> None:
@@ -312,12 +316,10 @@ class SchedulerEngine:
             return False
         self._scheduler.resume_job(schedule_id)
         await self._schedule_repo.update_enabled(schedule_id, True)
-        # Update next_run_at after resume
+        # Update next_run_at after resume (don't touch last_run_at)
         next_run = self._get_next_run_time(schedule_id)
         if next_run:
-            await self._schedule_repo.update_last_run(
-                schedule_id, datetime.now(UTC), next_run
-            )
+            await self._schedule_repo.update_next_run(schedule_id, next_run)
         return True
 
     async def trigger(self, schedule_id: str) -> str | None:
@@ -345,13 +347,14 @@ class SchedulerEngine:
             schedule_name=config.name,
             created_at=datetime.now(UTC),
         )
-        await self._gateway._execution_repo.create(record)
+        await self._execution_repo.create(record)
 
         # Dispatch via gateway invoke (direct, not queued)
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._run_manual_trigger(execution_id, agent_id, config.message, context),
             name=f"manual-trigger-{execution_id}",
         )
+        self._track_task(task)
         return execution_id
 
     async def _run_manual_trigger(
@@ -363,7 +366,7 @@ class SchedulerEngine:
     ) -> None:
         """Run a manually triggered schedule execution in the background."""
         try:
-            await self._gateway.invoke(agent_id, message, context=context)
+            await self._invoke_fn(agent_id, message, context=context)
         except Exception:
             logger.exception("Manual trigger execution %s failed", execution_id)
 

@@ -11,9 +11,12 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from fastapi import APIRouter, FastAPI
+
+if TYPE_CHECKING:
+    from agent_gateway.scheduler.engine import SchedulerEngine
 
 from agent_gateway.auth.protocols import AuthProvider
 from agent_gateway.chat.session import ChatSession, SessionStore
@@ -108,7 +111,7 @@ class Gateway(FastAPI):
         self._notification_queue: Any | None = None  # notification queue backend
         self._notification_queue_backend: Any | None = None  # fluent API override
         self._notification_worker: Any | None = None  # NotificationWorker
-        self._scheduler: Any | None = None  # SchedulerEngine, set during startup
+        self._scheduler: SchedulerEngine | None = None
         self._schedule_repo: ScheduleRepository = NullScheduleRepository()
 
         # Extract user lifespan before we override it
@@ -363,13 +366,18 @@ class Gateway(FastAPI):
             try:
                 from agent_gateway.scheduler.engine import SchedulerEngine
 
-                job_store = self._build_scheduler_job_store()
+                def _track_task(t: asyncio.Task[None]) -> None:
+                    self._background_tasks.add(t)
+                    t.add_done_callback(self._background_tasks.discard)
+
                 self._scheduler = SchedulerEngine(
-                    gateway=self,
                     config=self._config.scheduler,
                     schedule_repo=self._schedule_repo,
+                    execution_repo=self._execution_repo,
+                    queue=self._queue,
+                    invoke_fn=self.invoke,
+                    track_task=_track_task,
                     timezone=self._config.timezone,
-                    job_store=job_store,
                 )
                 await self._scheduler.start(
                     schedules=workspace.schedules,
@@ -984,26 +992,6 @@ class Gateway(FastAPI):
 
         return None
 
-    def _build_scheduler_job_store(self) -> Any:
-        """Build an APScheduler job store from the persistence backend.
-
-        Uses SQLAlchemyJobStore when SQL persistence is configured,
-        falls back to MemoryJobStore otherwise.
-        """
-        from apscheduler.jobstores.memory import MemoryJobStore
-
-        backend = self._persistence_backend
-        if backend is not None:
-            try:
-                from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-
-                engine = backend.sync_engine  # type: ignore[attr-defined]
-                return SQLAlchemyJobStore(engine=engine)
-            except (AttributeError, ImportError):
-                logger.info("No sync engine on persistence backend, using MemoryJobStore")
-
-        return MemoryJobStore()
-
     def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
         """Create a backend from YAML/env configuration (backward compat)."""
         if config.backend == "sqlite":
@@ -1306,6 +1294,45 @@ class Gateway(FastAPI):
         if self._session_store is None:
             return []
         return self._session_store.list_sessions(agent_id=agent_id, limit=limit)
+
+    # --- Programmatic schedule management ---
+
+    @property
+    def scheduler(self) -> SchedulerEngine | None:
+        """The scheduler engine, if active."""
+        return self._scheduler
+
+    async def list_schedules(self) -> list[dict[str, Any]]:
+        """List all registered schedules."""
+        if self._scheduler is None:
+            return []
+        return await self._scheduler.get_schedules()
+
+    async def get_schedule(self, schedule_id: str) -> dict[str, Any] | None:
+        """Get details of a specific schedule."""
+        if self._scheduler is None:
+            return None
+        return await self._scheduler.get_schedule(schedule_id)
+
+    async def pause_schedule(self, schedule_id: str) -> bool:
+        """Pause a schedule. Returns True if found and paused."""
+        if self._scheduler is None:
+            return False
+        return await self._scheduler.pause(schedule_id)
+
+    async def resume_schedule(self, schedule_id: str) -> bool:
+        """Resume a paused schedule. Returns True if found and resumed."""
+        if self._scheduler is None:
+            return False
+        return await self._scheduler.resume(schedule_id)
+
+    async def trigger_schedule(self, schedule_id: str) -> str | None:
+        """Manually trigger a schedule. Returns execution_id or None."""
+        if self._scheduler is None:
+            return None
+        return await self._scheduler.trigger(schedule_id)
+
+    # --- Execution management ---
 
     async def cancel_execution(self, execution_id: str) -> bool:
         """Cancel a running execution. Returns True if cancelled.

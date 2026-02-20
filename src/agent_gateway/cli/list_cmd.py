@@ -87,6 +87,7 @@ def schedules(
                 break
 
         enabled = "yes" if sched.enabled else "no"
+        tz = sched.timezone or "UTC"
         typer.echo(
-            f"{sched.name:<30} {agent_id:<20} {sched.cron:<20} {enabled:<8} {sched.timezone:<15}"
+            f"{sched.name:<30} {agent_id:<20} {sched.cron:<20} {enabled:<8} {tz:<15}"
         )

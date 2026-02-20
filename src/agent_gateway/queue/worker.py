@@ -167,11 +167,10 @@ class WorkerPool:
             gw.fire_notifications(**notify_args)
 
         # Notify scheduler that a scheduled execution completed
-        ctx = job.context or {}
-        if ctx.get("source") == "scheduled" and ctx.get("schedule_id"):
+        if job.schedule_id:
             scheduler = gw._scheduler
             if scheduler is not None:
-                await scheduler.on_execution_complete(ctx["schedule_id"])
+                await scheduler.on_execution_complete(job.schedule_id)
 
     async def _run_execution(self, worker_id: int, job: ExecutionJob) -> dict[str, Any] | None:
         """Run the agent execution for a job.

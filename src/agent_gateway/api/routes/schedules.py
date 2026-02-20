@@ -31,11 +31,7 @@ _SCHEDULE_ID_PATTERN = r"^[a-zA-Z0-9_.:/-]+$"
 async def list_schedules(request: Request) -> list[ScheduleInfo]:
     """List all registered schedules."""
     gw: Gateway = request.app
-    scheduler = gw._scheduler
-    if scheduler is None:
-        return []
-
-    schedules = await scheduler.get_schedules()
+    schedules = await gw.list_schedules()
     return [ScheduleInfo(**s) for s in schedules]
 
 
@@ -46,15 +42,11 @@ async def list_schedules(request: Request) -> list[ScheduleInfo]:
 )
 async def get_schedule(
     request: Request,
-    schedule_id: str = Path(..., min_length=1, max_length=256),
+    schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> ScheduleDetailInfo | JSONResponse:
     """Get details of a specific schedule."""
     gw: Gateway = request.app
-    scheduler = gw._scheduler
-    if scheduler is None:
-        return not_found("schedule", schedule_id)
-
-    detail = await scheduler.get_schedule(schedule_id)
+    detail = await gw.get_schedule(schedule_id)
     if detail is None:
         return not_found("schedule", schedule_id)
 
@@ -67,15 +59,14 @@ async def get_schedule(
 )
 async def pause_schedule(
     request: Request,
-    schedule_id: str = Path(..., min_length=1, max_length=256),
+    schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Pause a schedule (stops future cron fires)."""
     gw: Gateway = request.app
-    scheduler = gw._scheduler
-    if scheduler is None:
+    if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
-    ok = await scheduler.pause(schedule_id)
+    ok = await gw.pause_schedule(schedule_id)
     if not ok:
         return not_found("schedule", schedule_id)
 
@@ -91,15 +82,14 @@ async def pause_schedule(
 )
 async def resume_schedule(
     request: Request,
-    schedule_id: str = Path(..., min_length=1, max_length=256),
+    schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Resume a paused schedule."""
     gw: Gateway = request.app
-    scheduler = gw._scheduler
-    if scheduler is None:
+    if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
-    ok = await scheduler.resume(schedule_id)
+    ok = await gw.resume_schedule(schedule_id)
     if not ok:
         return not_found("schedule", schedule_id)
 
@@ -115,15 +105,14 @@ async def resume_schedule(
 )
 async def trigger_schedule(
     request: Request,
-    schedule_id: str = Path(..., min_length=1, max_length=256),
+    schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Manually trigger a scheduled job (runs immediately)."""
     gw: Gateway = request.app
-    scheduler = gw._scheduler
-    if scheduler is None:
+    if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
-    execution_id = await scheduler.trigger(schedule_id)
+    execution_id = await gw.trigger_schedule(schedule_id)
     if execution_id is None:
         return not_found("schedule", schedule_id)
 
