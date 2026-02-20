@@ -57,9 +57,7 @@ async def assemble_system_prompt(
 
     # 5. Static context files
     if agent.context_content:
-        context_section = "## Reference Material\n\n" + "\n\n---\n\n".join(
-            agent.context_content
-        )
+        context_section = "## Reference Material\n\n" + "\n\n---\n\n".join(agent.context_content)
         parts.append(context_section)
 
     # 6. Dynamic retriever results

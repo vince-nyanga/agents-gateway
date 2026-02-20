@@ -13,6 +13,7 @@ from typing import Any
 import jsonschema
 
 from agent_gateway.config import GatewayConfig
+from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.engine.llm import LLMClient
 from agent_gateway.engine.models import (
     ExecutionHandle,
@@ -43,7 +44,6 @@ from agent_gateway.telemetry.tracing import (
 )
 from agent_gateway.workspace.agent import AgentDefinition
 from agent_gateway.workspace.loader import WorkspaceState
-from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.workspace.prompt import assemble_system_prompt
 from agent_gateway.workspace.registry import ResolvedTool, ToolRegistry
 

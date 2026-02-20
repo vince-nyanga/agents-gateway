@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from agent_gateway.workspace.agent import AgentDefinition
@@ -150,9 +149,7 @@ class TestStaticContextExplicitPaths:
     def test_invalid_context_type_ignored(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
-        (agent_dir / "AGENT.md").write_text(
-            "---\ncontext: not-a-list\n---\n# Agent\n\nHello."
-        )
+        (agent_dir / "AGENT.md").write_text("---\ncontext: not-a-list\n---\n# Agent\n\nHello.")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
@@ -183,9 +180,7 @@ class TestRetrieversParsing:
     def test_invalid_retrievers_ignored(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
-        (agent_dir / "AGENT.md").write_text(
-            "---\nretrievers: not-a-list\n---\n# Agent\n\nHello."
-        )
+        (agent_dir / "AGENT.md").write_text("---\nretrievers: not-a-list\n---\n# Agent\n\nHello.")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None

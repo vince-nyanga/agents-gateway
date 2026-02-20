@@ -19,10 +19,10 @@ if TYPE_CHECKING:
     from agent_gateway.scheduler.engine import SchedulerEngine
 
 from agent_gateway.auth.protocols import AuthProvider
-from agent_gateway.context.protocol import ContextRetriever
-from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.chat.session import ChatSession, SessionStore
 from agent_gateway.config import GatewayConfig, NotificationsConfig, PersistenceConfig
+from agent_gateway.context.protocol import ContextRetriever
+from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMClient
 from agent_gateway.engine.models import (

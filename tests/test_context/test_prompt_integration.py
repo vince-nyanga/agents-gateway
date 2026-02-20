@@ -177,9 +177,7 @@ class TestCrossReferenceValidation:
             "---\nretrievers:\n  - nonexistent\n---\n# Agent\n\nHello."
         )
 
-        state = load_workspace(
-            tmp_path, retriever_names=frozenset(["other-retriever"])
-        )
+        state = load_workspace(tmp_path, retriever_names=frozenset(["other-retriever"]))
         assert any("nonexistent" in w for w in state.warnings)
 
     def test_known_retriever_no_warning(self, tmp_path: Path) -> None:
@@ -189,9 +187,7 @@ class TestCrossReferenceValidation:
             "---\nretrievers:\n  - my-retriever\n---\n# Agent\n\nHello."
         )
 
-        state = load_workspace(
-            tmp_path, retriever_names=frozenset(["my-retriever"])
-        )
+        state = load_workspace(tmp_path, retriever_names=frozenset(["my-retriever"]))
         assert not any("retriever" in w for w in state.warnings)
 
     def test_no_retriever_names_skips_validation(self, tmp_path: Path) -> None:

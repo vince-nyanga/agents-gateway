@@ -237,9 +237,7 @@ def _load_context_files(
             logger.warning("Skipping symlink context path: %s", raw_path)
             continue
         if not target.is_file():
-            logger.warning(
-                "Context file '%s' not found for agent '%s'", raw_path, agent_dir.name
-            )
+            logger.warning("Context file '%s' not found for agent '%s'", raw_path, agent_dir.name)
             continue
         try:
             contents.append(target.read_text(encoding="utf-8"))

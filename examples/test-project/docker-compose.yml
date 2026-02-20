@@ -29,5 +29,13 @@ services:
       retries: 10
       start_period: 30s
 
+  smtp4dev:
+    image: rnwood/smtp4dev:v3
+    ports:
+      - "3000:80"     # Web UI
+      - "2525:25"     # SMTP
+    environment:
+      - ServerOptions__HostName=smtp4dev
+
 volumes:
   pgdata:
