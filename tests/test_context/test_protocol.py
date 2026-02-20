@@ -4,24 +4,13 @@ from __future__ import annotations
 
 from agent_gateway.context.protocol import ContextRetriever
 
-
-class _FakeRetriever:
-    """Minimal implementation for protocol conformance testing."""
-
-    async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
-        return [f"result for {query}"]
-
-    async def initialize(self) -> None:
-        pass
-
-    async def close(self) -> None:
-        pass
+from .conftest import FakeRetriever
 
 
 class TestContextRetrieverProtocol:
     def test_conformance(self) -> None:
         """A class implementing all three methods satisfies the protocol."""
-        retriever = _FakeRetriever()
+        retriever = FakeRetriever()
         assert isinstance(retriever, ContextRetriever)
 
     def test_non_conformance(self) -> None:

@@ -10,30 +10,7 @@ from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.workspace.loader import load_workspace
 from agent_gateway.workspace.prompt import assemble_system_prompt
 
-
-class _FakeRetriever:
-    def __init__(self, chunks: list[str]) -> None:
-        self._chunks = chunks
-
-    async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
-        return self._chunks
-
-    async def initialize(self) -> None:
-        pass
-
-    async def close(self) -> None:
-        pass
-
-
-class _FailingRetriever:
-    async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
-        raise RuntimeError("retriever error")
-
-    async def initialize(self) -> None:
-        pass
-
-    async def close(self) -> None:
-        pass
+from .conftest import FailingRetriever, FakeRetriever
 
 
 class _SlowRetriever:
@@ -108,7 +85,7 @@ class TestPromptWithDynamicRetriever:
         )
 
         registry = RetrieverRegistry()
-        registry.register("test-retriever", _FakeRetriever(["Chunk 1", "Chunk 2"]))
+        registry.register("test-retriever", FakeRetriever(["Chunk 1", "Chunk 2"]))
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]
@@ -128,7 +105,7 @@ class TestPromptWithDynamicRetriever:
         )
 
         registry = RetrieverRegistry()
-        registry.register("test-retriever", _FakeRetriever(["Should not appear"]))
+        registry.register("test-retriever", FakeRetriever(["Should not appear"]))
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]
@@ -157,7 +134,7 @@ class TestPromptWithDynamicRetriever:
         )
 
         registry = RetrieverRegistry()
-        registry.register("bad-retriever", _FailingRetriever())
+        registry.register("bad-retriever", FailingRetriever())
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]
@@ -263,7 +240,7 @@ class TestContextSizeLimits:
         )
 
         registry = RetrieverRegistry()
-        registry.register("big", _FakeRetriever(["A" * 500, "B" * 500, "C" * 500]))
+        registry.register("big", FakeRetriever(["A" * 500, "B" * 500, "C" * 500]))
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]

@@ -38,10 +38,6 @@ class RetrieverRegistry:
             resolved.append(retriever)
         return resolved
 
-    def has(self, name: str) -> bool:
-        """Check whether a retriever with the given name is registered."""
-        return name in self._retrievers
-
     async def initialize_all(self) -> None:
         """Call initialize() on all registered retrievers."""
         for name, retriever in self._retrievers.items():

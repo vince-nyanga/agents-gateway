@@ -6,51 +6,27 @@ import pytest
 
 from agent_gateway.context.registry import RetrieverRegistry
 
-
-class _FakeRetriever:
-    def __init__(self) -> None:
-        self.initialized = False
-        self.closed = False
-
-    async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
-        return [f"chunk:{query}"]
-
-    async def initialize(self) -> None:
-        self.initialized = True
-
-    async def close(self) -> None:
-        self.closed = True
-
-
-class _FailingRetriever:
-    async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
-        raise RuntimeError("boom")
-
-    async def initialize(self) -> None:
-        raise RuntimeError("init boom")
-
-    async def close(self) -> None:
-        raise RuntimeError("close boom")
+from .conftest import FailingRetriever, FakeRetriever
 
 
 class TestRetrieverRegistry:
-    def test_register_and_has(self) -> None:
+    def test_register_and_resolve(self) -> None:
         reg = RetrieverRegistry()
-        r = _FakeRetriever()
+        r = FakeRetriever()
         reg.register("my-retriever", r)
-        assert reg.has("my-retriever")
-        assert not reg.has("nonexistent")
+        assert reg.resolve_for_agent(["my-retriever"]) == [r]
+        assert reg.resolve_for_agent(["nonexistent"]) == []
 
     def test_duplicate_name_raises(self) -> None:
         reg = RetrieverRegistry()
-        reg.register("dup", _FakeRetriever())
+        reg.register("dup", FakeRetriever())
         with pytest.raises(ValueError, match="already registered"):
-            reg.register("dup", _FakeRetriever())
+            reg.register("dup", FakeRetriever())
 
     def test_resolve_for_agent(self) -> None:
         reg = RetrieverRegistry()
-        r1 = _FakeRetriever()
-        r2 = _FakeRetriever()
+        r1 = FakeRetriever()
+        r2 = FakeRetriever()
         reg.register("r1", r1)
         reg.register("r2", r2)
 
@@ -59,34 +35,34 @@ class TestRetrieverRegistry:
 
     def test_resolve_unknown_skipped(self) -> None:
         reg = RetrieverRegistry()
-        reg.register("known", _FakeRetriever())
+        reg.register("known", FakeRetriever())
 
         resolved = reg.resolve_for_agent(["known", "unknown"])
         assert len(resolved) == 1
 
     async def test_initialize_all(self) -> None:
         reg = RetrieverRegistry()
-        r = _FakeRetriever()
+        r = FakeRetriever()
         reg.register("r", r)
         await reg.initialize_all()
         assert r.initialized
 
     async def test_close_all(self) -> None:
         reg = RetrieverRegistry()
-        r = _FakeRetriever()
+        r = FakeRetriever()
         reg.register("r", r)
         await reg.close_all()
         assert r.closed
 
     async def test_initialize_failure_does_not_crash(self) -> None:
         reg = RetrieverRegistry()
-        reg.register("bad", _FailingRetriever())
-        reg.register("good", _FakeRetriever())
+        reg.register("bad", FailingRetriever())
+        reg.register("good", FakeRetriever())
         # Should not raise
         await reg.initialize_all()
 
     async def test_close_failure_does_not_crash(self) -> None:
         reg = RetrieverRegistry()
-        reg.register("bad", _FailingRetriever())
+        reg.register("bad", FailingRetriever())
         # Should not raise
         await reg.close_all()
