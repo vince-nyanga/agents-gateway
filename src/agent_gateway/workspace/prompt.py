@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
+from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.workspace.agent import AgentDefinition
 from agent_gateway.workspace.loader import WorkspaceState
@@ -81,27 +83,50 @@ async def assemble_system_prompt(
     return "\n\n---\n\n".join(parts)
 
 
+_RETRIEVER_TIMEOUT_SECONDS = 10.0
+
+
 async def _fetch_retriever_context(
     agent: AgentDefinition,
     query: str,
     registry: RetrieverRegistry,
 ) -> list[str]:
-    """Call each retriever for the agent, collecting results.
+    """Call each retriever for the agent concurrently, collecting results.
 
-    Failures are logged and skipped — never crash the prompt assembly.
+    Each retriever is given a timeout of ``_RETRIEVER_TIMEOUT_SECONDS``.
+    Failures and timeouts are logged and skipped — never crash the prompt assembly.
     """
     retrievers = registry.resolve_for_agent(agent.retrievers)
+    if not retrievers:
+        return []
+
+    async def _call_one(retriever: ContextRetriever) -> list[str]:
+        return await asyncio.wait_for(
+            retriever.retrieve(query=query, agent_id=agent.id),
+            timeout=_RETRIEVER_TIMEOUT_SECONDS,
+        )
+
+    settled = await asyncio.gather(
+        *[_call_one(r) for r in retrievers],
+        return_exceptions=True,
+    )
+
     results: list[str] = []
-    for retriever in retrievers:
-        try:
-            chunks = await retriever.retrieve(query=query, agent_id=agent.id)
-            results.extend(chunks)
-        except Exception:
+    for outcome in settled:
+        if isinstance(outcome, TimeoutError):
+            logger.warning(
+                "Retriever timed out for agent '%s' after %.1fs",
+                agent.id,
+                _RETRIEVER_TIMEOUT_SECONDS,
+            )
+        elif isinstance(outcome, BaseException):
             logger.warning(
                 "Retriever failed for agent '%s'",
                 agent.id,
-                exc_info=True,
+                exc_info=outcome,
             )
+        else:
+            results.extend(outcome)
     return results
 
 

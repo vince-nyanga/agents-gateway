@@ -74,6 +74,8 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             execution_mode=agent.execution_mode,
             notifications=_build_notification_config(agent),
             input_schema=agent.input_schema,
+            retrievers=agent.retrievers,
+            context_file_count=len(agent.context_content),
         )
         for agent in ws.agents.values()
     ]
@@ -111,6 +113,8 @@ async def get_agent(
         execution_mode=agent.execution_mode,
         notifications=_build_notification_config(agent),
         input_schema=agent.input_schema,
+        retrievers=agent.retrievers,
+        context_file_count=len(agent.context_content),
     )
 
 

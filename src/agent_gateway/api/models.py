@@ -124,6 +124,8 @@ class AgentInfo(BaseModel):
     execution_mode: str = "sync"
     notifications: NotificationConfigInfo | None = None
     input_schema: dict[str, Any] | None = None
+    retrievers: list[str] = Field(default_factory=list)
+    context_file_count: int = 0
 
 
 class SkillInfo(BaseModel):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from agent_gateway.context.registry import RetrieverRegistry
@@ -26,6 +27,18 @@ class _FakeRetriever:
 class _FailingRetriever:
     async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
         raise RuntimeError("retriever error")
+
+    async def initialize(self) -> None:
+        pass
+
+    async def close(self) -> None:
+        pass
+
+
+class _SlowRetriever:
+    async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
+        await asyncio.sleep(60)  # way beyond timeout
+        return ["should not appear"]
 
     async def initialize(self) -> None:
         pass
@@ -154,6 +167,79 @@ class TestPromptWithDynamicRetriever:
 
         assert "Retrieved Context" not in prompt
         assert "Instructions" in prompt
+
+    async def test_slow_retriever_times_out(self, tmp_path: Path) -> None:
+        import agent_gateway.workspace.prompt as prompt_mod
+
+        agent_dir = tmp_path / "agents" / "my-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text(
+            "---\nretrievers:\n  - slow\n---\n# Agent\n\nInstructions."
+        )
+
+        registry = RetrieverRegistry()
+        registry.register("slow", _SlowRetriever())
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+
+        original_timeout = prompt_mod._RETRIEVER_TIMEOUT_SECONDS
+        prompt_mod._RETRIEVER_TIMEOUT_SECONDS = 0.1  # 100ms for fast test
+        try:
+            prompt = await assemble_system_prompt(
+                agent, state, query="hello", retriever_registry=registry
+            )
+        finally:
+            prompt_mod._RETRIEVER_TIMEOUT_SECONDS = original_timeout
+
+        assert "should not appear" not in prompt
+        assert "Retrieved Context" not in prompt
+        assert "Instructions" in prompt
+
+    async def test_retrievers_run_concurrently(self, tmp_path: Path) -> None:
+        """Multiple retrievers should run in parallel, not sequentially."""
+        import time
+
+        agent_dir = tmp_path / "agents" / "my-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text(
+            "---\nretrievers:\n  - r1\n  - r2\n  - r3\n---\n# Agent\n\nInstructions."
+        )
+
+        class _DelayedRetriever:
+            def __init__(self, name: str, delay: float = 0.1) -> None:
+                self._name = name
+                self._delay = delay
+
+            async def retrieve(self, *, query: str, agent_id: str) -> list[str]:
+                await asyncio.sleep(self._delay)
+                return [f"from-{self._name}"]
+
+            async def initialize(self) -> None:
+                pass
+
+            async def close(self) -> None:
+                pass
+
+        registry = RetrieverRegistry()
+        registry.register("r1", _DelayedRetriever("r1", 0.1))
+        registry.register("r2", _DelayedRetriever("r2", 0.1))
+        registry.register("r3", _DelayedRetriever("r3", 0.1))
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+
+        start = time.monotonic()
+        prompt = await assemble_system_prompt(
+            agent, state, query="hello", retriever_registry=registry
+        )
+        elapsed = time.monotonic() - start
+
+        # If sequential, would take ~0.3s. Concurrent should be ~0.1s.
+        assert elapsed < 0.25, f"Retrievers appear sequential: took {elapsed:.2f}s"
+        assert "from-r1" in prompt
+        assert "from-r2" in prompt
+        assert "from-r3" in prompt
 
     async def test_agent_without_retrievers_unaffected(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agents" / "my-agent"

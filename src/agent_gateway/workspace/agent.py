@@ -144,7 +144,13 @@ class AgentDefinition:
             _validate_schedule_contexts(schedules, input_schema, agent_dir)
 
         # RAG context: auto-discover context/*.md + explicit frontmatter refs
-        context_content = _load_context_files(agent_dir, agent_meta.get("context", []))
+        raw_context = agent_meta.get("context", [])
+        context_paths: list[str] = raw_context if isinstance(raw_context, list) else []
+        if raw_context and not isinstance(raw_context, list):
+            logger.warning(
+                "Agent '%s': 'context' must be a list of file paths, ignoring", agent_id
+            )
+        context_content = _load_context_files(agent_dir, context_paths)
         retrievers = agent_meta.get("retrievers", [])
         if not isinstance(retrievers, list) or not all(isinstance(r, str) for r in retrievers):
             logger.warning(
@@ -174,7 +180,7 @@ class AgentDefinition:
 
 def _load_context_files(
     agent_dir: Path,
-    explicit_paths: Any,
+    explicit_paths: list[str],
 ) -> list[str]:
     """Load static context files for an agent.
 
@@ -203,12 +209,7 @@ def _load_context_files(
                 logger.warning("Failed to read context file: %s", entry, exc_info=True)
 
     # 2. Explicit frontmatter paths
-    if not isinstance(explicit_paths, list):
-        if explicit_paths:
-            logger.warning(
-                "Agent '%s': 'context' must be a list of file paths, ignoring",
-                agent_dir.name,
-            )
+    if not explicit_paths:
         return contents
 
     # Workspace root is two levels up from agent dir: workspace/agents/<id>/

@@ -156,7 +156,13 @@ def _create_streaming_response(
         session.append_user_message(body.message)
         session.truncate_history(session_store._max_history)
 
-        system_prompt = assemble_system_prompt(agent, snapshot.workspace)
+        retriever_reg = snapshot.retriever_registry
+        system_prompt = await assemble_system_prompt(
+            agent,
+            snapshot.workspace,
+            query=body.message,
+            retriever_registry=retriever_reg,
+        )
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             *session.messages,
