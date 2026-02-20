@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
+from agent_gateway.persistence.protocols import (
+    AuditRepository,
+    ExecutionRepository,
+    ScheduleRepository,
+)
 
 
 @runtime_checkable
@@ -28,3 +32,6 @@ class PersistenceBackend(Protocol):
 
     @property
     def audit_repo(self) -> AuditRepository: ...
+
+    @property
+    def schedule_repo(self) -> ScheduleRepository: ...

@@ -35,7 +35,11 @@ from agent_gateway.persistence.domain import (
 )
 
 if TYPE_CHECKING:
-    from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
+    from agent_gateway.persistence.protocols import (
+        AuditRepository,
+        ExecutionRepository,
+        ScheduleRepository,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +72,13 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("result", JSON),
         Column("error", Text),
         Column("usage", JSON),
+        Column("schedule_id", String, nullable=True),
+        Column("schedule_name", String, nullable=True),
         Column("started_at", DateTime(timezone=True)),
         Column("completed_at", DateTime(timezone=True)),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}executions_agent_id", "agent_id"),
+        Index(f"ix_{prefix}executions_schedule_id", "schedule_id"),
     )
 
     execution_steps = Table(
@@ -119,6 +126,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("timezone", String, default="UTC"),
         Column("last_run_at", DateTime(timezone=True)),
         Column("next_run_at", DateTime(timezone=True)),
+        Column("deleted_at", DateTime(timezone=True), nullable=True),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}schedules_agent_id", "agent_id"),
         Index(
@@ -198,9 +206,13 @@ class SqlBackend:
         from agent_gateway.persistence.backends.sql.repository import (
             ExecutionRepository as ExecRepo,
         )
+        from agent_gateway.persistence.backends.sql.repository import (
+            ScheduleRepository as SchedRepo,
+        )
 
         self._execution_repo: ExecutionRepository = ExecRepo(self._session_factory)
         self._audit_repo: AuditRepository = AuditRepo(self._session_factory)
+        self._schedule_repo: ScheduleRepository = SchedRepo(self._session_factory)
 
     async def initialize(self) -> None:
         """Create all tables if they don't exist. Idempotent."""
@@ -220,3 +232,7 @@ class SqlBackend:
     @property
     def audit_repo(self) -> AuditRepository:
         return self._audit_repo
+
+    @property
+    def schedule_repo(self) -> ScheduleRepository:
+        return self._schedule_repo

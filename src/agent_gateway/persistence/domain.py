@@ -24,6 +24,8 @@ class ExecutionRecord:
     result: dict[str, Any] | None = None
     error: str | None = None
     usage: dict[str, Any] | None = None
+    schedule_id: str | None = None
+    schedule_name: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime | None = None
@@ -71,4 +73,5 @@ class ScheduleRecord:
     timezone: str = "UTC"
     last_run_at: datetime | None = None
     next_run_at: datetime | None = None
+    deleted_at: datetime | None = None
     created_at: datetime | None = None

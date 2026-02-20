@@ -8,7 +8,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agent_gateway.persistence.domain import AuditLogEntry, ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import (
+    AuditLogEntry,
+    ExecutionRecord,
+    ExecutionStep,
+    ScheduleRecord,
+)
 
 
 class ExecutionRepository:
@@ -77,10 +82,104 @@ class ExecutionRepository:
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
+    async def list_by_schedule(
+        self,
+        schedule_id: str,
+        limit: int = 20,
+    ) -> list[ExecutionRecord]:
+        """List executions triggered by a schedule, most recent first."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ExecutionRecord)
+                .where(ExecutionRecord.schedule_id == schedule_id)  # type: ignore[arg-type]
+                .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
     async def add_step(self, step: ExecutionStep) -> None:
         """Insert a new execution step."""
         async with self._session_factory() as session:
             session.add(step)
+            await session.commit()
+
+
+class ScheduleRepository:
+    """CRUD operations for schedule records."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def upsert(self, record: ScheduleRecord) -> None:
+        """Insert or update a schedule record."""
+        async with self._session_factory() as session:
+            existing = await session.get(ScheduleRecord, record.id)
+            if existing is None:
+                session.add(record)
+            else:
+                existing.agent_id = record.agent_id
+                existing.name = record.name
+                existing.cron_expr = record.cron_expr
+                existing.message = record.message
+                existing.context = record.context
+                existing.enabled = record.enabled
+                existing.timezone = record.timezone
+                existing.next_run_at = record.next_run_at
+                existing.deleted_at = None  # un-delete if re-added
+            await session.commit()
+
+    async def get(self, schedule_id: str) -> ScheduleRecord | None:
+        """Fetch a schedule by ID."""
+        async with self._session_factory() as session:
+            return await session.get(ScheduleRecord, schedule_id)
+
+    async def list_all(self, agent_id: str | None = None) -> list[ScheduleRecord]:
+        """List all non-deleted schedules, optionally filtered by agent."""
+        async with self._session_factory() as session:
+            stmt = select(ScheduleRecord).where(
+                ScheduleRecord.deleted_at.is_(None)  # type: ignore[union-attr]
+            )
+            if agent_id is not None:
+                stmt = stmt.where(
+                    ScheduleRecord.agent_id == agent_id  # type: ignore[arg-type]
+                )
+            stmt = stmt.order_by(ScheduleRecord.created_at)  # type: ignore[union-attr]
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def update_last_run(
+        self,
+        schedule_id: str,
+        last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None:
+        """Update the last and next run times for a schedule."""
+        async with self._session_factory() as session:
+            record = await session.get(ScheduleRecord, schedule_id)
+            if record is None:
+                return
+            record.last_run_at = last_run_at
+            record.next_run_at = next_run_at
+            await session.commit()
+
+    async def update_enabled(self, schedule_id: str, enabled: bool) -> None:
+        """Update the enabled state of a schedule."""
+        async with self._session_factory() as session:
+            record = await session.get(ScheduleRecord, schedule_id)
+            if record is None:
+                return
+            record.enabled = enabled
+            await session.commit()
+
+    async def soft_delete(self, schedule_id: str) -> None:
+        """Soft-delete a schedule by setting deleted_at."""
+        async with self._session_factory() as session:
+            record = await session.get(ScheduleRecord, schedule_id)
+            if record is None:
+                return
+            record.deleted_at = datetime.now(UTC)
+            record.enabled = False
             await session.commit()
 
 

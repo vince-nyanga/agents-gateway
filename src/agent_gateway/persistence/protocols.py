@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from agent_gateway.persistence.domain import AuditLogEntry, ExecutionRecord, ExecutionStep
+from datetime import datetime
+
+from agent_gateway.persistence.domain import (
+    AuditLogEntry,
+    ExecutionRecord,
+    ExecutionStep,
+    ScheduleRecord,
+)
 
 
 @runtime_checkable
@@ -26,7 +33,33 @@ class ExecutionRepository(Protocol):
 
     async def list_by_agent(self, agent_id: str, limit: int = 50) -> list[ExecutionRecord]: ...
 
+    async def list_by_schedule(
+        self, schedule_id: str, limit: int = 20
+    ) -> list[ExecutionRecord]: ...
+
     async def add_step(self, step: ExecutionStep) -> None: ...
+
+
+@runtime_checkable
+class ScheduleRepository(Protocol):
+    """Interface for schedule persistence."""
+
+    async def upsert(self, record: ScheduleRecord) -> None: ...
+
+    async def get(self, schedule_id: str) -> ScheduleRecord | None: ...
+
+    async def list_all(self, agent_id: str | None = None) -> list[ScheduleRecord]: ...
+
+    async def update_last_run(
+        self,
+        schedule_id: str,
+        last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None: ...
+
+    async def update_enabled(self, schedule_id: str, enabled: bool) -> None: ...
+
+    async def soft_delete(self, schedule_id: str) -> None: ...
 
 
 @runtime_checkable

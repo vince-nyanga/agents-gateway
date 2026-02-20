@@ -17,6 +17,19 @@ from pydantic_settings import BaseSettings
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
 
+def _validate_timezone(tz: str) -> None:
+    """Validate that a timezone string is a valid IANA timezone name."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, KeyError) as e:
+        raise ValueError(
+            f"Invalid timezone '{tz}'. Must be a valid IANA timezone name "
+            f"(e.g., 'UTC', 'Europe/London', 'America/New_York')."
+        ) from e
+
+
 def _resolve_env_vars(data: Any) -> Any:
     """Recursively resolve ${VAR} placeholders from environment.
 
@@ -150,6 +163,13 @@ class QueueConfig(BaseModel):
     default_execution_mode: str = "sync"  # sync | async
 
 
+class SchedulerConfig(BaseModel):
+    enabled: bool = True
+    misfire_grace_seconds: int = 60
+    max_instances: int = 1
+    coalesce: bool = True
+
+
 class GatewayConfig(BaseSettings):
     """Root configuration for the Agent Gateway.
 
@@ -159,6 +179,7 @@ class GatewayConfig(BaseSettings):
 
     model_config = {"env_prefix": "AGENT_GATEWAY_", "env_nested_delimiter": "__"}
 
+    timezone: str = "UTC"
     server: ServerConfig = ServerConfig()
     model: ModelConfig = ModelConfig()
     guardrails: GuardrailsConfig = GuardrailsConfig()
@@ -167,6 +188,7 @@ class GatewayConfig(BaseSettings):
     persistence: PersistenceConfig = PersistenceConfig()
     telemetry: TelemetryConfig = TelemetryConfig()
     queue: QueueConfig = QueueConfig()
+    scheduler: SchedulerConfig = SchedulerConfig()
     context: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
@@ -177,7 +199,10 @@ class GatewayConfig(BaseSettings):
         with open(path) as f:
             data = yaml.safe_load(f) or {}
         _resolve_env_vars(data)
-        return cls(**data)
+        config = cls(**data)
+        # Validate timezone is a valid IANA name
+        _validate_timezone(config.timezone)
+        return config
 
     @classmethod
     def load(cls, workspace_path: Path) -> GatewayConfig:

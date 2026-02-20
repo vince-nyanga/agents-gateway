@@ -5,9 +5,15 @@ Same interface as the real repositories, but does nothing.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from agent_gateway.persistence.domain import AuditLogEntry, ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import (
+    AuditLogEntry,
+    ExecutionRecord,
+    ExecutionStep,
+    ScheduleRecord,
+)
 
 
 class NullExecutionRepository:
@@ -33,8 +39,56 @@ class NullExecutionRepository:
     async def list_by_agent(self, agent_id: str, limit: int = 50) -> list[ExecutionRecord]:
         return []
 
+    async def list_by_schedule(
+        self, schedule_id: str, limit: int = 20
+    ) -> list[ExecutionRecord]:
+        return []
+
     async def add_step(self, step: ExecutionStep) -> None:
         pass
+
+
+class NullScheduleRepository:
+    """No-op schedule repository — used when persistence is disabled."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, ScheduleRecord] = {}
+
+    async def upsert(self, record: ScheduleRecord) -> None:
+        self._store[record.id] = record
+
+    async def get(self, schedule_id: str) -> ScheduleRecord | None:
+        return self._store.get(schedule_id)
+
+    async def list_all(self, agent_id: str | None = None) -> list[ScheduleRecord]:
+        records = [r for r in self._store.values() if r.deleted_at is None]
+        if agent_id is not None:
+            records = [r for r in records if r.agent_id == agent_id]
+        return records
+
+    async def update_last_run(
+        self,
+        schedule_id: str,
+        last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None:
+        record = self._store.get(schedule_id)
+        if record is not None:
+            record.last_run_at = last_run_at
+            record.next_run_at = next_run_at
+
+    async def update_enabled(self, schedule_id: str, enabled: bool) -> None:
+        record = self._store.get(schedule_id)
+        if record is not None:
+            record.enabled = enabled
+
+    async def soft_delete(self, schedule_id: str) -> None:
+        record = self._store.get(schedule_id)
+        if record is not None:
+            from datetime import UTC
+
+            record.deleted_at = datetime.now(UTC)
+            record.enabled = False
 
 
 class NullAuditRepository:

@@ -109,21 +109,7 @@ class AgentDefinition:
         )
 
         schedules_data = config_meta.get("schedules") or agent_meta.get("schedules", [])
-        schedules = []
-        for s in schedules_data:
-            try:
-                schedules.append(
-                    ScheduleConfig(
-                        name=s["name"],
-                        cron=s["cron"],
-                        message=s["message"],
-                        context=s.get("context", {}),
-                        enabled=s.get("enabled", True),
-                        timezone=s.get("timezone", "UTC"),
-                    )
-                )
-            except (KeyError, TypeError) as e:
-                logger.warning("Invalid schedule in %s: %s", agent_dir, e)
+        schedules = _parse_schedules(schedules_data, agent_dir)
 
         # Notifications: CONFIG.md wins (scalar precedence, same as model/execution_mode)
         raw_notif = config_meta.get("notifications") or agent_meta.get("notifications", {})
@@ -141,6 +127,74 @@ class AgentDefinition:
             execution_mode=execution_mode,
             notifications=notifications,
         )
+
+
+def _parse_schedules(
+    schedules_data: list[Any],
+    agent_dir: Path,
+) -> list[ScheduleConfig]:
+    """Parse and validate schedule definitions from agent frontmatter."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    from apscheduler.triggers.cron import CronTrigger
+
+    schedules: list[ScheduleConfig] = []
+    seen_names: set[str] = set()
+
+    for s in schedules_data:
+        if not isinstance(s, dict):
+            logger.warning("Invalid schedule entry (not a dict) in %s", agent_dir)
+            continue
+        try:
+            name = s["name"]
+            cron_expr = s["cron"]
+            message = s["message"]
+        except KeyError as e:
+            logger.warning("Invalid schedule in %s: missing required field %s", agent_dir, e)
+            continue
+
+        # Enforce uniqueness per agent
+        if name in seen_names:
+            logger.warning(
+                "Duplicate schedule name '%s' in %s, skipping", name, agent_dir
+            )
+            continue
+        seen_names.add(name)
+
+        tz = s.get("timezone", "UTC")
+
+        # Validate timezone
+        try:
+            ZoneInfo(tz)
+        except (ZoneInfoNotFoundError, KeyError):
+            logger.warning(
+                "Invalid timezone '%s' for schedule '%s' in %s, skipping",
+                tz, name, agent_dir,
+            )
+            continue
+
+        # Validate cron expression
+        try:
+            CronTrigger.from_crontab(cron_expr, timezone=tz)
+        except (ValueError, KeyError) as e:
+            logger.warning(
+                "Invalid cron expression '%s' for schedule '%s' in %s: %s",
+                cron_expr, name, agent_dir, e,
+            )
+            continue
+
+        schedules.append(
+            ScheduleConfig(
+                name=name,
+                cron=cron_expr,
+                message=message,
+                context=s.get("context", {}),
+                enabled=s.get("enabled", True),
+                timezone=tz,
+            )
+        )
+
+    return schedules
 
 
 def _parse_notification_config(

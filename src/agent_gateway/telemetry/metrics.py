@@ -21,6 +21,8 @@ class AgentGatewayMetrics:
     tools_calls_total: Counter
     tools_duration: Histogram
     schedules_runs_total: Counter
+    schedules_fires_total: Counter
+    schedules_active: UpDownCounter
 
     # Queue metrics
     queue_jobs_enqueued: Counter
@@ -88,6 +90,16 @@ def create_metrics(meter: Meter | None = None) -> AgentGatewayMetrics:
         schedules_runs_total=meter.create_counter(
             "agw.schedules.runs.total",
             description="Total number of scheduled agent runs",
+            unit="1",
+        ),
+        schedules_fires_total=meter.create_counter(
+            "agw.schedules.fires.total",
+            description="Total number of cron schedule fires (including skipped overlaps)",
+            unit="1",
+        ),
+        schedules_active=meter.create_up_down_counter(
+            "agw.schedules.active",
+            description="Number of currently enabled schedules",
             unit="1",
         ),
         queue_jobs_enqueued=meter.create_counter(

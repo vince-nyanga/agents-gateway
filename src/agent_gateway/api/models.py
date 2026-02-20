@@ -190,3 +190,27 @@ class SessionInfo(BaseModel):
     message_count: int = 0
     created_at: float = 0.0  # Unix epoch seconds (wall-clock)
     updated_at: float = 0.0  # Unix epoch seconds (wall-clock)
+
+
+# --- Schedule endpoint models ---
+
+
+class ScheduleInfo(BaseModel):
+    """Schedule summary for list endpoint."""
+
+    id: str
+    agent_id: str
+    name: str
+    cron_expr: str
+    enabled: bool = True
+    timezone: str = "UTC"
+    next_run_at: datetime | None = None
+    last_run_at: datetime | None = None
+    created_at: datetime | None = None
+
+
+class ScheduleDetailInfo(ScheduleInfo):
+    """Schedule detail with message and context."""
+
+    message: str = ""
+    context: dict[str, Any] = Field(default_factory=dict)

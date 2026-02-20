@@ -33,8 +33,16 @@ from agent_gateway.notifications.models import (
 )
 from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
-from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
-from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
+from agent_gateway.persistence.null import (
+    NullAuditRepository,
+    NullExecutionRepository,
+    NullScheduleRepository,
+)
+from agent_gateway.persistence.protocols import (
+    AuditRepository,
+    ExecutionRepository,
+    ScheduleRepository,
+)
 from agent_gateway.queue.null import NullQueue
 from agent_gateway.queue.protocol import ExecutionQueue
 from agent_gateway.tools.runner import execute_tool
@@ -100,6 +108,8 @@ class Gateway(FastAPI):
         self._notification_queue: Any | None = None  # notification queue backend
         self._notification_queue_backend: Any | None = None  # fluent API override
         self._notification_worker: Any | None = None  # NotificationWorker
+        self._scheduler: Any | None = None  # SchedulerEngine, set during startup
+        self._schedule_repo: ScheduleRepository = NullScheduleRepository()
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -271,6 +281,7 @@ class Gateway(FastAPI):
                 self._persistence_backend = backend
                 self._execution_repo = backend.execution_repo
                 self._audit_repo = backend.audit_repo
+                self._schedule_repo = backend.schedule_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -347,6 +358,29 @@ class Gateway(FastAPI):
             self._session_cleanup_loop(), name="session-cleanup"
         )
 
+        # 9.5: Init scheduler (cron-based agent invocations)
+        if self._config.scheduler.enabled and workspace.schedules:
+            try:
+                from agent_gateway.scheduler.engine import SchedulerEngine
+
+                job_store = self._build_scheduler_job_store()
+                self._scheduler = SchedulerEngine(
+                    gateway=self,
+                    config=self._config.scheduler,
+                    schedule_repo=self._schedule_repo,
+                    timezone=self._config.timezone,
+                    job_store=job_store,
+                )
+                await self._scheduler.start(
+                    schedules=workspace.schedules,
+                    agents=workspace.agents,
+                )
+            except ImportError:
+                raise
+            except Exception:
+                logger.warning("Failed to init scheduler", exc_info=True)
+                self._scheduler = None
+
         # 10. Start worker pool for queue-based async execution
         if not isinstance(self._queue, NullQueue):
             from agent_gateway.queue.worker import WorkerPool
@@ -415,6 +449,11 @@ class Gateway(FastAPI):
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
         await self._hooks.fire("gateway.shutdown")
+
+        # Stop scheduler (prevents new cron fires; in-flight jobs finish via worker pool)
+        if self._scheduler is not None:
+            await self._scheduler.stop()
+            self._scheduler = None
 
         # Drain worker pool (waits for in-flight jobs up to drain_timeout_s)
         if self._worker_pool is not None:
@@ -945,6 +984,26 @@ class Gateway(FastAPI):
 
         return None
 
+    def _build_scheduler_job_store(self) -> Any:
+        """Build an APScheduler job store from the persistence backend.
+
+        Uses SQLAlchemyJobStore when SQL persistence is configured,
+        falls back to MemoryJobStore otherwise.
+        """
+        from apscheduler.jobstores.memory import MemoryJobStore
+
+        backend = self._persistence_backend
+        if backend is not None:
+            try:
+                from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+
+                engine = backend.sync_engine  # type: ignore[attr-defined]
+                return SQLAlchemyJobStore(engine=engine)
+            except (AttributeError, ImportError):
+                logger.info("No sync engine on persistence backend, using MemoryJobStore")
+
+        return MemoryJobStore()
+
     def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
         """Create a backend from YAML/env configuration (backward compat)."""
         if config.backend == "sqlite":
@@ -971,6 +1030,7 @@ class Gateway(FastAPI):
         from agent_gateway.api.routes.health import router as health_router
         from agent_gateway.api.routes.introspection import router as introspection_router
         from agent_gateway.api.routes.invoke import router as invoke_router
+        from agent_gateway.api.routes.schedules import router as schedules_router
 
         v1 = APIRouter(prefix="/v1", route_class=GatewayAPIRoute)
         v1.include_router(health_router)
@@ -978,6 +1038,7 @@ class Gateway(FastAPI):
         v1.include_router(chat_router)
         v1.include_router(executions_router)
         v1.include_router(introspection_router)
+        v1.include_router(schedules_router)
 
         self.include_router(v1)
 
