@@ -104,6 +104,7 @@ class ExecutionEngine:
         handle: ExecutionHandle | None = None,
         tool_executor: ToolExecutorFn | None = None,
         message_history: list[dict[str, Any]] | None = None,
+        memory_block: str = "",
     ) -> ExecutionResult:
         """Run the full agent execution loop.
 
@@ -146,6 +147,7 @@ class ExecutionEngine:
             query=message,
             retriever_registry=self._retriever_registry,
             context_retrieval_config=self._config.context_retrieval,
+            memory_block=memory_block,
         )
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)

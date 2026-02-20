@@ -41,6 +41,7 @@ gw.use_api_keys(
         }
     ]
 )
+gw.use_file_memory()
 
 # --- Notifications (optional — configure via env vars) ---
 

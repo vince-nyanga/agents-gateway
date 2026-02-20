@@ -23,6 +23,7 @@ async def assemble_system_prompt(
     query: str = "",
     retriever_registry: RetrieverRegistry | None = None,
     context_retrieval_config: ContextRetrievalConfig | None = None,
+    memory_block: str = "",
 ) -> str:
     """Build the full system prompt for an agent.
 
@@ -31,9 +32,10 @@ async def assemble_system_prompt(
     2. Root BEHAVIOR.md (shared behavior/guardrails)
     3. Agent AGENT.md (agent-specific instructions)
     4. Agent BEHAVIOR.md (agent-specific behavior/guardrails)
-    5. Static context files (reference material from context/ dir + frontmatter)
-    6. Dynamic retriever results (fetched at prompt assembly time)
-    7. Skill instructions (from each skill the agent uses)
+    5. Agent memory (persisted knowledge from memory backend)
+    6. Static context files (reference material from context/ dir + frontmatter)
+    7. Dynamic retriever results (fetched at prompt assembly time)
+    8. Skill instructions (from each skill the agent uses)
 
     Note: Business context (gateway.yaml context block) is injected
     by the Gateway at invocation time, not during workspace loading.
@@ -59,7 +61,11 @@ async def assemble_system_prompt(
     if agent.behavior_prompt:
         parts.append(agent.behavior_prompt)
 
-    # 5. Static context files
+    # 5. Agent memory
+    if memory_block:
+        parts.append("## Agent Memory\n\n" + memory_block)
+
+    # 6. Static context files
     cfg = context_retrieval_config or ContextRetrievalConfig()
     if agent.context_content:
         max_file = cfg.max_context_file_chars
@@ -77,7 +83,7 @@ async def assemble_system_prompt(
         context_section = "## Reference Material\n\n" + "\n\n---\n\n".join(trimmed_content)
         parts.append(context_section)
 
-    # 6. Dynamic retriever results
+    # 7. Dynamic retriever results
     if agent.retrievers and retriever_registry is not None and query:
         retrieved = await _fetch_retriever_context(
             agent=agent,
@@ -88,7 +94,7 @@ async def assemble_system_prompt(
         if retrieved:
             parts.append("## Retrieved Context\n\n" + "\n\n---\n\n".join(retrieved))
 
-    # 7. Skill instructions
+    # 8. Skill instructions
     resolved_skills = [
         skill for name in agent.skills if (skill := workspace.skills.get(name)) is not None
     ]

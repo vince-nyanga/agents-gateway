@@ -21,7 +21,7 @@ class NullMemoryRepository:
     async def get(self, agent_id: str, memory_id: str) -> MemoryRecord | None:
         return None
 
-    async def list(
+    async def list_memories(
         self,
         agent_id: str,
         *,

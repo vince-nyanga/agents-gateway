@@ -27,7 +27,7 @@ class MemoryRepository(Protocol):
         """Retrieve a specific memory by ID."""
         ...
 
-    async def list(
+    async def list_memories(
         self,
         agent_id: str,
         *,

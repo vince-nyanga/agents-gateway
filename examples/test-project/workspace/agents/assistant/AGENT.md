@@ -6,6 +6,9 @@ version: "1.0.0"
 skills:
   - math-workflow
   - general-tools
+memory:
+  enabled: true
+  auto_extract: true
 ---
 
 # Assistant Agent

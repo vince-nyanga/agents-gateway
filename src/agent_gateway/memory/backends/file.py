@@ -135,7 +135,7 @@ class FileMemoryRepository:
                 return r
         return None
 
-    async def list(
+    async def list_memories(
         self,
         agent_id: str,
         *,

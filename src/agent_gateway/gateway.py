@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any, overload
 from fastapi import APIRouter, FastAPI
 
 if TYPE_CHECKING:
+    from agent_gateway.memory.manager import MemoryManager
+    from agent_gateway.memory.protocols import MemoryBackend
     from agent_gateway.scheduler.engine import SchedulerEngine
 
 from agent_gateway.auth.protocols import AuthProvider
@@ -125,6 +127,8 @@ class Gateway(FastAPI):
         self._notification_worker: Any | None = None  # NotificationWorker
         self._scheduler: SchedulerEngine | None = None
         self._schedule_repo: ScheduleRepository = NullScheduleRepository()
+        self._pending_memory_backend: MemoryBackend | None = None  # fluent API
+        self._memory_manager: MemoryManager | None = None
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -188,6 +192,11 @@ class Gateway(FastAPI):
         """Registered tools."""
         reg = self.tool_registry
         return dict(reg.get_all()) if reg else {}
+
+    @property
+    def memory_manager(self) -> MemoryManager | None:
+        """The memory manager, if memory is enabled."""
+        return self._memory_manager
 
     def health(self) -> dict[str, Any]:
         """Return gateway health info (programmatic equivalent of GET /v1/health)."""
@@ -372,6 +381,62 @@ class Gateway(FastAPI):
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
 
+        # 7.2: Init memory
+        memory_cfg = self._config.memory
+        memory_backend = self._pending_memory_backend
+        has_memory_agents = any(
+            a.memory_config and a.memory_config.enabled for a in workspace.agents.values()
+        )
+        if (memory_cfg.enabled or memory_backend is not None) and has_memory_agents:
+            if memory_backend is None:
+                # Default to file-based memory
+                from agent_gateway.memory.backends.file import FileMemoryBackend
+
+                memory_backend = FileMemoryBackend(
+                    workspace_root=ws_path,
+                    max_lines=memory_cfg.max_memory_md_lines,
+                )
+            try:
+                await memory_backend.initialize()
+
+                from agent_gateway.memory.manager import MemoryManager
+
+                assert self._llm_client is not None  # guarded by step 7
+                self._memory_manager = MemoryManager(
+                    backend=memory_backend,
+                    llm_client=self._llm_client,
+                    config=memory_cfg,
+                )
+
+                # Register memory tools for agents with memory enabled
+                memory_agents = [
+                    aid
+                    for aid, a in workspace.agents.items()
+                    if a.memory_config and a.memory_config.enabled
+                ]
+                if memory_agents:
+                    from agent_gateway.memory.tools import make_memory_tools
+
+                    mem_tools = make_memory_tools(self._memory_manager)
+                    for tool_def in mem_tools:
+                        code_tool = CodeTool(
+                            name=tool_def["name"],
+                            description=tool_def["description"],
+                            fn=tool_def["func"],
+                            parameters_schema=tool_def["parameters"],
+                            allowed_agents=memory_agents,
+                        )
+                        tool_registry.register_code_tool(code_tool)
+
+                logger.info(
+                    "Memory initialized for %d agent(s): %s",
+                    len(memory_agents),
+                    ", ".join(memory_agents),
+                )
+            except Exception:
+                logger.warning("Failed to init memory backend", exc_info=True)
+                self._memory_manager = None
+
         # 7.5. Apply code-registered input schemas (overrides frontmatter)
         self._apply_pending_input_schemas(workspace)
 
@@ -518,6 +583,14 @@ class Gateway(FastAPI):
         # Dispose notification engine
         if self._notification_engine.has_backends:
             await self._notification_engine.dispose()
+
+        # Dispose memory backend
+        if self._memory_manager is not None:
+            try:
+                await self._memory_manager._backend.dispose()
+            except Exception:
+                logger.warning("Failed to dispose memory backend", exc_info=True)
+            self._memory_manager = None
 
         # Close retrievers
         if self._retriever_registry is not None:
@@ -908,6 +981,40 @@ class Gateway(FastAPI):
         self._pending_retrievers[name] = retriever
         return self
 
+    # --- Memory configuration (fluent API) ---
+
+    def use_memory(self, backend: MemoryBackend) -> Gateway:
+        """Configure a custom memory backend.
+
+        Agents opt in to memory via ``memory.enabled: true`` in their AGENT.md
+        frontmatter. Memory tools (recall, save, forget) are automatically
+        registered for enabled agents.
+
+        Args:
+            backend: A MemoryBackend implementation (e.g. a pgvector-backed store).
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure memory after gateway has started")
+        self._pending_memory_backend = backend
+        return self
+
+    def use_file_memory(self) -> Gateway:
+        """Use the built-in file-based memory backend (MEMORY.md per agent).
+
+        Zero infrastructure — memories are stored as structured markdown files
+        in each agent's workspace directory. Human-readable and git-committable.
+
+        Line cap is controlled by ``memory.max_memory_md_lines`` in gateway.yaml.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure memory after gateway has started")
+        from agent_gateway.memory.backends.file import FileMemoryBackend
+
+        self._pending_memory_backend = FileMemoryBackend(
+            workspace_root=Path(self._workspace_path),
+        )
+        return self
+
     def _init_notifications_from_config(self, config: NotificationsConfig) -> None:
         """Create notification backends from gateway.yaml config."""
         if config.slack.enabled and config.slack.bot_token:
@@ -1245,6 +1352,22 @@ class Gateway(FastAPI):
                     errors=errors,
                 )
 
+        # Build memory block for agents with memory enabled
+        memory_block = ""
+        if (
+            self._memory_manager is not None
+            and agent.memory_config
+            and agent.memory_config.enabled
+        ):
+            try:
+                memory_block = await self._memory_manager.get_context_block(
+                    agent_id,
+                    query=message,
+                    max_chars=agent.memory_config.max_injected_chars,
+                )
+            except Exception:
+                logger.warning("Failed to fetch memory for agent '%s'", agent_id, exc_info=True)
+
         execution_id = str(uuid.uuid4())
         handle = ExecutionHandle(execution_id=execution_id)
         self._execution_handles[execution_id] = handle
@@ -1258,6 +1381,7 @@ class Gateway(FastAPI):
                 options=options,
                 handle=handle,
                 tool_executor=execute_tool,
+                memory_block=memory_block,
             )
 
             # Fire notifications
@@ -1333,6 +1457,21 @@ class Gateway(FastAPI):
             session.append_user_message(message)
             session.truncate_history(self._session_store._max_history)
 
+            # Build memory block for agents with memory enabled
+            memory_block = ""
+            agent_mem = agent.memory_config
+            if self._memory_manager is not None and agent_mem and agent_mem.enabled:
+                try:
+                    memory_block = await self._memory_manager.get_context_block(
+                        agent_id,
+                        query=message,
+                        max_chars=agent_mem.max_injected_chars,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to fetch memory for agent '%s'", agent_id, exc_info=True
+                    )
+
             retriever_reg = snapshot.retriever_registry if snapshot else None
             system_prompt = await assemble_system_prompt(
                 agent,
@@ -1340,6 +1479,7 @@ class Gateway(FastAPI):
                 query=message,
                 retriever_registry=retriever_reg,
                 context_retrieval_config=snapshot.context_retrieval_config,
+                memory_block=memory_block,
             )
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
@@ -1369,6 +1509,26 @@ class Gateway(FastAPI):
 
             if result.raw_text:
                 session.append_assistant_message(content=result.raw_text)
+
+            # Auto-extract memories from conversation (fire-and-forget)
+            if (
+                self._memory_manager is not None
+                and agent_mem
+                and agent_mem.auto_extract
+                and self._llm_client is not None
+            ):
+                recent_messages = session.messages[-10:]
+                mm = self._memory_manager
+
+                async def _extract() -> None:
+                    await mm.extract_memories(agent_id, recent_messages)
+
+                task = asyncio.create_task(
+                    _extract(),
+                    name=f"memory-extract-{agent_id}",
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
             return session.session_id, result
 
