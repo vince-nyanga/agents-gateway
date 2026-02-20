@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from agent_gateway.scheduler.engine import SchedulerEngine
 
 from agent_gateway.auth.protocols import AuthProvider
+from agent_gateway.context.protocol import ContextRetriever
+from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.chat.session import ChatSession, SessionStore
 from agent_gateway.config import GatewayConfig, NotificationsConfig, PersistenceConfig
 from agent_gateway.engine.executor import ExecutionEngine
@@ -66,6 +68,7 @@ class WorkspaceSnapshot:
     workspace: WorkspaceState
     tool_registry: ToolRegistry
     engine: ExecutionEngine | None
+    retriever_registry: RetrieverRegistry | None = None
 
 
 class Gateway(FastAPI):
@@ -87,6 +90,8 @@ class Gateway(FastAPI):
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
         self._pending_input_schemas: dict[str, dict[str, Any] | type] = {}
+        self._pending_retrievers: dict[str, ContextRetriever] = {}
+        self._retriever_registry: RetrieverRegistry | None = None
         self._hooks = HookRegistry()
 
         # Initialized during lifespan startup
@@ -249,8 +254,9 @@ class Gateway(FastAPI):
 
         # 3. Load workspace (never crashes)
         workspace: WorkspaceState
+        retriever_names = frozenset(self._pending_retrievers.keys())
         try:
-            workspace = load_workspace(ws_path)
+            workspace = load_workspace(ws_path, retriever_names=retriever_names)
             if workspace.errors:
                 for err in workspace.errors:
                     logger.warning("Workspace error: %s", err)
@@ -336,6 +342,16 @@ class Gateway(FastAPI):
                 )
                 self._notification_queue = None
 
+        # 6.7: Build retriever registry
+        retriever_registry = RetrieverRegistry()
+        for name, retriever in self._pending_retrievers.items():
+            retriever_registry.register(name, retriever)
+        try:
+            await retriever_registry.initialize_all()
+        except Exception:
+            logger.warning("Failed to initialize retrievers", exc_info=True)
+        self._retriever_registry = retriever_registry
+
         # 7. Build LLM client and execution engine
         engine: ExecutionEngine | None = None
         try:
@@ -345,6 +361,7 @@ class Gateway(FastAPI):
                 tool_registry=tool_registry,
                 config=self._config,
                 hooks=self._hooks,
+                retriever_registry=retriever_registry,
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
@@ -357,6 +374,7 @@ class Gateway(FastAPI):
             workspace=workspace,
             tool_registry=tool_registry,
             engine=engine,
+            retriever_registry=retriever_registry,
         )
 
         # 9. Initialize session store for multi-turn chat
@@ -493,6 +511,10 @@ class Gateway(FastAPI):
         # Dispose notification engine
         if self._notification_engine.has_backends:
             await self._notification_engine.dispose()
+
+        # Close retrievers
+        if self._retriever_registry is not None:
+            await self._retriever_registry.close_all()
 
         if self._llm_client:
             await self._llm_client.close()
@@ -855,6 +877,30 @@ class Gateway(FastAPI):
             self._notification_backends.append(backend)
         return self
 
+    # --- Retriever configuration (fluent API) ---
+
+    def use_retriever(self, name: str, retriever: ContextRetriever) -> Gateway:
+        """Register a named context retriever.
+
+        Agents reference retrievers by name in AGENT.md frontmatter
+        via the ``retrievers:`` key. Retrievers are called during prompt
+        assembly to inject dynamic context.
+
+        Args:
+            name: Unique name for this retriever (referenced in AGENT.md).
+            retriever: A ContextRetriever implementation.
+
+        Raises:
+            RuntimeError: If called after gateway has started.
+            ValueError: If a retriever with the same name is already registered.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure retrievers after gateway has started")
+        if name in self._pending_retrievers:
+            raise ValueError(f"Retriever '{name}' is already registered")
+        self._pending_retrievers[name] = retriever
+        return self
+
     def _init_notifications_from_config(self, config: NotificationsConfig) -> None:
         """Create notification backends from gateway.yaml config."""
         if config.slack.enabled and config.slack.bot_token:
@@ -1056,7 +1102,8 @@ class Gateway(FastAPI):
         """Reload workspace from disk and rebuild registry (atomic snapshot swap)."""
         async with self._reload_lock:
             ws_path = Path(self._workspace_path)
-            new_workspace = load_workspace(ws_path)
+            retriever_names = frozenset(self._pending_retrievers.keys())
+            new_workspace = load_workspace(ws_path, retriever_names=retriever_names)
 
             new_registry = ToolRegistry()
             new_registry.register_file_tools(new_workspace.tools)
@@ -1070,6 +1117,7 @@ class Gateway(FastAPI):
                     tool_registry=new_registry,
                     config=self._config,
                     hooks=self._hooks,
+                    retriever_registry=self._retriever_registry,
                 )
 
             # Re-apply code-registered input schemas
@@ -1080,6 +1128,7 @@ class Gateway(FastAPI):
                 workspace=new_workspace,
                 tool_registry=new_registry,
                 engine=new_engine,
+                retriever_registry=self._retriever_registry,
             )
 
             logger.info("Workspace reloaded: %d agents", len(new_workspace.agents))
@@ -1276,7 +1325,13 @@ class Gateway(FastAPI):
             session.append_user_message(message)
             session.truncate_history(self._session_store._max_history)
 
-            system_prompt = assemble_system_prompt(agent, snapshot.workspace)
+            retriever_reg = snapshot.retriever_registry if snapshot else None
+            system_prompt = await assemble_system_prompt(
+                agent,
+                snapshot.workspace,
+                query=message,
+                retriever_registry=retriever_reg,
+            )
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
                 *session.messages,

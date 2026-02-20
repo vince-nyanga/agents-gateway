@@ -45,8 +45,16 @@ class WorkspaceState:
         return tool_names
 
 
-def load_workspace(workspace_path: str | Path) -> WorkspaceState:
-    """Load the full workspace. Never raises — collects warnings/errors."""
+def load_workspace(
+    workspace_path: str | Path,
+    retriever_names: frozenset[str] | None = None,
+) -> WorkspaceState:
+    """Load the full workspace. Never raises — collects warnings/errors.
+
+    Args:
+        workspace_path: Path to the workspace directory.
+        retriever_names: Names of registered retrievers (for cross-reference validation).
+    """
     path = Path(workspace_path)
     state = WorkspaceState(path=path)
 
@@ -73,7 +81,7 @@ def load_workspace(workspace_path: str | Path) -> WorkspaceState:
         state.schedules.extend(agent.schedules)
 
     # Cross-reference validation (warnings only)
-    _validate_cross_references(state)
+    _validate_cross_references(state, retriever_names=retriever_names)
 
     agent_count = len(state.agents)
     skill_count = len(state.skills)
@@ -174,8 +182,13 @@ def _load_tools(tools_dir: Path, resolved_root: Path, state: WorkspaceState) -> 
             logger.debug("Loaded tool: %s", tool.id)
 
 
-def _validate_cross_references(state: WorkspaceState) -> None:
-    """Check that skills reference existing tools, agents reference existing skills."""
+def _validate_cross_references(
+    state: WorkspaceState,
+    retriever_names: frozenset[str] | None = None,
+) -> None:
+    """Check that skills reference existing tools, agents reference existing skills/retrievers."""
+    registered_retrievers = retriever_names or frozenset()
+
     for skill in state.skills.values():
         for tool_name in skill.tools:
             if tool_name not in state.tools:
@@ -186,4 +199,9 @@ def _validate_cross_references(state: WorkspaceState) -> None:
             if skill_name not in state.skills:
                 state.warnings.append(
                     f"Agent '{agent.id}' references unknown skill '{skill_name}'"
+                )
+        for retriever_name in agent.retrievers:
+            if registered_retrievers and retriever_name not in registered_retrievers:
+                state.warnings.append(
+                    f"Agent '{agent.id}' references unknown retriever '{retriever_name}'"
                 )

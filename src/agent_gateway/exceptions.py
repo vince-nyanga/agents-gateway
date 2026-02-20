@@ -62,6 +62,14 @@ class InputValidationError(AgentGatewayError):
         super().__init__(message)
 
 
+class ContextError(AgentGatewayError):
+    """Error loading context files or calling a retriever."""
+
+    def __init__(self, message: str, retriever_name: str | None = None) -> None:
+        self.retriever_name = retriever_name
+        super().__init__(message)
+
+
 class AuthError(AgentGatewayError):
     """Authentication or authorization failure."""
 

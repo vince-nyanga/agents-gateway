@@ -58,6 +58,10 @@ class AgentDefinition:
     notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
     input_schema: dict[str, Any] | None = None
 
+    # RAG context
+    context_content: list[str] = field(default_factory=list)  # loaded static file contents
+    retrievers: list[str] = field(default_factory=list)  # named retriever references
+
     @classmethod
     def load(cls, agent_dir: Path) -> AgentDefinition | None:
         """Load an agent from a directory.
@@ -139,6 +143,15 @@ class AgentDefinition:
         if input_schema:
             _validate_schedule_contexts(schedules, input_schema, agent_dir)
 
+        # RAG context: auto-discover context/*.md + explicit frontmatter refs
+        context_content = _load_context_files(agent_dir, agent_meta.get("context", []))
+        retrievers = agent_meta.get("retrievers", [])
+        if not isinstance(retrievers, list) or not all(isinstance(r, str) for r in retrievers):
+            logger.warning(
+                "Agent '%s': 'retrievers' must be a list of strings, ignoring", agent_id
+            )
+            retrievers = []
+
         return cls(
             id=agent_id,
             path=agent_dir,
@@ -154,7 +167,86 @@ class AgentDefinition:
             execution_mode=execution_mode,
             notifications=notifications,
             input_schema=input_schema,
+            context_content=context_content,
+            retrievers=retrievers,
         )
+
+
+def _load_context_files(
+    agent_dir: Path,
+    explicit_paths: Any,
+) -> list[str]:
+    """Load static context files for an agent.
+
+    Sources (combined, in order):
+    1. Auto-discovered .md files from agent_dir/context/ (alphabetical)
+    2. Explicit paths from AGENT.md frontmatter ``context:`` list
+       (resolved relative to the workspace root, i.e. agent_dir's grandparent)
+    """
+    contents: list[str] = []
+
+    # 1. Auto-discover context/ subdirectory
+    context_dir = agent_dir / "context"
+    if context_dir.is_dir() and not context_dir.is_symlink():
+        for entry in sorted(context_dir.iterdir()):
+            if entry.is_symlink():
+                logger.warning("Skipping symlink in context dir: %s", entry)
+                continue
+            if not entry.is_file():
+                continue
+            if entry.suffix != ".md":
+                logger.debug("Skipping non-markdown file in context dir: %s", entry)
+                continue
+            try:
+                contents.append(entry.read_text(encoding="utf-8"))
+            except OSError:
+                logger.warning("Failed to read context file: %s", entry, exc_info=True)
+
+    # 2. Explicit frontmatter paths
+    if not isinstance(explicit_paths, list):
+        if explicit_paths:
+            logger.warning(
+                "Agent '%s': 'context' must be a list of file paths, ignoring",
+                agent_dir.name,
+            )
+        return contents
+
+    # Workspace root is two levels up from agent dir: workspace/agents/<id>/
+    workspace_root = agent_dir.parent.parent
+    resolved_root = workspace_root.resolve()
+
+    for raw_path in explicit_paths:
+        if not isinstance(raw_path, str):
+            logger.warning("Agent '%s': context path must be a string, skipping", agent_dir.name)
+            continue
+        target = workspace_root / raw_path
+        # Path safety: prevent traversal outside workspace
+        try:
+            resolved = target.resolve()
+        except OSError:
+            logger.warning("Cannot resolve context path '%s' in %s", raw_path, agent_dir.name)
+            continue
+        if not resolved.is_relative_to(resolved_root):
+            logger.warning(
+                "Context path '%s' escapes workspace in agent '%s', skipping",
+                raw_path,
+                agent_dir.name,
+            )
+            continue
+        if target.is_symlink():
+            logger.warning("Skipping symlink context path: %s", raw_path)
+            continue
+        if not target.is_file():
+            logger.warning(
+                "Context file '%s' not found for agent '%s'", raw_path, agent_dir.name
+            )
+            continue
+        try:
+            contents.append(target.read_text(encoding="utf-8"))
+        except OSError:
+            logger.warning("Failed to read context file: %s", target, exc_info=True)
+
+    return contents
 
 
 def _parse_input_schema(

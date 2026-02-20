@@ -2,6 +2,7 @@
 
 __version__ = "0.0.0"  # Replaced at build time by GitVersion
 
+from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.gateway import Gateway
 
-__all__ = ["Gateway", "__version__"]
+__all__ = ["ContextRetriever", "Gateway", "__version__"]

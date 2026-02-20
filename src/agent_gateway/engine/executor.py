@@ -43,6 +43,7 @@ from agent_gateway.telemetry.tracing import (
 )
 from agent_gateway.workspace.agent import AgentDefinition
 from agent_gateway.workspace.loader import WorkspaceState
+from agent_gateway.context.registry import RetrieverRegistry
 from agent_gateway.workspace.prompt import assemble_system_prompt
 from agent_gateway.workspace.registry import ResolvedTool, ToolRegistry
 
@@ -84,12 +85,14 @@ class ExecutionEngine:
         tool_registry: ToolRegistry,
         config: GatewayConfig,
         hooks: HookRegistry | None = None,
+        retriever_registry: RetrieverRegistry | None = None,
     ) -> None:
         self._llm = llm_client
         self._registry = tool_registry
         self._config = config
         self._hooks = hooks or HookRegistry()
         self._metrics = create_metrics()
+        self._retriever_registry = retriever_registry
 
     async def execute(
         self,
@@ -137,7 +140,12 @@ class ExecutionEngine:
             json_schema, model_cls = resolve_schema(options.output_schema)
 
         # Build system prompt
-        system_prompt = assemble_system_prompt(agent, workspace)
+        system_prompt = await assemble_system_prompt(
+            agent,
+            workspace,
+            query=message,
+            retriever_registry=self._retriever_registry,
+        )
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)
 
