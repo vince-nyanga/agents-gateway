@@ -65,7 +65,6 @@ class SchedulerEngine:
 
     async def start(
         self,
-        schedules: list[ScheduleConfig],
         agents: dict[str, AgentDefinition],
     ) -> None:
         """Register schedules and start the APScheduler background loop."""
@@ -96,10 +95,11 @@ class SchedulerEngine:
 
         # Sync to persistence (after start so next_run_time is computed)
         await self._sync_schedule_records(agents)
-        enabled_count = sum(1 for s in schedules if s.enabled)
+        all_scheds = [s for a in agents.values() for s in a.schedules]
+        enabled_count = sum(1 for s in all_scheds if s.enabled)
         logger.info(
             "Scheduler started: %d schedules (%d enabled)",
-            len(schedules),
+            len(all_scheds),
             enabled_count,
         )
 
@@ -157,25 +157,32 @@ class SchedulerEngine:
         self,
         agents: dict[str, AgentDefinition],
     ) -> None:
-        """Sync workspace schedule configs to persistence ScheduleRecords."""
+        """Sync workspace schedule configs to persistence ScheduleRecords.
+
+        Batches all upserts into a single transaction to avoid O(N)
+        sequential round-trips at startup.
+        """
+        records: list[ScheduleRecord] = []
+        now = datetime.now(UTC)
         for agent in agents.values():
             for sched in agent.schedules:
                 schedule_id = f"{agent.id}:{sched.name}"
                 next_run = self._get_next_run_time(schedule_id)
-
-                record = ScheduleRecord(
-                    id=schedule_id,
-                    agent_id=agent.id,
-                    name=sched.name,
-                    cron_expr=sched.cron,
-                    message=sched.message,
-                    input=dict(sched.input) if sched.input else None,
-                    enabled=sched.enabled,
-                    timezone=sched.timezone or self._timezone,
-                    next_run_at=next_run,
-                    created_at=datetime.now(UTC),
+                records.append(
+                    ScheduleRecord(
+                        id=schedule_id,
+                        agent_id=agent.id,
+                        name=sched.name,
+                        cron_expr=sched.cron,
+                        message=sched.message,
+                        input=dict(sched.input) if sched.input else None,
+                        enabled=sched.enabled,
+                        timezone=sched.timezone or self._timezone,
+                        next_run_at=next_run,
+                        created_at=now,
+                    )
                 )
-                await self._schedule_repo.upsert(record)
+        await self._schedule_repo.upsert_batch(records)
 
     def _get_next_run_time(self, schedule_id: str) -> datetime | None:
         """Get the next fire time for a schedule from APScheduler."""

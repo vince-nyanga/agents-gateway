@@ -79,7 +79,6 @@ class TestSchedulerEngineStart:
         engine = _make_engine()
 
         await engine.start(
-            schedules=[sched],
             agents={"reporter": agent},
         )
 
@@ -100,7 +99,7 @@ class TestSchedulerEngineStart:
 
         engine = _make_engine()
 
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         job = engine._scheduler.get_job("reporter:daily-report")
         assert job is not None
@@ -119,7 +118,6 @@ class TestSchedulerEngineStart:
         engine = _make_engine()
 
         await engine.start(
-            schedules=[sched1, sched2],
             agents={"agent-a": agent1, "agent-b": agent2},
         )
 
@@ -134,7 +132,7 @@ class TestSchedulerEngineStart:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(timezone="America/New_York")
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         job = engine._scheduler.get_job("reporter:daily-report")
         assert job is not None
@@ -149,7 +147,7 @@ class TestSchedulerEngineStart:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(timezone="America/New_York")
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         job = engine._scheduler.get_job("reporter:daily-report")
         assert job is not None
@@ -164,7 +162,7 @@ class TestSchedulerEnginePauseResume:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine()
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         ok = await engine.pause("reporter:daily-report")
         assert ok is True
@@ -179,7 +177,7 @@ class TestSchedulerEnginePauseResume:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine()
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         ok = await engine.resume("reporter:daily-report")
         assert ok is True
@@ -191,7 +189,7 @@ class TestSchedulerEnginePauseResume:
 
     async def test_pause_nonexistent_returns_false(self) -> None:
         engine = _make_engine()
-        await engine.start(schedules=[], agents={})
+        await engine.start(agents={})
 
         ok = await engine.pause("nonexistent:schedule")
         assert ok is False
@@ -207,7 +205,7 @@ class TestSchedulerEngineTrigger:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(invoke_fn=invoke_fn, execution_repo=execution_repo)
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         execution_id = await engine.trigger("reporter:daily-report")
         assert execution_id is not None
@@ -220,7 +218,7 @@ class TestSchedulerEngineTrigger:
 
     async def test_trigger_nonexistent_returns_none(self) -> None:
         engine = _make_engine()
-        await engine.start(schedules=[], agents={})
+        await engine.start(agents={})
 
         result = await engine.trigger("nonexistent:schedule")
         assert result is None
@@ -236,7 +234,7 @@ class TestSchedulerEngineOverlap:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(execution_repo=execution_repo)
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         # Simulate first execution marking active
         async with engine._active_lock:
@@ -257,7 +255,7 @@ class TestSchedulerEngineOverlap:
 
     async def test_on_execution_complete_clears_active(self) -> None:
         engine = _make_engine()
-        await engine.start(schedules=[], agents={})
+        await engine.start(agents={})
 
         engine._active_scheduled["reporter:daily-report"] = time.monotonic()
         await engine.on_execution_complete("reporter:daily-report")
@@ -275,7 +273,7 @@ class TestSchedulerEngineOverlap:
             execution_repo=execution_repo,
             config=_make_config(misfire_grace_seconds=1),
         )
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         # Simulate stuck execution (fire time far in the past)
         engine._active_scheduled["reporter:daily-report"] = time.monotonic() - 10
@@ -300,7 +298,7 @@ class TestSchedulerEngineGetSchedules:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine()
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         schedules = await engine.get_schedules()
         assert isinstance(schedules, list)
@@ -312,7 +310,7 @@ class TestSchedulerEngineGetSchedules:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine()
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         detail = await engine.get_schedule("reporter:daily-report")
         assert detail is not None
@@ -325,7 +323,7 @@ class TestSchedulerEngineGetSchedules:
 
     async def test_get_schedule_nonexistent_returns_none(self) -> None:
         engine = _make_engine()
-        await engine.start(schedules=[], agents={})
+        await engine.start(agents={})
 
         detail = await engine.get_schedule("nonexistent")
         assert detail is None
@@ -344,7 +342,7 @@ class TestSchedulerEngineDispatch:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(execution_repo=execution_repo, queue=queue)
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         await engine.dispatch_scheduled_execution(
             schedule_id="reporter:daily-report",
@@ -366,7 +364,7 @@ class TestSchedulerEngineDispatch:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(execution_repo=execution_repo)
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         await engine.dispatch_scheduled_execution(
             schedule_id="reporter:daily-report",
@@ -392,7 +390,7 @@ class TestSchedulerEngineDispatch:
             execution_repo=execution_repo,
             queue=NullQueue(),
         )
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         await engine.dispatch_scheduled_execution(
             schedule_id="reporter:daily-report",
@@ -422,7 +420,7 @@ class TestSchedulerEngineTriggerExecution:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(execution_repo=execution_repo, invoke_fn=invoke_fn)
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         execution_id = await engine.trigger("reporter:daily-report")
         assert execution_id is not None
@@ -444,7 +442,7 @@ class TestSchedulerEngineTriggerExecution:
         agent = _make_agent(schedules=[sched])
 
         engine = _make_engine(execution_repo=execution_repo, invoke_fn=invoke_fn)
-        await engine.start(schedules=[sched], agents={"reporter": agent})
+        await engine.start(agents={"reporter": agent})
 
         execution_id = await engine.trigger("reporter:daily-report")
         assert execution_id is not None
@@ -477,7 +475,7 @@ class TestSchedulerEngineEdgeCases:
     async def test_resume_nonexistent_returns_false(self) -> None:
         """Resume should return False for unknown schedule."""
         engine = _make_engine()
-        await engine.start(schedules=[], agents={})
+        await engine.start(agents={})
 
         result = await engine.resume("nonexistent:schedule")
         assert result is False
@@ -494,7 +492,7 @@ class TestSchedulerEngineEdgeCases:
 class TestSchedulerEngineStop:
     async def test_stop_shuts_down_apscheduler(self) -> None:
         engine = _make_engine()
-        await engine.start(schedules=[], agents={})
+        await engine.start(agents={})
         assert engine._scheduler is not None
 
         await engine.stop()

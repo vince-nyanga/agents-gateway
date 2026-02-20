@@ -72,11 +72,3 @@ class AuthError(AgentGatewayError):
 
 class AgentMemoryError(AgentGatewayError):
     """Base for memory-related errors."""
-
-
-class MemoryBackendError(AgentMemoryError):
-    """Memory backend failure (connection, query, etc.)."""
-
-
-class MemoryCompactionError(AgentMemoryError):
-    """LLM compaction failed."""

@@ -77,24 +77,6 @@ async def test_null_schedule_update_enabled() -> None:
     assert result.enabled is False
 
 
-async def test_null_schedule_soft_delete() -> None:
-    repo = NullScheduleRepository()
-    record = ScheduleRecord(
-        id="agent:daily",
-        agent_id="agent",
-        name="daily",
-        cron_expr="0 9 * * *",
-        message="Run daily",
-        created_at=datetime.now(UTC),
-    )
-    await repo.upsert(record)
-    await repo.soft_delete("agent:daily")
-
-    result = await repo.get("agent:daily")
-    assert result is not None
-    assert result.deleted_at is not None
-
-
 async def test_null_schedule_update_next_run() -> None:
     repo = NullScheduleRepository()
     record = ScheduleRecord(

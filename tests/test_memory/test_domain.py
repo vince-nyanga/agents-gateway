@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from agent_gateway.memory.domain import (
-    CompactionResult,
     MemoryRecord,
     MemorySearchResult,
     MemorySource,
@@ -40,8 +39,6 @@ class TestMemoryRecord:
         assert record.memory_type == MemoryType.SEMANTIC
         assert record.source == MemorySource.MANUAL
         assert record.importance == 0.5
-        assert record.access_count == 0
-        assert record.metadata == {}
         assert isinstance(record.created_at, datetime)
 
     def test_explicit_values(self) -> None:
@@ -55,13 +52,10 @@ class TestMemoryRecord:
             importance=0.9,
             created_at=now,
             updated_at=now,
-            access_count=3,
-            metadata={"source_session": "abc123"},
         )
         assert record.memory_type == MemoryType.PROCEDURAL
         assert record.source == MemorySource.EXTRACTED
         assert record.importance == 0.9
-        assert record.access_count == 3
 
 
 class TestMemorySearchResult:
@@ -70,18 +64,3 @@ class TestMemorySearchResult:
         result = MemorySearchResult(record=record, score=0.85)
         assert result.score == 0.85
         assert result.record.content == "test"
-
-
-class TestCompactionResult:
-    def test_defaults(self) -> None:
-        result = CompactionResult(agent_id="a", before_count=10, after_count=5)
-        assert result.compacted_ids == []
-
-    def test_with_ids(self) -> None:
-        result = CompactionResult(
-            agent_id="a",
-            before_count=10,
-            after_count=5,
-            compacted_ids=["id1", "id2"],
-        )
-        assert len(result.compacted_ids) == 2

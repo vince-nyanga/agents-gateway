@@ -178,31 +178,6 @@ class TestFileMemoryMarkdownFormat:
         assert fetched.content == "special chars: [brackets] & more"
 
 
-class TestReadContextBlock:
-    def test_empty_when_no_file(self, repo: FileMemoryRepository) -> None:
-        block = repo.read_context_block("nonexistent-agent")
-        assert block == ""
-
-    async def test_returns_content(self, repo: FileMemoryRepository) -> None:
-        await repo.save(_make_record(content="important fact"))
-        block = repo.read_context_block("test-agent")
-        assert "important fact" in block
-
-    async def test_respects_max_chars(self, repo: FileMemoryRepository) -> None:
-        await repo.save(_make_record(content="a" * 500))
-        block = repo.read_context_block("test-agent", max_chars=100)
-        assert len(block) <= 100
-
-    async def test_respects_max_lines(self, workspace: Path) -> None:
-        repo = FileMemoryRepository(workspace, max_lines=5)
-        for i in range(10):
-            await repo.save(_make_record(memory_id=f"m{i}", content=f"memory line {i}"))
-
-        block = repo.read_context_block("test-agent")
-        lines = block.strip().splitlines()
-        assert len(lines) <= 5
-
-
 class TestFileMemoryBackend:
     async def test_lifecycle(self, backend: FileMemoryBackend) -> None:
         await backend.initialize()

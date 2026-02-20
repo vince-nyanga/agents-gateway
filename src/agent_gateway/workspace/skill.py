@@ -38,6 +38,7 @@ class SkillStep:
     tool: str | None = None
     tools: list[ToolStep] | None = None
     prompt: str | None = None
+    system_prompt: str | None = None  # Override for prompt steps; defaults to built-in message
     input: dict[str, str] = field(default_factory=dict)
 
 
@@ -137,12 +138,14 @@ def _parse_steps(raw_steps: list[Any], skill_dir: Path) -> list[SkillStep]:
             if not parsed_tools:
                 continue  # Warning already logged
 
+        system_prompt = raw.get("system_prompt")
         steps.append(
             SkillStep(
                 name=step_name,
                 tool=tool if isinstance(tool, str) else None,
                 tools=parsed_tools,
                 prompt=prompt if isinstance(prompt, str) else None,
+                system_prompt=system_prompt if isinstance(system_prompt, str) else None,
                 input={str(k): str(v) for k, v in step_input.items()},
             )
         )

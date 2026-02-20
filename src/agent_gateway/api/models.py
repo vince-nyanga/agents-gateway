@@ -126,6 +126,7 @@ class AgentInfo(BaseModel):
     input_schema: dict[str, Any] | None = None
     retrievers: list[str] = Field(default_factory=list)
     context_file_count: int = 0
+    memory_enabled: bool = False
 
 
 class SkillInfo(BaseModel):

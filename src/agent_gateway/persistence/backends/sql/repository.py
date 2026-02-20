@@ -82,22 +82,6 @@ class ExecutionRepository:
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
-    async def list_by_schedule(
-        self,
-        schedule_id: str,
-        limit: int = 20,
-    ) -> list[ExecutionRecord]:
-        """List executions triggered by a schedule, most recent first."""
-        async with self._session_factory() as session:
-            stmt = (
-                select(ExecutionRecord)
-                .where(ExecutionRecord.schedule_id == schedule_id)  # type: ignore[arg-type]
-                .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
-                .limit(limit)
-            )
-            result = await session.execute(stmt)
-            return list(result.scalars().all())
-
     async def add_step(self, step: ExecutionStep) -> None:
         """Insert a new execution step."""
         async with self._session_factory() as session:
@@ -127,6 +111,26 @@ class ScheduleRepository:
                 existing.timezone = record.timezone
                 existing.next_run_at = record.next_run_at
                 existing.deleted_at = None  # un-delete if re-added
+            await session.commit()
+
+    async def upsert_batch(self, records: list[ScheduleRecord]) -> None:
+        """Upsert multiple schedule records in a single transaction."""
+        if not records:
+            return
+        async with self._session_factory() as session:
+            for record in records:
+                existing = await session.get(ScheduleRecord, record.id)
+                if existing is None:
+                    session.add(record)
+                else:
+                    existing.name = record.name
+                    existing.cron_expr = record.cron_expr
+                    existing.message = record.message
+                    existing.input = record.input
+                    existing.enabled = record.enabled
+                    existing.timezone = record.timezone
+                    existing.next_run_at = record.next_run_at
+                    existing.deleted_at = None
             await session.commit()
 
     async def get(self, schedule_id: str) -> ScheduleRecord | None:
@@ -183,15 +187,6 @@ class ScheduleRepository:
             if record is None:
                 return
             record.enabled = enabled
-            await session.commit()
-
-    async def soft_delete(self, schedule_id: str) -> None:
-        """Mark a schedule as deleted without removing it."""
-        async with self._session_factory() as session:
-            record = await session.get(ScheduleRecord, schedule_id)
-            if record is None:
-                return
-            record.deleted_at = datetime.now(UTC)
             await session.commit()
 
 

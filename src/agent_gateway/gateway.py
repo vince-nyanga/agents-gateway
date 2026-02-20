@@ -481,7 +481,6 @@ class Gateway(FastAPI):
                     timezone=self._config.timezone,
                 )
                 await self._scheduler.start(
-                    schedules=workspace.schedules,
                     agents=workspace.agents,
                 )
             except ImportError:

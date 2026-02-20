@@ -1,4 +1,4 @@
-"""MemoryManager — orchestrates memory with LLM-powered extraction and compaction."""
+"""MemoryManager — orchestrates memory with LLM-powered extraction."""
 
 from __future__ import annotations
 
@@ -8,15 +8,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from agent_gateway.exceptions import MemoryCompactionError
 from agent_gateway.memory.domain import (
-    CompactionResult,
     MemoryRecord,
     MemorySearchResult,
     MemorySource,
     MemoryType,
 )
-from agent_gateway.memory.protocols import MemoryBackend
+from agent_gateway.memory.protocols import MemoryBackend, MemoryRepository
 
 if TYPE_CHECKING:
     from agent_gateway.config import MemoryConfig
@@ -47,25 +45,6 @@ Respond with ONLY a JSON array (no markdown fences):
 
 If there is nothing worth remembering, respond with an empty array: []"""
 
-_DEFAULT_COMPACTION_PROMPT = """\
-You are a memory compaction system. Review the following memories for an agent \
-and produce a synthesized, deduplicated set.
-
-Rules:
-- Merge duplicate or overlapping facts into single entries
-- Discard memories that are outdated or superseded by newer ones
-- Preserve high-importance memories verbatim
-- Combine related low-importance memories into summaries
-- Maintain the type classification (episodic/semantic/procedural)
-- Target: reduce to at most {target_count} memories
-- Preserve the most recent and most accessed memories
-
-Current memories:
-{memories_json}
-
-Respond with ONLY a JSON array (no markdown fences):
-[{{"content": "...", "type": "semantic|episodic|procedural", "importance": 0.7}}]"""
-
 
 class MemoryManager:
     """Orchestrates memory operations with LLM-powered extraction and compaction."""
@@ -85,24 +64,14 @@ class MemoryManager:
         await self._backend.dispose()
 
     @property
-    def repo(self) -> Any:
+    def repo(self) -> MemoryRepository:
         return self._backend.memory_repo
 
     # ── Core CRUD (delegates to repo) ────────────────────────────────
 
     async def save(self, record: MemoryRecord) -> None:
-        """Save a memory and check compaction threshold."""
+        """Save a memory record."""
         await self._backend.memory_repo.save(record)
-
-        # Check if compaction is needed
-        count = await self._backend.memory_repo.count(record.agent_id)
-        if count > self._config.compact_threshold:
-            logger.info(
-                "Memory count (%d) exceeds threshold (%d) for agent '%s', compaction recommended",
-                count,
-                self._config.compact_threshold,
-                record.agent_id,
-            )
 
     async def get(self, agent_id: str, memory_id: str) -> MemoryRecord | None:
         return await self._backend.memory_repo.get(agent_id, memory_id)
@@ -142,8 +111,9 @@ class MemoryManager:
                 existing_lines
             )
 
-        prompt_template = self._config.extraction_prompt or _DEFAULT_EXTRACTION_PROMPT
-        system_prompt = prompt_template.format(existing_memories_section=existing_section)
+        system_prompt = _DEFAULT_EXTRACTION_PROMPT.format(
+            existing_memories_section=existing_section
+        )
 
         extraction_messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -181,94 +151,6 @@ class MemoryManager:
             )
 
         return records
-
-    async def compact(self, agent_id: str) -> CompactionResult:
-        """Synthesize and compact memories using the LLM.
-
-        Originals are preserved if the LLM call fails. New records are saved
-        before old ones are deleted, so a crash leaves duplicates rather than
-        data loss. Custom backend implementers should wrap in a DB transaction.
-        """
-        all_memories = await self._backend.memory_repo.list_memories(agent_id, limit=500)
-        if not all_memories:
-            return CompactionResult(agent_id=agent_id, before_count=0, after_count=0)
-
-        before_count = len(all_memories)
-        target_count = self._config.compact_target
-
-        if before_count <= target_count:
-            return CompactionResult(
-                agent_id=agent_id,
-                before_count=before_count,
-                after_count=before_count,
-            )
-
-        memories_json = json.dumps(
-            [
-                {
-                    "content": m.content,
-                    "type": m.memory_type.value,
-                    "importance": m.importance,
-                    "access_count": m.access_count,
-                }
-                for m in all_memories
-            ],
-            indent=2,
-        )
-
-        prompt_template = self._config.compaction_prompt or _DEFAULT_COMPACTION_PROMPT
-        system_prompt = prompt_template.format(
-            target_count=target_count,
-            memories_json=memories_json,
-        )
-
-        try:
-            response = await self._llm.completion(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "Compact these memories now."},
-                ],
-                model=self._config.extraction_model,
-                temperature=0.1,
-            )
-        except Exception as e:
-            raise MemoryCompactionError(
-                f"LLM compaction failed for agent '{agent_id}': {e}"
-            ) from e
-
-        compacted_records = _parse_extraction_response(
-            response.text or "[]",
-            agent_id,
-            source=MemorySource.COMPACTED,
-        )
-
-        if not compacted_records:
-            raise MemoryCompactionError(
-                f"LLM returned empty compaction result for agent '{agent_id}'"
-            )
-
-        # Save new records first, then delete old ones.
-        # This ordering ensures a crash leaves duplicates rather than data loss.
-        # Note: custom backend implementers should wrap this in a DB transaction.
-        for record in compacted_records:
-            await self._backend.memory_repo.save(record)
-        old_ids = [m.id for m in all_memories]
-        for old_id in old_ids:
-            await self._backend.memory_repo.delete(agent_id, old_id)
-
-        logger.info(
-            "Compacted memories for agent '%s': %d → %d",
-            agent_id,
-            before_count,
-            len(compacted_records),
-        )
-
-        return CompactionResult(
-            agent_id=agent_id,
-            before_count=before_count,
-            after_count=len(compacted_records),
-            compacted_ids=old_ids,
-        )
 
     async def get_context_block(
         self,

@@ -63,18 +63,6 @@ async def test_upsert_updates_existing(schedule_repo: ScheduleRepository) -> Non
     assert result.cron_expr == "0 10 * * *"
 
 
-async def test_upsert_undeletes_record(schedule_repo: ScheduleRepository) -> None:
-    record = _make_record()
-    await schedule_repo.upsert(record)
-    await schedule_repo.soft_delete("agent:daily")
-
-    # Re-upsert should clear deleted_at
-    await schedule_repo.upsert(record)
-    result = await schedule_repo.get("agent:daily")
-    assert result is not None
-    assert result.deleted_at is None
-
-
 async def test_get_nonexistent(schedule_repo: ScheduleRepository) -> None:
     result = await schedule_repo.get("nonexistent")
     assert result is None
@@ -86,16 +74,6 @@ async def test_list_all(schedule_repo: ScheduleRepository) -> None:
 
     results = await schedule_repo.list_all()
     assert len(results) == 2
-
-
-async def test_list_all_excludes_deleted(schedule_repo: ScheduleRepository) -> None:
-    await schedule_repo.upsert(_make_record("a:one", "a", "one"))
-    await schedule_repo.upsert(_make_record("b:two", "b", "two"))
-    await schedule_repo.soft_delete("a:one")
-
-    results = await schedule_repo.list_all()
-    assert len(results) == 1
-    assert results[0].id == "b:two"
 
 
 async def test_list_all_by_agent(schedule_repo: ScheduleRepository) -> None:
@@ -148,16 +126,3 @@ async def test_update_enabled(schedule_repo: ScheduleRepository) -> None:
 
 async def test_update_enabled_nonexistent(schedule_repo: ScheduleRepository) -> None:
     await schedule_repo.update_enabled("nonexistent", False)
-
-
-async def test_soft_delete(schedule_repo: ScheduleRepository) -> None:
-    await schedule_repo.upsert(_make_record())
-    await schedule_repo.soft_delete("agent:daily")
-
-    result = await schedule_repo.get("agent:daily")
-    assert result is not None
-    assert result.deleted_at is not None
-
-
-async def test_soft_delete_nonexistent(schedule_repo: ScheduleRepository) -> None:
-    await schedule_repo.soft_delete("nonexistent")

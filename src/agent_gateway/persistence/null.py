@@ -39,9 +39,6 @@ class NullExecutionRepository:
     async def list_by_agent(self, agent_id: str, limit: int = 50) -> list[ExecutionRecord]:
         return []
 
-    async def list_by_schedule(self, schedule_id: str, limit: int = 20) -> list[ExecutionRecord]:
-        return []
-
     async def add_step(self, step: ExecutionStep) -> None:
         pass
 
@@ -54,6 +51,10 @@ class NullScheduleRepository:
 
     async def upsert(self, record: ScheduleRecord) -> None:
         self._store[record.id] = record
+
+    async def upsert_batch(self, records: list[ScheduleRecord]) -> None:
+        for record in records:
+            self._store[record.id] = record
 
     async def get(self, schedule_id: str) -> ScheduleRecord | None:
         return self._store.get(schedule_id)
@@ -88,13 +89,6 @@ class NullScheduleRepository:
         record = self._store.get(schedule_id)
         if record is not None:
             record.enabled = enabled
-
-    async def soft_delete(self, schedule_id: str) -> None:
-        from datetime import UTC
-
-        record = self._store.get(schedule_id)
-        if record is not None:
-            record.deleted_at = datetime.now(UTC)
 
 
 class NullAuditRepository:

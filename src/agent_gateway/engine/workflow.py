@@ -13,7 +13,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Coroutine
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 from agent_gateway.engine.models import ToolContext
 from agent_gateway.engine.resolver import resolve_input
@@ -29,6 +29,14 @@ ToolExecutorFn = Callable[
     [ResolvedTool, dict[str, Any], ToolContext],
     Coroutine[Any, Any, Any],
 ]
+
+
+class WorkflowResult(TypedDict, total=False):
+    """Result of a workflow execution."""
+
+    output: Any
+    steps: dict[str, Any]
+    error: str
 
 
 class LLMCompletionFn(Protocol):
@@ -56,7 +64,7 @@ class WorkflowExecutor:
         input_data: dict[str, Any],
         tool_context: ToolContext,
         timeout_s: float = 300.0,
-    ) -> dict[str, Any]:
+    ) -> WorkflowResult:
         """Run all steps in order, returning the aggregated results.
 
         Args:
@@ -66,7 +74,8 @@ class WorkflowExecutor:
             timeout_s: Overall timeout for the entire workflow.
 
         Returns:
-            Dict with ``output`` (last step's output) and ``steps`` (all step results).
+            ``WorkflowResult`` with ``output`` (last step's output) and
+            ``steps`` (all step results). On timeout, also includes ``error``.
         """
         context: dict[str, Any] = {
             "input": input_data,
@@ -80,20 +89,17 @@ class WorkflowExecutor:
                     context["steps"][step.name] = {"output": step_result}
         except TimeoutError:
             logger.warning("Workflow '%s' timed out after %.0fs", skill.id, timeout_s)
-            return {
-                "output": None,
-                "steps": context["steps"],
-                "error": f"Workflow timed out after {timeout_s}s",
-            }
+            return WorkflowResult(
+                output=None,
+                steps=context["steps"],
+                error=f"Workflow timed out after {timeout_s}s",
+            )
 
         # Return last step's output as the workflow output
         last_step = skill.steps[-1] if skill.steps else None
         last_output = context["steps"].get(last_step.name, {}).get("output") if last_step else None
 
-        return {
-            "output": last_output,
-            "steps": context["steps"],
-        }
+        return WorkflowResult(output=last_output, steps=context["steps"])
 
     async def _execute_step(
         self,
@@ -191,8 +197,9 @@ class WorkflowExecutor:
             context_block = json.dumps(resolved_inputs, indent=2, default=str)
             user_content = f"{step.prompt}\n\n## Context\n```json\n{context_block}\n```"
 
+        system_content = step.system_prompt or "You are a workflow step. Respond concisely."
         messages = [
-            {"role": "system", "content": "You are a workflow step. Respond concisely."},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": user_content},
         ]
 

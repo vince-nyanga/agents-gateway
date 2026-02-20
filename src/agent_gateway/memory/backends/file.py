@@ -216,36 +216,6 @@ class FileMemoryRepository:
     async def count(self, agent_id: str) -> int:
         return len(self._parse_file(agent_id))
 
-    def read_context_block(self, agent_id: str, max_chars: int = 4000) -> str:
-        """Read MEMORY.md content for prompt injection, respecting line cap."""
-        path = self._memory_path(agent_id)
-        if not path.exists():
-            return ""
-
-        content = path.read_text(encoding="utf-8").strip()
-        if not content:
-            return ""
-
-        lines = content.splitlines()
-        if len(lines) > self._max_lines:
-            logger.warning(
-                "MEMORY.md for agent '%s' truncated from %d to %d lines",
-                agent_id,
-                len(lines),
-                self._max_lines,
-            )
-            content = "\n".join(lines[: self._max_lines])
-
-        if len(content) > max_chars:
-            content = content[:max_chars]
-            logger.warning(
-                "MEMORY.md for agent '%s' truncated to %d chars",
-                agent_id,
-                max_chars,
-            )
-
-        return content
-
 
 class FileMemoryBackend:
     """File-based memory backend using MEMORY.md per agent.

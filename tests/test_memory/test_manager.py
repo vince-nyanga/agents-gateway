@@ -1,4 +1,4 @@
-"""Tests for MemoryManager — LLM-powered extraction and compaction."""
+"""Tests for MemoryManager — LLM-powered extraction."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock
 import pytest
 
 from agent_gateway.config import MemoryConfig
-from agent_gateway.exceptions import MemoryCompactionError
 from agent_gateway.memory.backends.file import FileMemoryBackend
 from agent_gateway.memory.domain import MemoryRecord, MemorySource, MemoryType
 from agent_gateway.memory.manager import MemoryManager, _parse_extraction_response
@@ -29,11 +28,7 @@ def workspace(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def memory_config() -> MemoryConfig:
-    return MemoryConfig(
-        enabled=True,
-        compact_threshold=5,
-        compact_target=3,
-    )
+    return MemoryConfig(enabled=True)
 
 
 @pytest.fixture
@@ -113,76 +108,6 @@ class TestMemoryExtraction:
         llm_client.completion.return_value = FakeLLMResponse(text="not json at all")
         records = await manager.extract_memories("test-agent", [{"role": "user", "content": "hi"}])
         assert records == []
-
-
-class TestMemoryCompaction:
-    async def test_compact_reduces_memories(
-        self, manager: MemoryManager, llm_client: AsyncMock
-    ) -> None:
-        # Seed 5 memories
-        for i in range(5):
-            await manager.save(
-                MemoryRecord(
-                    id=f"m{i}",
-                    agent_id="test-agent",
-                    content=f"memory {i}",
-                )
-            )
-
-        # LLM returns compacted set
-        llm_client.completion.return_value = FakeLLMResponse(
-            text=json.dumps(
-                [
-                    {"content": "combined memory 0-2", "type": "semantic", "importance": 0.7},
-                    {"content": "combined memory 3-4", "type": "semantic", "importance": 0.6},
-                ]
-            )
-        )
-
-        result = await manager.compact("test-agent")
-        assert result.before_count == 5
-        assert result.after_count == 2
-        assert len(result.compacted_ids) == 5
-
-    async def test_compact_skips_below_target(self, manager: MemoryManager) -> None:
-        await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="only one"))
-        result = await manager.compact("test-agent")
-        assert result.before_count == 1
-        assert result.after_count == 1
-
-    async def test_compact_empty(self, manager: MemoryManager) -> None:
-        result = await manager.compact("test-agent")
-        assert result.before_count == 0
-        assert result.after_count == 0
-
-    async def test_compact_llm_failure_raises(
-        self, manager: MemoryManager, llm_client: AsyncMock
-    ) -> None:
-        for i in range(5):
-            await manager.save(
-                MemoryRecord(id=f"m{i}", agent_id="test-agent", content=f"memory {i}")
-            )
-
-        llm_client.completion.side_effect = RuntimeError("LLM down")
-
-        with pytest.raises(MemoryCompactionError):
-            await manager.compact("test-agent")
-
-        # Originals should be preserved on failure
-        # (the exception occurs before delete_all in transactional flow)
-
-    async def test_compact_empty_result_raises(
-        self, manager: MemoryManager, llm_client: AsyncMock
-    ) -> None:
-        for i in range(5):
-            await manager.save(
-                MemoryRecord(id=f"m{i}", agent_id="test-agent", content=f"memory {i}")
-            )
-
-        llm_client.completion.return_value = FakeLLMResponse(text="[]")
-
-        with pytest.raises(MemoryCompactionError):
-            await manager.compact("test-agent")
 
 
 class TestGetContextBlock:
