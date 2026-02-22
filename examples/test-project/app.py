@@ -138,7 +138,7 @@ async def add_numbers(a: float, b: float) -> dict:
 
 @gw.tool(
     name="process-data",
-    description="Simulate a long-running data processing task. Returns a summary after processing.",
+    description="Simulate a long-running data processing task. Returns a summary after processing.",  # noqa: E501
 )
 async def process_data(query: str, duration_seconds: float = 5.0) -> dict:
     """Simulate a long-running data processing task."""

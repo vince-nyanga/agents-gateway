@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from agent_gateway.dashboard.models import AgentCard
-from agent_gateway.persistence.domain import UserAgentConfig
+from agent_gateway.dashboard.models import (
+    AgentCard,
+    ConversationSummaryRow,
+    ExecutionDetail,
+    TraceStepView,
+    format_cost,
+    format_datetime,
+    format_duration,
+    relative_time,
+)
+from agent_gateway.persistence.domain import (
+    ExecutionRecord,
+    ExecutionStep,
+    UserAgentConfig,
+)
 from agent_gateway.workspace.agent import AgentDefinition
 
 
@@ -61,20 +74,6 @@ def test_agent_card_personal_incomplete_config():
 
 
 # --- Formatting helper tests ---
-
-from datetime import timedelta
-
-from agent_gateway.dashboard.models import (
-    ConversationSummaryRow,
-    ExecutionDetail,
-    ExecutionRow,
-    TraceStepView,
-    format_cost,
-    format_datetime,
-    format_duration,
-    relative_time,
-)
-from agent_gateway.persistence.domain import ExecutionRecord, ExecutionStep
 
 
 class TestFormatCost:

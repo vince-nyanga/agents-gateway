@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 os.chdir(os.path.dirname(__file__))
 
-from agent_gateway import Gateway
+from agent_gateway import Gateway  # noqa: E402
 
 gw = Gateway(workspace="./workspace", title="Input Schema Demo", auth=False)
 

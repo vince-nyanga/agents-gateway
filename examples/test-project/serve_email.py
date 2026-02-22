@@ -13,9 +13,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 os.chdir(os.path.dirname(__file__))
 
-from retrievers import EmailHistoryRetriever
+from retrievers import EmailHistoryRetriever  # noqa: E402
 
-from agent_gateway import Gateway
+from agent_gateway import Gateway  # noqa: E402
 
 gw = Gateway(workspace="./workspace", title="RAG Context Demo", auth=False)
 

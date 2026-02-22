@@ -213,9 +213,10 @@ class TestSaveUserConfig:
 class TestGetUserConfig:
     async def test_get_returns_redacted_secrets(self) -> None:
         """Test that get_user_config returns redacted secrets."""
+        from datetime import UTC, datetime
+
         from agent_gateway.api.routes.user_config import get_user_config
         from agent_gateway.persistence.backends.sqlite import SqliteBackend
-        from datetime import UTC, datetime
 
         gw = _make_gateway()
         async with gw:
@@ -282,9 +283,10 @@ class TestGetUserConfig:
 
 class TestDeleteUserConfig:
     async def test_delete_existing_config(self) -> None:
+        from datetime import UTC, datetime
+
         from agent_gateway.api.routes.user_config import delete_user_config
         from agent_gateway.persistence.backends.sqlite import SqliteBackend
-        from datetime import UTC, datetime
 
         gw = _make_gateway()
         async with gw:

@@ -18,17 +18,10 @@ Usage:
 from __future__ import annotations
 
 import re
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
-
-_SAFE_IDENT = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
-import numpy as np
-from pgvector.asyncpg import register_vector
-from sentence_transformers import SentenceTransformer
 
 from agent_gateway.memory.domain import (
     MemoryRecord,
@@ -36,6 +29,11 @@ from agent_gateway.memory.domain import (
     MemorySource,
     MemoryType,
 )
+
+_SAFE_IDENT = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+import numpy as np  # noqa: E402
+from pgvector.asyncpg import register_vector  # noqa: E402
+from sentence_transformers import SentenceTransformer  # noqa: E402
 
 # Load embedding model once (384-dimensional by default)
 _EMBED_MODEL = None
