@@ -1,8 +1,3 @@
-/**
- * Agent Gateway Dashboard — client-side behaviours
- * (Theme toggle, HTMX config, CSRF, misc)
- */
-
 // --- Theme Management ---
 const THEME_KEY = 'agw-dashboard-theme';
 
@@ -34,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
 });
 
-// --- HTMX: inject CSRF token on all mutating requests ---
+// --- CSRF token injection for HTMX ---
 document.addEventListener('htmx:configRequest', (event) => {
   const method = (event.detail.verb || '').toUpperCase();
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
@@ -65,7 +60,6 @@ function parseSSEEvents(buffer) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // If this is the last line and doesn't end with newline, it's incomplete
     if (i === lines.length - 1 && !buffer.endsWith('\n')) {
       remaining = line;
       break;
@@ -81,12 +75,10 @@ function parseSSEEvents(buffer) {
       events.push(currentEvent);
       currentEvent = null;
     } else if (line === '' && currentEvent) {
-      // Empty line ends an event
       events.push(currentEvent);
       currentEvent = null;
     }
   }
-
   return { parsed: events, remaining };
 }
 
@@ -99,19 +91,15 @@ async function sendChatMessage(form) {
   const textarea = document.getElementById('chat-message-input');
   const submitBtn = form.querySelector('button[type="submit"]');
 
-  // Optimistic user bubble
   appendUserMessage(msg);
   textarea.value = '';
   textarea.style.height = 'auto';
 
-  // Disable submit while streaming
   if (submitBtn) submitBtn.disabled = true;
 
-  // Show loading indicator
   const indicator = document.getElementById('chat-loading');
   if (indicator) indicator.style.display = 'flex';
 
-  // Create assistant bubble
   const bubble = createAssistantBubble();
   messagesArea.appendChild(bubble);
   messagesArea.scrollTop = messagesArea.scrollHeight;
@@ -147,7 +135,6 @@ async function sendChatMessage(form) {
       for (const event of result.parsed) {
         if (event.type === 'token') {
           if (firstToken) {
-            // Hide loading indicator on first token
             if (indicator) indicator.style.display = 'none';
             firstToken = false;
           }
@@ -155,17 +142,14 @@ async function sendChatMessage(form) {
           bubbleContent.textContent = fullText;
           messagesArea.scrollTop = messagesArea.scrollHeight;
         } else if (event.type === 'session') {
-          // Update session ID
           const field = document.getElementById('session-id-field');
           if (field && event.data.session_id) {
             field.value = event.data.session_id;
           }
         } else if (event.type === 'done') {
-          // Render final markdown
           if (fullText && typeof marked !== 'undefined') {
             bubbleContent.innerHTML = marked.parse(fullText);
           }
-          // Update session ID from done event too
           const field = document.getElementById('session-id-field');
           if (field && event.data.session_id) {
             field.value = event.data.session_id;
@@ -192,7 +176,6 @@ async function sendChatMessage(form) {
   }
 }
 
-// Wire up chat form submit
 document.addEventListener('DOMContentLoaded', () => {
   const chatForm = document.getElementById('chat-form');
   if (chatForm) {
@@ -203,19 +186,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// --- Chat: Enter to send, Shift+Enter for newline ---
 document.addEventListener('DOMContentLoaded', () => {
   const textarea = document.getElementById('chat-message-input');
   if (!textarea) return;
 
-  // Auto-resize textarea
   function resizeTextarea() {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 128) + 'px';
   }
 
   textarea.addEventListener('input', resizeTextarea);
-
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -246,7 +226,6 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
-// --- Copy-on-click for execution IDs ---
 document.addEventListener('click', (e) => {
   const copyable = e.target.closest('.copyable[data-copy]');
   if (!copyable) return;
@@ -260,7 +239,6 @@ document.addEventListener('click', (e) => {
   });
 });
 
-// --- Trace: toggle step detail panels ---
 document.addEventListener('click', (e) => {
   const header = e.target.closest('.trace-card-header');
   if (!header) return;
@@ -272,7 +250,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// --- Mobile sidebar toggle ---
 document.addEventListener('DOMContentLoaded', () => {
   const sidebarToggle = document.getElementById('sidebar-toggle');
   const sidebar = document.querySelector('.sidebar');
@@ -294,39 +271,4 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-});
-
-// --- Agent selector in chat: update hidden input and handle personal agents ---
-function updateChatForAgent(selector) {
-  const selected = selector.options[selector.selectedIndex];
-  if (!selected) return;
-
-  const isPersonal = selected.dataset.personal === 'true';
-  const isConfigured = selected.dataset.configured === 'true';
-  const banner = document.getElementById('setup-required-banner');
-  const inputArea = document.getElementById('chat-input-area');
-  const setupLink = document.getElementById('setup-required-link');
-
-  if (isPersonal && !isConfigured) {
-    if (banner) banner.style.display = 'block';
-    if (inputArea) inputArea.style.display = 'none';
-    if (setupLink) setupLink.href = '/dashboard/agents/' + selected.value + '/setup';
-  } else {
-    if (banner) banner.style.display = 'none';
-    if (inputArea) inputArea.style.display = '';
-  }
-}
-
-document.addEventListener('change', (e) => {
-  if (e.target && e.target.id === 'agent-selector') {
-    const url = new URL(window.location.href);
-    url.searchParams.set('agent_id', e.target.value);
-    window.location.href = url.toString();
-  }
-});
-
-// Check personal agent status on page load
-document.addEventListener('DOMContentLoaded', () => {
-  const selector = document.getElementById('agent-selector');
-  if (selector) updateChatForAgent(selector);
 });

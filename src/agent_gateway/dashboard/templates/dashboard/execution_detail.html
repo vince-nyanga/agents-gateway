@@ -1,171 +1,218 @@
 {% extends "dashboard/base.html" %}
 
 {% block title %}Execution {{ detail.record.id[:8] }} — {{ dashboard_title }}{% endblock %}
-{% block page_title %}Execution Trace{% endblock %}
+{% block page_heading %}<span class="text-slate-500 font-medium">Executions</span> <span class="material-symbols-outlined text-slate-600 text-sm mx-1">chevron_right</span> <span class="font-mono text-white">#{{ detail.record.id[:8] }}</span>{% endblock %}
 
 {% block extra_head %}
   <!-- Prism.js for JSON syntax highlighting -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
+  <style>
+    /* Premium Detail Overrides */
+    .execution-title {
+      font-family: 'Inter', sans-serif;
+      letter-spacing: -0.04em;
+    }
+  </style>
+{% endblock %}
+
+{% block topbar_right_actions %}
+<div class="flex items-center gap-3">
+  <button class="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 hover:bg-white/10 hover:text-white transition-all">
+    <span class="material-symbols-outlined text-lg">download</span>
+    Download Trace
+  </button>
+  <form method="POST" action="/dashboard/executions/{{ detail.record.id }}/retry">
+    <button type="submit" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+      <span class="material-symbols-outlined text-lg">refresh</span>
+      Retry
+    </button>
+  </form>
+</div>
 {% endblock %}
 
 {% block content %}
-
-<!-- Breadcrumb -->
-<div class="flex items-center gap-2 mb-6 text-sm text-muted">
-  <a href="/dashboard/executions" class="text-muted" style="text-decoration:none;">Executions</a>
-  <span style="color: var(--color-border);">/</span>
-  <span class="text-mono">{{ detail.record.id[:8] }}</span>
-</div>
-
-<!-- Header summary card -->
-<div class="card mb-6">
-  <div class="card-body">
-    <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-4);">
-      <div>
-        <div class="flex items-center gap-3">
-          <span class="text-mono" style="font-size: var(--text-xs); color: var(--color-text-secondary);">{{ detail.record.id }}</span>
-          <!-- Status badge -->
+<div class="p-8 lg:p-12">
+  <div class="max-w-6xl mx-auto space-y-10">
+    
+    <!-- Title & Primary Actions -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div class="space-y-3">
+        <h2 class="text-4xl font-black text-white execution-title">Execution: {{ detail.agent_display_name }}</h2>
+        <div class="flex items-center gap-4">
           {% if detail.record.status == 'completed' %}
-            <span class="badge badge-green"><span class="status-dot"></span>Completed</span>
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span class="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Completed Successfully</span>
+            </div>
           {% elif detail.record.status == 'running' %}
-            <span class="badge badge-blue badge-pulse"><span class="status-dot"></span>Running</span>
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+              <span class="text-[10px] font-black text-primary uppercase tracking-widest">Running Trace</span>
+            </div>
           {% elif detail.record.status == 'failed' %}
-            <span class="badge badge-red"><span class="status-dot"></span>Failed</span>
-          {% elif detail.record.status == 'queued' %}
-            <span class="badge badge-amber"><span class="status-dot"></span>Queued</span>
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20">
+              <div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+              <span class="text-[10px] font-black text-rose-500 uppercase tracking-widest">Execution Failed</span>
+            </div>
           {% else %}
-            <span class="badge badge-gray">{{ detail.record.status }}</span>
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-500/10 border border-slate-500/20">
+              <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">{{ detail.record.status }}</span>
+            </div>
           {% endif %}
+          <span class="text-xs text-slate-500 font-mono">ID: {{ detail.record.id }}</span>
         </div>
-        <div class="mt-2" style="font-size: var(--text-base); font-weight: 600; color: var(--color-text);">
-          {{ detail.agent_display_name }}
-        </div>
-        <div class="mt-1 text-muted text-sm">{{ detail.record.message[:120] }}{% if detail.record.message and detail.record.message | length > 120 %}…{% endif %}</div>
       </div>
+      <div>
+        <button class="text-xs font-bold text-slate-400 bg-white/5 border border-white/5 px-5 py-2.5 rounded-xl hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest">View Raw Logs</button>
+      </div>
+    </div>
 
-      <!-- Stats -->
-      <div class="flex gap-6" style="flex-wrap:wrap;">
-        <div style="text-align:center;">
-          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Duration</div>
-          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">{{ format_duration(detail.duration_ms) }}</div>
-        </div>
-        <div style="text-align:center;">
-          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Cost</div>
-          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">{{ format_cost(detail.total_cost_usd) }}</div>
-        </div>
-        <div style="text-align:center;">
-          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Tokens</div>
-          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">
-            {% if detail.total_input_tokens is not none %}
-              {{ detail.total_input_tokens + (detail.total_output_tokens or 0) | int }}
-            {% else %}—{% endif %}
+    <!-- Error Callout -->
+    {% if detail.record.status == 'failed' and detail.record.error %}
+    <div class="p-5 bg-rose-500/5 border border-rose-500/20 rounded-2xl flex items-start gap-4 backdrop-blur-md">
+      <div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
+        <span class="material-symbols-outlined">error</span>
+      </div>
+      <div>
+        <h4 class="text-sm font-bold text-rose-500">Execution Error Encountered</h4>
+        <p class="text-xs text-rose-400/80 mt-1 font-mono leading-relaxed max-w-2xl">{{ detail.record.error }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Metric Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="glass-card p-6 rounded-2xl border-l-[6px] border-l-primary shadow-xl shadow-black/20">
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Duration</p>
+        <h3 class="text-2xl font-black text-white">{{ format_duration(detail.duration_ms) }}</h3>
+      </div>
+      <div class="glass-card p-6 rounded-2xl border-l-[6px] border-l-amber-500 shadow-xl shadow-black/20">
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Total Cost</p>
+        <h3 class="text-2xl font-black text-white">{{ format_cost(detail.total_cost_usd) }}</h3>
+      </div>
+      <div class="glass-card p-6 rounded-2xl border-l-[6px] border-l-purple-500 shadow-xl shadow-black/20">
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tokens (In / Out)</p>
+        <h3 class="text-2xl font-black text-white">
+          {% if detail.total_input_tokens is not none %}
+            {{ detail.total_input_tokens }} <span class="text-slate-600 text-lg">/</span> {{ detail.total_output_tokens or 0 }}
+          {% else %}—{% endif %}
+        </h3>
+      </div>
+      <div class="glass-card p-6 rounded-2xl border-l-[6px] border-l-emerald-500 shadow-xl shadow-black/20">
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Target Model</p>
+        <h3 class="text-base font-black text-white truncate">
+          {{ detail.models_used | join(', ') if detail.models_used else 'Execution Logic' }}
+        </h3>
+      </div>
+    </div>
+
+    <!-- Layout Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+      
+      <!-- Primary Column: Trace -->
+      <div class="lg:col-span-2 space-y-8">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-bold text-white">Execution Trace</h3>
+          <div class="flex items-center gap-2 px-3 py-1 rounded-lg bg-white/5 border border-white/10">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{{ detail.steps | length }} Steps Captured</span>
           </div>
         </div>
-        {% if detail.models_used %}
-        <div style="text-align:center;">
-          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Model</div>
-          <div class="text-mono text-xs" style="font-weight: 500;">{{ detail.models_used | join(', ') }}</div>
+
+        {% if detail.record.status == 'running' %}
+        <div id="trace-steps" hx-get="/dashboard/executions/{{ detail.record.id }}" hx-trigger="every 3s" hx-swap="outerHTML" hx-target="#trace-steps">
+          {% include "dashboard/_trace_steps.html" %}
+        </div>
+        {% else %}
+        <div id="trace-steps">
+          {% include "dashboard/_trace_steps.html" %}
+        </div>
+        {% endif %}
+
+        {% if detail.record.status == 'completed' and detail.record.result_text %}
+        <div class="pt-10">
+          <div class="glass-card rounded-3xl p-8 bg-primary/5 border-primary/20 relative overflow-hidden group">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-primary/20"></div>
+            <div class="relative">
+              <div class="flex items-center gap-4 mb-6">
+                <div class="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary border border-primary/30">
+                  <span class="material-symbols-outlined text-2xl">auto_awesome</span>
+                </div>
+                <div>
+                  <h3 class="text-xl font-black text-white">Final Output</h3>
+                  <p class="text-[10px] font-bold text-primary uppercase tracking-widest px-1">Successful Completion</p>
+                </div>
+              </div>
+              <div class="prose prose-invert max-w-none text-base leading-relaxed text-slate-300 font-medium">
+                {{ detail.record.result_text | safe }}
+              </div>
+            </div>
+          </div>
         </div>
         {% endif %}
       </div>
-    </div>
 
-    {% if detail.record.status == 'failed' and detail.record.error %}
-    <div class="alert alert-danger mt-4">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-      </svg>
-      <div>
-        <strong>Execution failed</strong>
-        <div class="text-xs mt-1 text-mono">{{ detail.record.error }}</div>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
+      <!-- Secondary Column: Sidebar -->
+      <div class="space-y-8 lg:sticky lg:top-8">
+        
+        <!-- Input Payload -->
+        <div class="glass-card rounded-3xl p-8">
+          <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">Input Context</h4>
+          <div class="p-6 bg-black/40 rounded-2xl border border-white/5 text-sm text-slate-400 font-medium leading-relaxed whitespace-pre-wrap">
+            {{ detail.record.message or 'No direct input message recorded for this execution.' }}
+          </div>
+        </div>
 
-{% if conversation %}
-<!-- Conversation context -->
-<div class="card mb-6">
-  <div class="card-header">
-    <span class="card-title">Conversation</span>
-    <a href="/dashboard/conversations/{{ conversation.session_id }}" class="btn btn-ghost btn-sm">View full conversation →</a>
-  </div>
-  <div class="card-body">
-    <div class="flex gap-6 mb-4" style="flex-wrap:wrap;">
-      <div>
-        <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:2px;">Session</div>
-        <div class="text-mono text-xs">{{ conversation.session_id[:8] }}</div>
-      </div>
-      <div>
-        <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:2px;">Turns</div>
-        <div class="text-mono">{{ conversation.execution_count }}</div>
-      </div>
-      <div>
-        <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:2px;">Total Cost</div>
-        <div class="text-mono">{{ format_cost(conversation.total_cost_usd) }}</div>
-      </div>
-      <div>
-        <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:2px;">Total Tokens</div>
-        <div class="text-mono">{{ (conversation.total_input_tokens + conversation.total_output_tokens) | int }}</div>
-      </div>
-    </div>
-
-    {% if conversation.executions | length > 1 %}
-    <div class="text-xs text-muted mb-2" style="font-weight:500;">Related executions in this conversation:</div>
-    <div style="display:flex; flex-direction:column; gap:4px;">
-      {% for ex in conversation.executions %}
-      <div class="flex items-center gap-3 text-xs" style="padding:4px 0;{% if ex.id == detail.record.id %} font-weight:600;{% endif %}">
-        {% if ex.id == detail.record.id %}
-          <span class="text-mono" style="color:var(--color-accent);">{{ ex.id_short }}</span>
-        {% else %}
-          <a href="/dashboard/executions/{{ ex.id }}" class="table-link text-mono">{{ ex.id_short }}</a>
+        <!-- Session Intelligence (if available) -->
+        {% if conversation %}
+        <div class="glass-card rounded-3xl p-8 bg-gradient-to-br from-white/5 to-transparent">
+          <div class="flex items-center justify-between mb-8">
+            <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Session Stats</h4>
+            <a href="/dashboard/conversations/{{ conversation.session_id }}" class="flex items-center gap-1 text-[10px] font-bold text-primary hover:text-white transition-colors">
+              VIEW HISTORY
+              <span class="material-symbols-outlined text-sm">arrow_forward</span>
+            </a>
+          </div>
+          <div class="space-y-6">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-500 font-medium">Session ID</span>
+              <span class="text-xs font-mono font-bold text-slate-300">#{{ conversation.session_id[:8] }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-500 font-medium">Total Turns</span>
+              <span class="text-xs font-bold text-white">{{ conversation.execution_count }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-500 font-medium">Session Cost</span>
+              <span class="text-xs font-bold text-primary text-lg">{{ format_cost(conversation.total_cost_usd) }}</span>
+            </div>
+          </div>
+        </div>
         {% endif %}
-        {% if ex.status == 'completed' %}
-          <span class="badge badge-green" style="font-size:10px;"><span class="status-dot"></span>Completed</span>
-        {% elif ex.status == 'failed' %}
-          <span class="badge badge-red" style="font-size:10px;"><span class="status-dot"></span>Failed</span>
-        {% elif ex.status == 'running' %}
-          <span class="badge badge-blue badge-pulse" style="font-size:10px;"><span class="status-dot"></span>Running</span>
-        {% else %}
-          <span class="badge badge-gray" style="font-size:10px;">{{ ex.status }}</span>
-        {% endif %}
-        <span class="text-muted truncate" style="max-width:20rem;">{{ ex.message_preview[:60] }}{% if ex.message_preview | length > 60 %}…{% endif %}</span>
-        <span class="text-mono text-muted" style="margin-left:auto;">{{ format_cost(ex.cost_usd) }}</span>
+
+        <!-- Meta Information -->
+        <div class="glass-card rounded-3xl p-8">
+          <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">Discovery Meta</h4>
+          <div class="space-y-6">
+            <div>
+              <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2 opacity-50">Execution Timestamp</p>
+              <div class="flex items-center gap-2 text-slate-300">
+                <span class="material-symbols-outlined text-base text-slate-500">calendar_today</span>
+                <p class="text-sm font-bold">{{ format_datetime(detail.record.created_at) }}</p>
+              </div>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2 opacity-50">Full Trace Pointer</p>
+              <div class="p-4 bg-black/40 rounded-xl border border-white/5 font-mono text-[10px] break-all leading-relaxed text-slate-500">
+                {{ detail.record.id }}
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
-      {% endfor %}
     </div>
-    {% endif %}
   </div>
 </div>
-{% endif %}
-
-<!-- Trace Timeline -->
-<div class="card">
-  <div class="card-header">
-    <span class="card-title">Trace</span>
-    <span class="badge badge-gray">{{ detail.steps | length }} step{{ 's' if detail.steps | length != 1 else '' }}</span>
-  </div>
-  <div class="card-body">
-
-    {% if is_running %}
-    <!-- Poll for new steps while running -->
-    <div id="trace-steps"
-         hx-get="/dashboard/executions/{{ detail.record.id }}"
-         hx-trigger="every 3s"
-         hx-swap="outerHTML"
-         hx-target="#trace-steps">
-      {% include "dashboard/_trace_steps.html" %}
-    </div>
-    {% else %}
-    <div id="trace-steps">
-      {% include "dashboard/_trace_steps.html" %}
-    </div>
-    {% endif %}
-
-  </div>
-</div>
-
 {% endblock %}
 
 {% block extra_scripts %}

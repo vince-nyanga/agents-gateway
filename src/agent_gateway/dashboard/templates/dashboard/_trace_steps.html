@@ -1,106 +1,106 @@
 {% if detail.steps %}
-<div class="trace-timeline">
+<div class="relative pl-8 space-y-10">
+  <!-- Timeline Vertical Bar -->
+  <div class="absolute left-[15px] top-4 bottom-4 w-1 timeline-line rounded-full opacity-50"></div>
+
   {% for step in detail.steps %}
-  <div class="trace-step">
-    <!-- Left: node + connector line -->
-    <div class="trace-left">
-      <div class="trace-node trace-node-{{ step.step_type }}">
-        {% if step.is_llm_call %}
-          <!-- Sparkles icon for LLM -->
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.847a4.5 4.5 0 003.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 00-3.09 3.09z" />
-          </svg>
-        {% elif step.is_tool_call %}
-          <!-- Wrench icon for tool call -->
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
-          </svg>
-        {% else %}
-          <!-- Check icon for tool result -->
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        {% endif %}
-      </div>
-      {% if not loop.last %}
-      <div class="trace-line"></div>
-      {% endif %}
+  <div class="relative">
+    <!-- Icon Node -->
+    <div class="absolute -left-8 mt-1.5 w-8 h-8 rounded-full border-4 border-slate-50 dark:border-background-dark flex items-center justify-center z-10 shadow-lg
+      {% if step.is_llm_call %}bg-purple-500 shadow-purple-500/20{% elif step.is_tool_call %}bg-primary shadow-primary/20{% else %}bg-emerald-500 shadow-emerald-500/20{% endif %}">
+      <span class="material-symbols-outlined text-white text-base">
+        {% if step.is_llm_call %}psychology{% elif step.is_tool_call %}search{% else %}check_circle{% endif %}
+      </span>
     </div>
 
-    <!-- Right: step card -->
-    <div class="trace-body">
-      <div class="trace-card">
-        <div class="trace-card-header">
-          <div class="trace-card-header-left">
-            {% if step.is_llm_call %}
-              <span class="badge badge-accent">LLM Call</span>
-              {% if step.data.get('model') %}
-              <span class="text-mono text-xs text-muted">{{ step.data.model }}</span>
-              {% endif %}
-              <div class="flex items-center gap-2">
-                {% if step.data.get('input_tokens') is not none %}
-                <span class="text-xs text-muted">↑{{ step.data.input_tokens }}</span>
-                {% endif %}
-                {% if step.data.get('output_tokens') is not none %}
-                <span class="text-xs text-muted">↓{{ step.data.output_tokens }}</span>
-                {% endif %}
-                {% if step.data.get('cost_usd') %}
-                <span class="text-xs text-muted">{{ format_cost(step.data.cost_usd) }}</span>
-                {% endif %}
-              </div>
-            {% elif step.is_tool_call %}
-              <span class="badge badge-amber">Tool Call</span>
-              <span class="text-mono text-sm" style="font-weight:600;">{{ step.data.get('tool_name', '?') }}</span>
-            {% else %}
-              <span class="badge badge-green">Tool Result</span>
-              <span class="text-mono text-sm" style="font-weight:600;">{{ step.data.get('tool_name', '?') }}</span>
-              {% if step.data.get('success') == false %}
-              <span class="badge badge-red">Error</span>
-              {% endif %}
-              {% if step.data.get('truncated') %}
-              <span class="badge badge-amber">Truncated</span>
-              {% endif %}
-            {% endif %}
-          </div>
-          <div class="flex items-center gap-3">
-            {% if step.duration_ms %}
-            <span class="text-xs text-muted text-mono">{{ format_duration(step.duration_ms) }}</span>
-            {% endif %}
-            <svg class="chevron" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                 style="transition: transform 0.15s ease; color: var(--color-text-tertiary);">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-          </div>
+    <!-- Step Card -->
+    <div class="glass-card rounded-xl overflow-hidden group">
+      <div class="p-4 flex items-center justify-between border-b border-border-dark/50 bg-slate-100/30 dark:bg-white/5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/10 transition-colors"
+           onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.expand-icon').innerText = this.nextElementSibling.classList.contains('hidden') ? 'expand_more' : 'expand_less'">
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] font-bold uppercase tracking-widest 
+            {% if step.is_llm_call %}text-purple-400{% elif step.is_tool_call %}text-primary{% else %}text-emerald-400{% endif %}">
+            {% if step.is_llm_call %}LLM Completion{% elif step.is_tool_call %}Tool Invocation{% else %}Execution Step{% endif %}
+          </span>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+            {% if step.is_llm_call %}Summarize / Generate{% elif step.is_tool_call %}{{ step.data.get('tool_name', 'Unknown Tool') }}{% else %}Result Payload{% endif %}
+          </h3>
         </div>
-
-        <!-- Collapsible body — collapsed by default for tool results/calls -->
-        <div class="trace-card-body {% if step.is_llm_call %}{% else %}hidden{% endif %}">
-          {% if step.is_llm_call %}
-            {% if step.data.get('content') %}
-            <div class="text-xs text-muted mb-2" style="font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">Response</div>
-            <div class="code-block" style="white-space:pre-wrap;">{{ step.data.content }}</div>
-            {% endif %}
-          {% elif step.is_tool_call %}
-            <div class="text-xs text-muted mb-2" style="font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">Arguments</div>
-            <pre class="code-block" style="max-height:none"><code class="language-json">{{ json_dumps(step.data.get('arguments', {}), indent=2) }}</code></pre>
-          {% else %}
-            <div class="text-xs text-muted mb-2" style="font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">Result</div>
-            <div class="code-block">{{ step.data.get('result', '') }}</div>
+        <div class="flex items-center gap-4">
+          {% if step.duration_ms %}
+          <div class="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+            <span class="material-symbols-outlined text-sm">schedule</span>
+            {{ format_duration(step.duration_ms) }}
+          </div>
           {% endif %}
+          {% if step.is_llm_call and step.data.get('input_tokens') %}
+          <div class="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+            <span class="material-symbols-outlined text-sm">token</span>
+            {{ step.data.input_tokens + (step.data.output_tokens or 0) }} tokens
+          </div>
+          {% endif %}
+          <span class="text-[11px] font-bold text-emerald-500 uppercase">Success</span>
+          <span class="material-symbols-outlined text-slate-400 expand-icon">expand_less</span>
         </div>
+      </div>
+
+      <!-- Card Body (Collapsible) -->
+      <div class="p-4 space-y-4">
+        {% if step.is_llm_call %}
+          <div class="space-y-2">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Model Context</p>
+            <div class="bg-black/20 dark:bg-white/5 rounded-lg p-3 text-xs leading-relaxed text-slate-400 font-mono">
+              {{ step.data.get('model', 'Unknown Model') }}
+            </div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Output Preview</p>
+              <div class="bg-black/40 rounded-lg p-3 font-mono text-[11px] border border-border-dark/50 max-h-[120px] overflow-y-auto leading-relaxed">
+                {{ step.data.get('content', '...') }}
+              </div>
+            </div>
+            <div class="space-y-2">
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Usage Details</p>
+              <div class="bg-black/40 rounded-lg p-3 font-mono text-[11px] border border-border-dark/50 max-h-[120px] overflow-y-auto">
+                <span class="code-syntax-key">"prompt_tokens"</span>: <span class="code-syntax-number">{{ step.data.get('input_tokens', 0) }}</span>,<br/>
+                <span class="code-syntax-key">"completion_tokens"</span>: <span class="code-syntax-number">{{ step.data.get('output_tokens', 0) }}</span>
+              </div>
+            </div>
+          </div>
+        {% elif step.is_tool_call %}
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Input Arguments</p>
+              <pre class="bg-black/40 rounded-lg p-3 font-mono text-[11px] border border-border-dark/50 max-h-[150px] overflow-y-auto leading-relaxed"><code class="language-json">{{ json_dumps(step.data.get('arguments', {}), indent=2) }}</code></pre>
+            </div>
+            <div class="space-y-2">
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Tool Status</p>
+              <div class="bg-black/40 rounded-lg p-3 font-mono text-[11px] border border-border-dark/50">
+                <span class="code-syntax-key">"status"</span>: <span class="code-syntax-string">"invoked"</span>,<br/>
+                <span class="code-syntax-key">"name"</span>: <span class="code-syntax-string">"{{ step.data.get('tool_name', 'unknown') }}"</span>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="space-y-2">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Response Data</p>
+            <div class="bg-black/40 rounded-lg p-3 font-mono text-[11px] border border-border-dark/50 max-h-[200px] overflow-y-auto leading-relaxed">
+              {{ step.data.get('result', 'No result payload recorded.') }}
+            </div>
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="empty-state" style="padding: var(--space-10) var(--space-4);">
-  <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-  </svg>
-  <div class="empty-title">No steps recorded</div>
-  <div class="empty-desc">Step recording captures LLM calls, tool calls, and results for detailed tracing.</div>
+<div class="py-20 flex flex-col items-center justify-center text-center">
+  <div class="w-16 h-16 glass-card rounded-full flex items-center justify-center text-primary mb-4 animate-pulse">
+    <span class="material-symbols-outlined text-3xl">bolt</span>
+  </div>
+  <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-widest">Awaiting Execution Trace</h3>
+  <p class="text-xs text-slate-500 mt-2 max-w-[200px] leading-relaxed">Capture the agent's thought process and tool invocations in real-time.</p>
 </div>
 {% endif %}

@@ -4,69 +4,102 @@
 {% block page_title %}Conversations{% endblock %}
 
 {% block content %}
-<div class="page-header flex items-center justify-between">
-  <div>
-    <div class="page-title">Conversations</div>
-    <div class="page-description">{{ total }} conversation{{ 's' if total != 1 else '' }} with traced executions</div>
+<div class="px-2 py-4">
+  <!-- Header Section -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Conversations</h1>
+    <p class="text-slate-500 dark:text-slate-400 mt-1">Track and monitor multi-turn agent sessions and cumulative usage.</p>
   </div>
-</div>
 
-{% if rows %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Session</th>
-        <th>Agent</th>
-        <th class="text-right">Turns</th>
-        <th class="text-right">Cost</th>
-        <th class="text-right">Tokens</th>
-        <th>Last Activity</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr>
-        <td>
-          <a href="/dashboard/conversations/{{ row.session_id }}" class="table-link text-mono">{{ row.session_id_short }}</a>
-        </td>
-        <td>
-          <span class="text-muted">{{ agent_names.get(row.agent_id, row.agent_id) }}</span>
-        </td>
-        <td class="text-mono text-muted text-right">{{ row.execution_count }}</td>
-        <td class="text-mono text-muted text-right">{{ format_cost(row.total_cost_usd) }}</td>
-        <td class="text-mono text-muted text-right">
-          {{ (row.total_input_tokens + row.total_output_tokens) | int }}
-        </td>
-        <td class="text-muted text-xs">{{ relative_time(row.last_activity) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <!-- Pagination -->
-  <div class="pagination">
-    <span class="pagination-info text-xs">
-      Page {{ page }} of {{ total_pages }}  ({{ total }} total)
-    </span>
-    <div class="pagination-controls">
-      {% if page > 1 %}
-      <a href="/dashboard/conversations?page={{ page - 1 }}" class="btn btn-ghost btn-sm">← Prev</a>
-      {% endif %}
-      {% if page < total_pages %}
-      <a href="/dashboard/conversations?page={{ page + 1 }}" class="btn btn-ghost btn-sm">Next →</a>
-      {% endif %}
+  <!-- Stats Overview -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Conversations</p>
+      <h3 class="text-3xl font-bold">{{ total }}</h3>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Active This Week</p>
+      <h3 class="text-3xl font-bold text-emerald-500">{{ total }}</h3>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Dynamic Sessions</p>
+      <h3 class="text-3xl font-bold text-primary">{{ rows|length }}</h3>
     </div>
   </div>
+
+  {% if rows %}
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[11px] font-bold tracking-wider">
+            <th class="px-6 py-4">Session ID</th>
+            <th class="px-6 py-4">Agent</th>
+            <th class="px-6 py-4 text-center">Turns</th>
+            <th class="px-6 py-4 text-right">Total Cost</th>
+            <th class="px-6 py-4 text-right">Tokens</th>
+            <th class="px-6 py-4 text-right">Last Activity</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+          {% for row in rows %}
+          <tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <a href="/dashboard/conversations/{{ row.session_id }}" class="flex items-center gap-3 group">
+                <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                </div>
+                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono">{{ row.session_id_short }}</span>
+              </a>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span class="text-sm text-slate-600 dark:text-slate-300">{{ agent_names.get(row.agent_id, row.agent_id) }}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+              <span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-bold rounded">{{ row.execution_count }}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-slate-900 dark:text-white">
+              {{ format_cost(row.total_cost_usd) }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-500">
+              {{ (row.total_input_tokens + row.total_output_tokens) | int }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-xs text-slate-400">
+              {{ relative_time(row.last_activity) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+      <p class="text-xs text-slate-500">
+        Page <span class="font-bold text-slate-900 dark:text-white">{{ page }}</span> of <span class="font-bold text-slate-900 dark:text-white">{{ total_pages }}</span> ({{ total }} total)
+      </p>
+      <div class="flex items-center gap-2">
+        {% if page > 1 %}
+        <a href="/dashboard/conversations?page={{ page - 1 }}" class="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 transition-colors">
+          Previous
+        </a>
+        {% endif %}
+        {% if page < total_pages %}
+        <a href="/dashboard/conversations?page={{ page + 1 }}" class="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 transition-colors">
+          Next
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="py-20 flex flex-col items-center justify-center text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+    <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mb-4">
+      <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+    </div>
+    <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">No conversations yet</h3>
+    <p class="text-sm text-slate-500 max-w-sm">Conversations appear here when agents are used. Each session tracks multi-turn history and usage metrics.</p>
+  </div>
+  {% endif %}
 </div>
-{% else %}
-<div class="empty-state">
-  <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-          d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-  </svg>
-  <div class="empty-title">No conversations yet</div>
-  <div class="empty-desc">Conversations appear here when agents are used via the chat endpoint. Each multi-turn session is tracked with cumulative cost and token usage.</div>
-</div>
-{% endif %}
 {% endblock %}

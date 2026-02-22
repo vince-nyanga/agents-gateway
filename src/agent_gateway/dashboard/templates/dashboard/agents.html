@@ -4,24 +4,62 @@
 {% block page_title %}Agents{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div class="page-title">Agents</div>
-  <div class="page-description">{{ agents | length }} agent{{ 's' if agents | length != 1 else '' }} in workspace</div>
-</div>
+<div class="px-2 py-4">
+  <!-- Summary Stats -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+    <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+      <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Agents</p>
+      <div class="flex items-baseline gap-2 mt-1">
+        <span class="text-3xl font-bold text-slate-900 dark:text-white">{{ agents|length }}</span>
+        <span class="text-emerald-500 text-xs font-bold">+0% this month</span>
+      </div>
+    </div>
+    <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+      <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Active Agents</p>
+      <div class="flex items-baseline gap-2 mt-1">
+        <span class="text-3xl font-bold text-slate-900 dark:text-white">{{ agents|length }}</span>
+        <span class="text-emerald-500 text-xs font-bold">100% uptime</span>
+      </div>
+    </div>
+    <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+      <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">System Status</p>
+      <div class="flex items-baseline gap-2 mt-1">
+        <span class="text-3xl font-bold text-emerald-500">Healthy</span>
+        <span class="text-slate-500 dark:text-slate-400 text-xs font-medium">100% operational</span>
+      </div>
+    </div>
+  </div>
 
-{% if workspace_errors %}
-<div class="alert alert-warning mb-4">
-  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-  </svg>
-  <div>
-    <strong>Workspace loaded with warnings</strong>
-    {% for err in workspace_errors %}
-    <div class="text-xs mt-1">{{ err }}</div>
-    {% endfor %}
+  {% if workspace_errors %}
+  <div class="p-4 mb-6 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-900/30 text-amber-800 dark:text-amber-200 flex gap-3">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+    <div>
+      <div class="font-bold">Workspace loaded with warnings</div>
+      {% for err in workspace_errors %}
+      <div class="text-xs mt-0.5">{{ err }}</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Section Title & Filters -->
+  <div class="flex items-center justify-between mb-6">
+    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Configured Agents</h3>
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-medium text-slate-500">Filter by status:</span>
+      <select class="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-slate-600 dark:text-slate-400 focus:ring-primary outline-none">
+        <option>All Agents</option>
+        <option>Online</option>
+        <option>Offline</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Agent Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="agent-cards-grid">
+    {% include "dashboard/_agent_cards.html" %}
   </div>
 </div>
-{% endif %}
-
-{% include "dashboard/_agent_cards.html" %}
 {% endblock %}

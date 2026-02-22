@@ -323,6 +323,35 @@ class ExecutionRepository:
             result = await session.execute(stmt, {"since": since_param})
             return [_normalize_row(row._mapping) for row in result]
 
+    async def get_summary_stats(self, days: int = 30) -> dict[str, Any]:
+        """Aggregate summary stats for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        
+        # Calculate duration in ms. 
+        # PostgreSQL: EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000
+        # SQLite: (julianday(completed_at) - julianday(started_at)) * 86400000
+        if self._pg:
+            duration_expr = "EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000"
+        else:
+            duration_expr = "(julianday(completed_at) - julianday(started_at)) * 86400000"
+
+        async with self._session_factory() as session:
+            stmt = text(f"""
+                SELECT
+                    COUNT(*) as total_executions,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
+                    COALESCE(SUM({cost}), 0) as total_cost_usd,
+                    COALESCE(AVG(CASE WHEN status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL 
+                                 THEN {duration_expr} ELSE NULL END), 0) as avg_duration_ms
+                FROM executions
+                WHERE created_at >= :since
+            """)
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            row = result.one()
+            return _normalize_row(row._mapping)
+
     async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily execution count by status for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)

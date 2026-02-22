@@ -5,9 +5,15 @@
 
 {% block content %}
 
-<div class="page-header">
-  <div class="page-title">My Schedules</div>
-  <div class="page-description">Personal cron schedules for your configured agents</div>
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+  <div>
+    <div class="page-title">My Schedules</div>
+    <div class="page-description">Personal cron schedules for your configured agents</div>
+  </div>
+  <button class="btn btn-primary" onclick="document.getElementById('schedule-form').scrollIntoView({behavior: 'smooth'})">
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Create Schedule
+  </button>
 </div>
 
 {% if user_schedules %}

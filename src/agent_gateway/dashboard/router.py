@@ -472,6 +472,60 @@ def register_dashboard(
             },
         )
 
+    @protected.post("/executions/{execution_id}/retry")
+    async def execution_retry(
+        request: Request,
+        execution_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> RedirectResponse:
+        import uuid
+
+        from agent_gateway.engine.models import ExecutionOptions
+
+        gw = request.app
+        repo = gw._execution_repo
+
+        # 1. Fetch original execution
+        orig_record = await repo.get(execution_id)
+        if orig_record is None:
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        agent_id = orig_record.agent_id
+        message = orig_record.message
+        session_id = orig_record.session_id
+
+        # 2. Get agent
+        ws = gw.workspace
+        agent = ws.agents.get(agent_id) if ws else None
+        if agent is None:
+            raise HTTPException(status_code=400, detail=f"Agent '{agent_id}' no longer available in workspace.")
+
+        # 3. Create context + session
+        user_id = current_user.username if current_user.username and current_user.username != "anonymous" else None
+
+        session = None
+        if session_id:
+            session = gw._session_store.get_session(session_id)
+        
+        # 4. Trigger new execution async
+        exec_options = ExecutionOptions()
+        new_exec_id = str(uuid.uuid4())
+        
+        # We fire and forget this task
+        import asyncio
+        asyncio.create_task(
+            gw.invoke_agent(
+                agent_id=agent_id,
+                message=message,
+                session_id=session_id,
+                user_id=user_id,
+                options=exec_options,
+                execution_id=new_exec_id
+            )
+        )
+
+        return RedirectResponse(url=f"/dashboard/executions/{new_exec_id}", status_code=303)
+
     @protected.get("/conversations", response_class=HTMLResponse)
     async def conversations_page(
         request: Request,
@@ -958,32 +1012,68 @@ def register_dashboard(
         total_execs = 0
         success_count = 0
 
+        stats = {"total_executions": 0, "success_count": 0, "total_cost_usd": 0.0, "avg_duration_ms": 0.0}
         if persistence_enabled:
+            try:
+                stats = await repo.get_summary_stats(days=days)
+            except Exception:
+                logger.debug("Failed to fetch summary stats", exc_info=True)
+
             cost_by_day_data = await repo.cost_by_day(days=days)
             exec_by_day_data = await repo.executions_by_day(days=days)
             cost_by_agent_data = await repo.cost_by_agent(days=days)
 
-            for row in cost_by_day_data:
-                total_cost += float(row.get("total_cost_usd") or 0)
-            for row in exec_by_day_data:
-                total_execs += int(row.get("count") or 0)
-                success_count += int(row.get("success_count") or 0)
-
+        total_execs = stats["total_executions"]
+        total_cost = stats["total_cost_usd"]
+        success_count = stats["success_count"]
+        avg_duration_ms = stats["avg_duration_ms"]
         success_rate = (success_count / total_execs * 100) if total_execs > 0 else 0.0
 
         ws = gw.workspace
         agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
 
+        # Fetch recent activity (Audit Logs)
+        recent_activity = []
+        if persistence_enabled:
+            try:
+                recent_activity = await gw._audit_repo.list_recent(limit=5)
+            except Exception:
+                logger.debug("Failed to fetch recent activity", exc_info=True)
+
+        # Fetch latest conversations
+        latest_conversations = []
+        if persistence_enabled:
+            try:
+                latest_conversations = await repo.list_conversations_summary(limit=3)
+            except Exception:
+                logger.debug("Failed to fetch latest conversations", exc_info=True)
+
         summary = AnalyticsSummary(
             total_cost_usd=total_cost,
             total_executions=total_execs,
             success_rate=success_rate,
-            avg_duration_ms=0.0,
+            avg_duration_ms=avg_duration_ms,
             cost_by_day=cost_by_day_data,
             executions_by_day=exec_by_day_data,
             cost_by_agent=cost_by_agent_data,
             days=days,
         )
+
+        # Build Agent Cards for the grid
+        agents = list(ws.agents.values()) if ws else []
+        # Fetch user configs for personal agent badges
+        user_configs_by_agent: dict[str, Any] = {}
+        if current_user.username and current_user.username != "anonymous":
+            try:
+                user_configs = await gw._user_agent_config_repo.list_by_user(current_user.username)
+                user_configs_by_agent = {uc.agent_id: uc for uc in user_configs}
+            except Exception:
+                pass
+        
+        agent_cards = [
+            AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
+            for a in agents[:3] # Show top 3 in the grid
+        ]
 
         is_htmx = bool(request.headers.get("HX-Request"))
         template = "dashboard/_analytics_charts.html" if is_htmx else "dashboard/analytics.html"
@@ -995,6 +1085,9 @@ def register_dashboard(
                 "days": days,
                 "persistence_enabled": persistence_enabled,
                 "agent_names": agent_names,
+                "agents": agent_cards,
+                "recent_activity": recent_activity,
+                "latest_conversations": latest_conversations,
                 "current_user": current_user,
                 "active_page": "analytics",
             },

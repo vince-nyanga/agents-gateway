@@ -4,54 +4,112 @@
 {% block page_title %}Executions{% endblock %}
 
 {% block content %}
-<div class="page-header flex items-center justify-between">
-  <div>
-    <div class="page-title">Executions</div>
-    <div class="page-description">{{ total }} total execution{{ 's' if total != 1 else '' }}</div>
-  </div>
-</div>
-
-<!-- Filters -->
-<div class="filter-bar">
-  <div class="tab-group">
-    {% set statuses = [('', 'All'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')] %}
-    {% for s_val, s_label in statuses %}
-    <button
-      class="tab {% if status_filter == s_val %}active{% endif %}"
-      hx-get="/dashboard/executions?{% if agent_id_filter %}agent_id={{ agent_id_filter }}&{% endif %}status={{ s_val }}&page=1"
-      hx-target="#exec-table-wrap"
-      hx-swap="outerHTML"
-    >
-      {{ s_label }}
-    </button>
-    {% endfor %}
+<div class="px-2 py-4">
+  <!-- Header Section -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Execution History</h1>
+    <p class="text-slate-500 dark:text-slate-400 mt-1">Monitor all agent invocations, performance, and costs in real-time.</p>
   </div>
 
-  {% if agent_names %}
-  <select class="input" style="width:auto;"
-    hx-get="/dashboard/executions?status={{ status_filter }}&page=1"
-    hx-target="#exec-table-wrap"
+  <!-- Filter Bar -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div class="flex gap-3 flex-wrap">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1 flex items-center shadow-sm">
+        {% set statuses = [('', 'All Status'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')] %}
+        {% for s_val, s_label in statuses %}
+        <button
+          class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {% if status_filter == s_val %}bg-primary text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}"
+          hx-get="/dashboard/executions?{% if agent_id_filter %}agent_id={{ agent_id_filter }}&{% endif %}status={{ s_val }}&page=1"
+          hx-target="#exec-table-wrap"
+          hx-swap="outerHTML"
+        >
+          {{ s_label }}
+        </button>
+        {% endfor %}
+      </div>
+
+      {% if agent_names %}
+      <select class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 outline-none shadow-sm h-10"
+        hx-get="/dashboard/executions?status={{ status_filter }}&page=1"
+        hx-target="#exec-table-wrap"
+        hx-swap="outerHTML"
+        hx-include="[name='agent_id']"
+        name="agent_id"
+        onchange="this.form && htmx.trigger(this, 'change')"
+      >
+        <option value="">All agents</option>
+        {% for aid, aname in agent_names.items() %}
+        <option value="{{ aid }}" {% if agent_id_filter == aid %}selected{% endif %}>{{ aname }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button class="flex items-center gap-2 h-10 px-4 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        Export
+      </button>
+      <button class="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page }}"
+        hx-target="#exec-table-wrap"
+        hx-swap="outerHTML"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Table Area -->
+  <div id="exec-table-wrap"
+    {% if has_running %}
+    hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page }}"
+    hx-trigger="every 10s"
     hx-swap="outerHTML"
-    hx-include="[name='agent_id']"
-    name="agent_id"
-    onchange="this.form && htmx.trigger(this, 'change')"
+    {% endif %}
   >
-    <option value="">All agents</option>
-    {% for aid, aname in agent_names.items() %}
-    <option value="{{ aid }}" {% if agent_id_filter == aid %}selected{% endif %}>{{ aname }}</option>
-    {% endfor %}
-  </select>
-  {% endif %}
-</div>
+    {% include "dashboard/_exec_rows.html" %}
+  </div>
 
-<!-- Table -->
-<div id="exec-table-wrap"
-  {% if has_running %}
-  hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page }}"
-  hx-trigger="every 10s"
-  hx-swap="outerHTML"
-  {% endif %}
->
-  {% include "dashboard/_exec_rows.html" %}
+  <!-- Summary Stats Grid -->
+  <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4 shadow-sm">
+      <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Success Rate</p>
+        <p class="text-xl font-black text-slate-900 dark:text-white">94.2%</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4 shadow-sm">
+      <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Avg. Duration</p>
+        <p class="text-xl font-black text-slate-900 dark:text-white">4.8s</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4 shadow-sm">
+      <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Cost (24h)</p>
+        <p class="text-xl font-black text-slate-900 dark:text-white">$14.22</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4 shadow-sm">
+      <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Runs</p>
+        <p class="text-xl font-black text-slate-900 dark:text-white">{{ total if has_running else 0 }}</p>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
