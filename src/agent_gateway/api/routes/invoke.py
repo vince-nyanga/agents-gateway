@@ -200,6 +200,32 @@ async def invoke_agent(
     gw._execution_handles[execution_id] = handle
     start = time.monotonic()
 
+    # Load per-user agent config for personal agents
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+    user_instructions: str | None = None
+    user_secrets: dict[str, str] = {}
+    user_config_values: dict[str, Any] = {}
+
+    if agent.scope == "personal":
+        if not user_id:
+            return error_response(
+                401,
+                "auth_required",
+                f"Agent '{agent_id}' is a personal agent and requires authentication",
+            )
+        user_agent_config = await gw._user_agent_config_repo.get(user_id, agent_id)
+        if user_agent_config is None or not user_agent_config.setup_completed:
+            return error_response(
+                409,
+                "setup_required",
+                f"Agent '{agent_id}' requires setup. "
+                f"Configure via POST /v1/agents/{agent_id}/config",
+            )
+        user_instructions = user_agent_config.instructions
+        user_config_values = user_agent_config.config_values
+        user_secrets = gw._decrypt_user_secrets(user_agent_config.encrypted_secrets)
+
     try:
         result = await snapshot.engine.execute(
             agent=agent,
@@ -209,6 +235,10 @@ async def invoke_agent(
             options=exec_options,
             handle=handle,
             tool_executor=execute_tool,
+            caller_identity=user_id,
+            user_instructions=user_instructions,
+            user_secrets=user_secrets,
+            user_config=user_config_values,
         )
     except Exception as e:
         logger.error("Execution failed: %s", e)

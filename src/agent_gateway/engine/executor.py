@@ -110,6 +110,9 @@ class ExecutionEngine:
         message_history: list[dict[str, Any]] | None = None,
         memory_block: str = "",
         caller_identity: str | None = None,
+        user_instructions: str | None = None,
+        user_secrets: dict[str, str] | None = None,
+        user_config: dict[str, Any] | None = None,
     ) -> ExecutionResult:
         """Run the full agent execution loop.
 
@@ -153,6 +156,7 @@ class ExecutionEngine:
             retriever_registry=self._retriever_registry,
             context_retrieval_config=self._config.context_retrieval,
             memory_block=memory_block,
+            user_instructions=user_instructions,
         )
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)
@@ -198,6 +202,8 @@ class ExecutionEngine:
             agent_id=agent.id,
             caller_identity=caller_identity,
             metadata=input or {},
+            user_secrets=user_secrets or {},
+            user_config=user_config or {},
         )
 
         exec_start = time.monotonic()

@@ -12,6 +12,7 @@ from agent_gateway.persistence.domain import (
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserAgentConfig,
     UserProfile,
 )
 
@@ -160,3 +161,18 @@ class ConversationRepository(Protocol):
     async def update_summary(self, conversation_id: str, summary: str) -> None: ...
 
     async def delete(self, conversation_id: str) -> bool: ...
+
+
+@runtime_checkable
+class UserAgentConfigRepository(Protocol):
+    """Interface for per-user agent config persistence."""
+
+    async def get(self, user_id: str, agent_id: str) -> UserAgentConfig | None: ...
+
+    async def upsert(self, config: UserAgentConfig) -> None: ...
+
+    async def delete(self, user_id: str, agent_id: str) -> bool: ...
+
+    async def list_by_user(self, user_id: str) -> list[UserAgentConfig]: ...
+
+    async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]: ...

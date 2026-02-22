@@ -86,6 +86,48 @@ execution_mode: async  # "sync" (default) or "async"
 
 `async` — the API returns an execution ID immediately. The agent runs in the background via the configured queue backend.
 
+### Scope (personal agents)
+
+By default, agents are **global** — available to all users with the same configuration. Set `scope: personal` to create agents that require per-user configuration before use:
+
+```yaml
+scope: personal
+setup_schema:
+  type: object
+  required: [email_address, api_key]
+  properties:
+    email_address:
+      type: string
+      description: Your email address
+    api_key:
+      type: string
+      description: Your API key for the service
+      sensitive: true
+    preferences:
+      type: string
+      enum: [brief, detailed]
+      default: brief
+```
+
+**How it works:**
+
+1. When a personal agent is defined, users must configure it via `POST /v1/agents/{agent_id}/config` before they can invoke it.
+2. The `setup_schema` is a JSON Schema defining what the user must provide. Fields marked `sensitive: true` are encrypted at rest and never returned in API responses.
+3. User instructions (custom prompt) can be included in the config and are injected into the agent's system prompt.
+4. Decrypted secrets are passed to tool handlers via `context.user_secrets` at execution time.
+5. Non-sensitive config values are available via `context.user_config`.
+
+**Environment variable:** Personal agents require `AGENT_GATEWAY_SECRET_KEY` to be set for secret encryption. This can be any string — it's used to derive a Fernet encryption key.
+
+**API endpoints:**
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/agents/{id}/setup-schema` | Get the setup schema |
+| `POST` | `/v1/agents/{id}/config` | Save user config |
+| `GET` | `/v1/agents/{id}/config` | Get user config (secrets redacted) |
+| `DELETE` | `/v1/agents/{id}/config` | Remove user config |
+
 ### Input schema
 
 Validate the input passed to the agent at invocation time using a [JSON Schema](https://json-schema.org/) object:

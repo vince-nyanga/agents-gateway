@@ -68,6 +68,10 @@ class AgentDefinition:
     notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
     input_schema: dict[str, Any] | None = None
 
+    # Agent scope: "global" (default) or "personal" (requires per-user config)
+    scope: str = "global"
+    setup_schema: dict[str, Any] | None = None
+
     # RAG context
     context_content: list[str] = field(default_factory=list)  # loaded static file contents
     retrievers: list[str] = field(default_factory=list)  # named retriever references
@@ -173,6 +177,16 @@ class AgentDefinition:
 
         memory_config = _parse_memory_config(agent_meta.get("memory", {}), agent_dir)
 
+        scope_raw = agent_meta.get("scope", "global")
+        scope = str(scope_raw) if scope_raw in ("global", "personal") else "global"
+        if scope_raw not in ("global", "personal") and scope_raw is not None:
+            logger.warning(
+                "Agent '%s': 'scope' must be 'global' or 'personal', defaulting to 'global'",
+                agent_id,
+            )
+
+        setup_schema = _parse_setup_schema(agent_meta.get("setup_schema"), agent_dir)
+
         return cls(
             id=agent_id,
             path=agent_dir,
@@ -191,6 +205,8 @@ class AgentDefinition:
             context_content=context_content,
             retrievers=retrievers,
             memory_config=memory_config,
+            scope=scope,
+            setup_schema=setup_schema,
         )
 
 
@@ -302,6 +318,32 @@ def _parse_input_schema(
     except jsonschema.SchemaError as e:
         logger.warning(
             "Invalid JSON Schema in input_schema for %s: %s, ignoring",
+            agent_dir,
+            e.message,
+        )
+        return None
+
+    return raw
+
+
+def _parse_setup_schema(
+    raw: Any,
+    agent_dir: Path,
+) -> dict[str, Any] | None:
+    """Parse and validate a setup_schema from agent frontmatter."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        logger.warning("Invalid setup_schema (not a dict) in %s, ignoring", agent_dir)
+        return None
+
+    import jsonschema
+
+    try:
+        jsonschema.Draft202012Validator.check_schema(raw)
+    except jsonschema.SchemaError as e:
+        logger.warning(
+            "Invalid JSON Schema in setup_schema for %s: %s, ignoring",
             agent_dir,
             e.message,
         )

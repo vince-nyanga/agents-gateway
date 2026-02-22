@@ -76,6 +76,21 @@ notifications:
 You are a helpful assistant. Answer questions clearly.
 ```
 
+Personal agents require per-user configuration before use:
+
+```yaml
+scope: personal
+setup_schema:
+  type: object
+  required: [api_key]
+  properties:
+    api_key:
+      type: string
+      sensitive: true
+```
+
+API: `POST /v1/agents/{id}/config` to save user config, `GET /v1/agents/{id}/setup-schema` for schema. Fields marked `sensitive: true` are encrypted at rest. Requires `AGENT_GATEWAY_SECRET_KEY` env var.
+
 ### Tools
 
 File-based (workspace/tools/<id>/TOOL.md + handler.py):

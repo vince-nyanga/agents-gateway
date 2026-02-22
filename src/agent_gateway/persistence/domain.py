@@ -91,6 +91,20 @@ class UserProfile:
 
 
 @dataclass
+class UserAgentConfig:
+    """Per-user configuration for a personal agent."""
+
+    user_id: str
+    agent_id: str
+    instructions: str | None = None
+    config_values: dict[str, Any] = field(default_factory=dict)
+    encrypted_secrets: dict[str, Any] = field(default_factory=dict)
+    setup_completed: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
 class ConversationRecord:
     """A persisted conversation between a user and an agent."""
 

@@ -16,6 +16,7 @@ from agent_gateway.persistence.domain import (
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserAgentConfig,
     UserProfile,
 )
 
@@ -621,3 +622,57 @@ class ConversationRepository:
             await session.delete(record)
             await session.commit()
             return True
+
+
+class UserAgentConfigRepository:
+    """CRUD operations for per-user agent configuration."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def get(self, user_id: str, agent_id: str) -> UserAgentConfig | None:
+        """Fetch a user's config for an agent."""
+        async with self._session_factory() as session:
+            return await session.get(UserAgentConfig, (user_id, agent_id))
+
+    async def upsert(self, config: UserAgentConfig) -> None:
+        """Insert or update a user agent config."""
+        async with self._session_factory() as session:
+            existing = await session.get(UserAgentConfig, (config.user_id, config.agent_id))
+            if existing is None:
+                session.add(config)
+            else:
+                existing.instructions = config.instructions
+                existing.config_values = config.config_values
+                existing.encrypted_secrets = config.encrypted_secrets
+                existing.setup_completed = config.setup_completed
+                existing.updated_at = config.updated_at
+            await session.commit()
+
+    async def delete(self, user_id: str, agent_id: str) -> bool:
+        """Delete a user's config for an agent. Returns True if it existed."""
+        async with self._session_factory() as session:
+            record = await session.get(UserAgentConfig, (user_id, agent_id))
+            if record is None:
+                return False
+            await session.delete(record)
+            await session.commit()
+            return True
+
+    async def list_by_user(self, user_id: str) -> list[UserAgentConfig]:
+        """List all configs for a user."""
+        async with self._session_factory() as session:
+            stmt = select(UserAgentConfig).where(
+                UserAgentConfig.user_id == user_id  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]:
+        """List all user configs for an agent."""
+        async with self._session_factory() as session:
+            stmt = select(UserAgentConfig).where(
+                UserAgentConfig.agent_id == agent_id  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())

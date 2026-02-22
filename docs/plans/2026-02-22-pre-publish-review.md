@@ -17,7 +17,7 @@ After a thorough review of the entire codebase, here are all items that need add
 - [x] **#4** [Version management (build pipeline)](publish/04-version-management.md) — Packaging
 - [x] **#5** [CORS middleware](publish/05-cors-middleware.md) — Security
 - [x] **#6** [User-facing documentation](publish/06-documentation.md) — Documentation
-- [ ] **#7** [Per-user agent configuration](publish/07-per-user-agent-config.md) — Feature
+- [x] **#7** [Per-user agent configuration](publish/07-per-user-agent-config.md) — Feature
 
 ### P1 — Should Fix Before Publish
 

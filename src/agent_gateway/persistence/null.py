@@ -15,6 +15,7 @@ from agent_gateway.persistence.domain import (
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserAgentConfig,
     UserProfile,
 )
 
@@ -215,3 +216,22 @@ class NullConversationRepository:
 
     async def delete(self, conversation_id: str) -> bool:
         return False
+
+
+class NullUserAgentConfigRepository:
+    """No-op user agent config repository — used when persistence is disabled."""
+
+    async def get(self, user_id: str, agent_id: str) -> UserAgentConfig | None:
+        return None
+
+    async def upsert(self, config: UserAgentConfig) -> None:
+        pass
+
+    async def delete(self, user_id: str, agent_id: str) -> bool:
+        return False
+
+    async def list_by_user(self, user_id: str) -> list[UserAgentConfig]:
+        return []
+
+    async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]:
+        return []

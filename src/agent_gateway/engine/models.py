@@ -143,6 +143,8 @@ class ToolContext:
     agent_id: str
     caller_identity: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    user_secrets: dict[str, str] = field(default_factory=dict)
+    user_config: dict[str, Any] = field(default_factory=dict)
 
 
 class ExecutionHandle:

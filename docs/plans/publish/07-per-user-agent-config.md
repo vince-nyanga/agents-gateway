@@ -1,6 +1,6 @@
 ---
 title: "Per-User Agent Configuration"
-status: pending
+status: completed
 priority: P0
 category: Feature
 date: 2026-02-22
