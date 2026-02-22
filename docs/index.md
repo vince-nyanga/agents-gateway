@@ -1,4 +1,4 @@
-# Agent Gateway
+# Agents Gateway
 
 A FastAPI extension for building API-first AI agent services.
 

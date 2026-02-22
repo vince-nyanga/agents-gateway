@@ -1,4 +1,4 @@
-site_name: Agent Gateway
+site_name: Agents Gateway
 site_description: A FastAPI extension for building API-first AI agent services
 site_url: https://vince-nyanga.github.io/agents-gateway/
 repo_url: https://github.com/vince-nyanga/agents-gateway
