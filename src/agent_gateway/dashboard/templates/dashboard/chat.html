@@ -22,8 +22,11 @@
       <label for="agent-selector" class="text-sm" style="font-weight:500; white-space:nowrap;">Talk to</label>
       <select id="agent-selector" class="input" style="max-width: 18rem;">
         {% for agent in agents %}
-        <option value="{{ agent.id }}" {% if agent.id == selected_agent_id %}selected{% endif %}>
-          {{ agent.display_name }}
+        <option value="{{ agent.id }}"
+                data-personal="{{ agent.is_personal | lower }}"
+                data-configured="{{ agent.user_configured | lower }}"
+                {% if agent.id == selected_agent_id %}selected{% endif %}>
+          {{ agent.display_name }}{% if agent.is_personal %} (personal){% endif %}
         </option>
         {% endfor %}
       </select>
@@ -31,6 +34,12 @@
     {% else %}
     <div class="text-muted text-sm">No agents available. Add agents to your workspace.</div>
     {% endif %}
+  </div>
+
+  <!-- Setup required banner (hidden by default) -->
+  <div id="setup-required-banner" style="display:none; padding: var(--space-3) var(--space-4); background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: var(--radius-md); margin: var(--space-3) var(--space-4); text-align:center;">
+    <div style="font-weight: 500; margin-bottom: var(--space-1);">This agent requires setup before you can chat</div>
+    <a id="setup-required-link" href="#" class="btn btn-primary btn-sm">Configure Agent</a>
   </div>
 
   <!-- Messages area -->
@@ -69,7 +78,7 @@
 
   <!-- Input form -->
   {% if agents and selected_agent_id %}
-  <div class="chat-input-area">
+  <div class="chat-input-area" id="chat-input-area">
     <form id="chat-form">
       <input type="hidden" name="agent_id" value="{{ selected_agent_id }}" />
       <input type="hidden" name="session_id" id="session-id-field" value="{{ session_id or '' }}" />

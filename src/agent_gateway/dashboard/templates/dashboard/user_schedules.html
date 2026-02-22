@@ -1,0 +1,447 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}My Schedules — {{ dashboard_title }}{% endblock %}
+{% block page_title %}My Schedules{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div class="page-title">My Schedules</div>
+  <div class="page-description">Personal cron schedules for your configured agents</div>
+</div>
+
+{% if user_schedules %}
+<div class="table-wrap" style="margin-bottom: var(--space-6);">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Agent</th>
+          <th>Schedule</th>
+          <th>Status</th>
+          <th>Message</th>
+          <th>Timezone</th>
+          <th>Notify</th>
+          <th>Last Run</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in user_schedules %}
+        <tr>
+          <td style="font-weight: 600;">{{ s.name }}</td>
+          <td>{{ agent_names.get(s.agent_id, s.agent_id) }}</td>
+          <td><code class="text-mono text-xs">{{ s.cron_expr }}</code></td>
+          <td>
+            {% if s.enabled %}
+              <span class="badge badge-green"><span class="status-dot"></span>Enabled</span>
+            {% else %}
+              <span class="badge badge-gray"><span class="status-dot"></span>Disabled</span>
+            {% endif %}
+          </td>
+          <td class="text-sm text-muted">{{ (s.message or "")[:60] }}{% if s.message and s.message | length > 60 %}…{% endif %}</td>
+          <td class="text-xs text-muted">{{ s.timezone }}</td>
+          <td class="text-xs text-muted">
+            {% if s.notify %}
+              <span class="badge badge-blue">On</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-xs text-muted">{{ relative_time(s.last_run_at) }}</td>
+          <td>
+            <div style="display:flex; gap: var(--space-1);">
+              <form method="POST" action="/dashboard/my-schedules/{{ s.id }}/toggle" style="display:inline;">
+                <button type="submit" class="btn btn-ghost btn-sm">
+                  {% if s.enabled %}Pause{% else %}Resume{% endif %}
+                </button>
+              </form>
+              <form method="POST" action="/dashboard/my-schedules/{{ s.id }}/delete" style="display:inline;"
+                    onsubmit="return confirm('Delete this schedule?')">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--color-danger-text);">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state" style="margin-bottom: var(--space-6);">
+  <div class="empty-icon">
+    <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="opacity:0.3;">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  </div>
+  <div class="empty-title">No personal schedules</div>
+  <div class="empty-desc">Create a schedule below to run agents on a cron schedule.</div>
+</div>
+{% endif %}
+
+{% if available_agents %}
+<div style="max-width: 40rem; margin-top: var(--space-4);">
+  <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: var(--space-3);">Add Schedule</h3>
+  <form method="POST" action="/dashboard/my-schedules" id="schedule-form">
+    <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label for="sched-agent" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Agent</label>
+      <select name="agent_id" id="sched-agent" class="input" style="width:100%;" required>
+        {% for agent in available_agents %}
+        <option value="{{ agent.id }}">{{ agent.display_name }}{% if agent.is_personal %} (personal){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label for="sched-name" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Name</label>
+      <input type="text" name="name" id="sched-name" class="input" style="width:100%;" required placeholder="e.g. Morning briefing" />
+    </div>
+
+    <!-- Schedule Builder -->
+    <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label class="form-label" style="display:block; margin-bottom: var(--space-2); font-weight:500;">Frequency</label>
+
+      <!-- Preset buttons -->
+      <div id="freq-presets" style="display:flex; flex-wrap:wrap; gap: var(--space-2); margin-bottom: var(--space-3);">
+        <button type="button" class="btn btn-ghost btn-sm freq-btn" data-freq="every-minutes">Every N minutes</button>
+        <button type="button" class="btn btn-ghost btn-sm freq-btn" data-freq="hourly">Hourly</button>
+        <button type="button" class="btn btn-ghost btn-sm freq-btn active" data-freq="daily">Daily</button>
+        <button type="button" class="btn btn-ghost btn-sm freq-btn" data-freq="weekly">Weekly</button>
+        <button type="button" class="btn btn-ghost btn-sm freq-btn" data-freq="monthly">Monthly</button>
+        <button type="button" class="btn btn-ghost btn-sm freq-btn" data-freq="custom">Custom cron</button>
+      </div>
+
+      <!-- Every N minutes options -->
+      <div id="freq-every-minutes" class="freq-options" style="display:none;">
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Run every</label>
+        <div style="display:flex; align-items:center; gap: var(--space-2);">
+          <select id="interval-minutes" class="input" style="width: 6rem;">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="15" selected>15</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+          </select>
+          <span class="text-sm text-muted">minutes</span>
+        </div>
+      </div>
+
+      <!-- Hourly options -->
+      <div id="freq-hourly" class="freq-options" style="display:none;">
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">At minute</label>
+        <select id="hourly-minute" class="input" style="width: 6rem;">
+          <option value="0">:00</option>
+          <option value="15">:15</option>
+          <option value="30">:30</option>
+          <option value="45">:45</option>
+        </select>
+      </div>
+
+      <!-- Daily options -->
+      <div id="freq-daily" class="freq-options">
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Time</label>
+        <div style="display:flex; align-items:center; gap: var(--space-2);">
+          <select id="daily-hour" class="input" style="width: 6rem;">
+            {% for h in range(24) %}
+            <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+            {% endfor %}
+          </select>
+          <select id="daily-minute" class="input" style="width: 6rem;">
+            <option value="0" selected>:00</option>
+            <option value="15">:15</option>
+            <option value="30">:30</option>
+            <option value="45">:45</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Weekly options -->
+      <div id="freq-weekly" class="freq-options" style="display:none;">
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Days</label>
+        <div id="weekday-picker" style="display:flex; gap: var(--space-1); margin-bottom: var(--space-2);">
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn" data-day="1">Mon</button>
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn active" data-day="2">Tue</button>
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn" data-day="3">Wed</button>
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn" data-day="4">Thu</button>
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn" data-day="5">Fri</button>
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn" data-day="6">Sat</button>
+          <button type="button" class="btn btn-ghost btn-sm weekday-btn" data-day="0">Sun</button>
+        </div>
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Time</label>
+        <div style="display:flex; align-items:center; gap: var(--space-2);">
+          <select id="weekly-hour" class="input" style="width: 6rem;">
+            {% for h in range(24) %}
+            <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+            {% endfor %}
+          </select>
+          <select id="weekly-minute" class="input" style="width: 6rem;">
+            <option value="0" selected>:00</option>
+            <option value="15">:15</option>
+            <option value="30">:30</option>
+            <option value="45">:45</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Monthly options -->
+      <div id="freq-monthly" class="freq-options" style="display:none;">
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Day of month</label>
+        <div style="display:flex; align-items:center; gap: var(--space-2); margin-bottom: var(--space-2);">
+          <select id="monthly-day" class="input" style="width: 6rem;">
+            {% for d in range(1, 29) %}
+            <option value="{{ d }}">{{ d }}{{ "st" if d == 1 else ("nd" if d == 2 else ("rd" if d == 3 else "th")) }}</option>
+            {% endfor %}
+          </select>
+          <span class="text-sm text-muted">of each month</span>
+        </div>
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Time</label>
+        <div style="display:flex; align-items:center; gap: var(--space-2);">
+          <select id="monthly-hour" class="input" style="width: 6rem;">
+            {% for h in range(24) %}
+            <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+            {% endfor %}
+          </select>
+          <select id="monthly-minute" class="input" style="width: 6rem;">
+            <option value="0" selected>:00</option>
+            <option value="15">:15</option>
+            <option value="30">:30</option>
+            <option value="45">:45</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Custom cron -->
+      <div id="freq-custom" class="freq-options" style="display:none;">
+        <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Cron expression</label>
+        <input type="text" id="custom-cron-input" class="input" style="width:100%; font-family: var(--font-mono, monospace);" placeholder="*/15 * * * *" />
+        <div class="text-xs text-muted" style="margin-top: var(--space-1);">Format: minute hour day-of-month month day-of-week</div>
+      </div>
+
+      <!-- Preview -->
+      <div id="cron-preview" style="margin-top: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--color-surface-alt, rgba(0,0,0,0.03)); border-radius: 6px; display:flex; align-items:center; gap: var(--space-2);">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="opacity:0.5; flex-shrink:0;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span class="text-sm"><strong>Cron:</strong> <code id="cron-display" class="text-mono">0 9 * * *</code></span>
+        <span class="text-sm text-muted" style="margin-left: var(--space-2);" id="cron-human">Every day at 09:00</span>
+      </div>
+    </div>
+
+    <!-- Hidden cron field submitted with form -->
+    <input type="hidden" name="cron_expr" id="cron-value" value="0 9 * * *" />
+
+    <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label for="sched-message" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Message</label>
+      <input type="text" name="schedule_message" id="sched-message" class="input" style="width:100%;" required placeholder="Generate my daily briefing" />
+    </div>
+
+    <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label for="sched-tz" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Timezone</label>
+      <select name="timezone" id="sched-tz" class="input" style="width:100%;">
+        <option value="UTC">UTC</option>
+        <option value="US/Eastern">US/Eastern</option>
+        <option value="US/Central">US/Central</option>
+        <option value="US/Mountain">US/Mountain</option>
+        <option value="US/Pacific">US/Pacific</option>
+        <option value="Europe/London">Europe/London</option>
+        <option value="Europe/Berlin">Europe/Berlin</option>
+        <option value="Europe/Paris">Europe/Paris</option>
+        <option value="Asia/Tokyo">Asia/Tokyo</option>
+        <option value="Asia/Shanghai">Asia/Shanghai</option>
+        <option value="Asia/Kolkata">Asia/Kolkata</option>
+        <option value="Australia/Sydney">Australia/Sydney</option>
+        <option value="Africa/Johannesburg">Africa/Johannesburg</option>
+        <option value="Africa/Harare">Africa/Harare</option>
+        <option value="Pacific/Auckland">Pacific/Auckland</option>
+      </select>
+    </div>
+
+    {% if notification_channels %}
+    <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label class="form-label" style="display:block; margin-bottom: var(--space-2); font-weight:500;">Notifications</label>
+      <label style="display:flex; align-items:center; gap: var(--space-2); cursor:pointer;">
+        <input type="checkbox" name="notify_enabled" id="notify-toggle" />
+        <span class="text-sm">Send notifications when this schedule runs</span>
+      </label>
+
+      <div id="notify-options" style="display:none; margin-top: var(--space-2); padding: var(--space-3); background: var(--color-surface-alt, rgba(0,0,0,0.03)); border-radius: 6px;">
+        <div style="margin-bottom: var(--space-2);">
+          <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Channel</label>
+          <select name="notify_channel" class="input" style="width:100%;">
+            {% for ch in notification_channels %}
+            <option value="{{ ch }}">{{ ch | capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="margin-bottom: var(--space-2);">
+          <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Target</label>
+          <input type="text" name="notify_target" class="input" style="width:100%;"
+                 placeholder="{% if 'slack' in notification_channels %}#channel-name{% else %}endpoint-name{% endif %}" />
+          <div class="text-xs text-muted" style="margin-top: 2px;">
+            {% if 'slack' in notification_channels %}Slack channel (e.g. #my-alerts){% else %}Notification target{% endif %}
+          </div>
+        </div>
+
+        <div style="display:flex; gap: var(--space-3);">
+          <label style="display:flex; align-items:center; gap: var(--space-1); cursor:pointer;">
+            <input type="checkbox" name="notify_on_complete" checked />
+            <span class="text-sm">On complete</span>
+          </label>
+          <label style="display:flex; align-items:center; gap: var(--space-1); cursor:pointer;">
+            <input type="checkbox" name="notify_on_error" checked />
+            <span class="text-sm">On error</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">Create Schedule</button>
+  </form>
+</div>
+
+<style>
+  .freq-btn.active,
+  .weekday-btn.active {
+    background: var(--color-primary, #6366f1) !important;
+    color: #fff !important;
+    border-color: var(--color-primary, #6366f1) !important;
+  }
+  .freq-btn:hover, .weekday-btn:hover {
+    background: var(--color-surface-hover, rgba(0,0,0,0.06));
+  }
+</style>
+
+<script>
+(function() {
+  const freqBtns = document.querySelectorAll('.freq-btn');
+  const freqPanels = document.querySelectorAll('.freq-options');
+  const cronValue = document.getElementById('cron-value');
+  const cronDisplay = document.getElementById('cron-display');
+  const cronHuman = document.getElementById('cron-human');
+  const weekdayBtns = document.querySelectorAll('.weekday-btn');
+
+  let currentFreq = 'daily';
+
+  function showPanel(freq) {
+    currentFreq = freq;
+    freqPanels.forEach(p => p.style.display = 'none');
+    const panel = document.getElementById('freq-' + freq);
+    if (panel) panel.style.display = '';
+    freqBtns.forEach(b => b.classList.toggle('active', b.dataset.freq === freq));
+    updateCron();
+  }
+
+  function getSelectedWeekdays() {
+    const days = [];
+    weekdayBtns.forEach(b => { if (b.classList.contains('active')) days.push(b.dataset.day); });
+    return days.length ? days : ['1']; // default Mon
+  }
+
+  function padTime(h, m) {
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  function dayName(d) {
+    return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][parseInt(d)];
+  }
+
+  function updateCron() {
+    let cron = '';
+    let human = '';
+
+    switch (currentFreq) {
+      case 'every-minutes': {
+        const mins = document.getElementById('interval-minutes').value;
+        cron = '*/' + mins + ' * * * *';
+        human = 'Every ' + mins + ' minutes';
+        break;
+      }
+      case 'hourly': {
+        const m = document.getElementById('hourly-minute').value;
+        cron = m + ' * * * *';
+        human = 'Every hour at :' + String(m).padStart(2, '0');
+        break;
+      }
+      case 'daily': {
+        const h = document.getElementById('daily-hour').value;
+        const m = document.getElementById('daily-minute').value;
+        cron = m + ' ' + h + ' * * *';
+        human = 'Every day at ' + padTime(h, m);
+        break;
+      }
+      case 'weekly': {
+        const h = document.getElementById('weekly-hour').value;
+        const m = document.getElementById('weekly-minute').value;
+        const days = getSelectedWeekdays();
+        cron = m + ' ' + h + ' * * ' + days.join(',');
+        const dayNames = days.map(dayName).join(', ');
+        human = 'Every ' + dayNames + ' at ' + padTime(h, m);
+        break;
+      }
+      case 'monthly': {
+        const h = document.getElementById('monthly-hour').value;
+        const m = document.getElementById('monthly-minute').value;
+        const d = document.getElementById('monthly-day').value;
+        cron = m + ' ' + h + ' ' + d + ' * *';
+        human = 'Day ' + d + ' of each month at ' + padTime(h, m);
+        break;
+      }
+      case 'custom': {
+        cron = document.getElementById('custom-cron-input').value || '* * * * *';
+        human = 'Custom expression';
+        break;
+      }
+    }
+
+    cronValue.value = cron;
+    cronDisplay.textContent = cron;
+    cronHuman.textContent = human;
+  }
+
+  // Frequency preset buttons
+  freqBtns.forEach(btn => {
+    btn.addEventListener('click', () => showPanel(btn.dataset.freq));
+  });
+
+  // Weekday toggle
+  weekdayBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('active');
+      updateCron();
+    });
+  });
+
+  // Bind change events on all selects/inputs inside freq panels
+  document.querySelectorAll('.freq-options select, .freq-options input').forEach(el => {
+    el.addEventListener('change', updateCron);
+    el.addEventListener('input', updateCron);
+  });
+
+  // Auto-detect timezone
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tzSelect = document.getElementById('sched-tz');
+    for (const opt of tzSelect.options) {
+      if (opt.value === tz) { opt.selected = true; break; }
+    }
+  } catch(e) {}
+
+  // Initial cron
+  updateCron();
+
+  // Notify toggle
+  const notifyToggle = document.getElementById('notify-toggle');
+  const notifyOptions = document.getElementById('notify-options');
+  if (notifyToggle && notifyOptions) {
+    notifyToggle.addEventListener('change', () => {
+      notifyOptions.style.display = notifyToggle.checked ? '' : 'none';
+    });
+  }
+})();
+</script>
+{% endif %}
+
+{% endblock %}

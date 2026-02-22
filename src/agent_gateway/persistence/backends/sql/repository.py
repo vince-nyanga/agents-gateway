@@ -18,6 +18,7 @@ from agent_gateway.persistence.domain import (
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
+    UserScheduleRecord,
 )
 
 
@@ -676,3 +677,56 @@ class UserAgentConfigRepository:
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+
+class UserScheduleRepository:
+    """CRUD operations for per-user schedules."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def create(self, record: UserScheduleRecord) -> None:
+        async with self._session_factory() as session:
+            session.add(record)
+            await session.commit()
+
+    async def get(self, schedule_id: str) -> UserScheduleRecord | None:
+        async with self._session_factory() as session:
+            return await session.get(UserScheduleRecord, schedule_id)
+
+    async def list_by_user(self, user_id: str) -> list[UserScheduleRecord]:
+        async with self._session_factory() as session:
+            stmt = select(UserScheduleRecord).where(
+                UserScheduleRecord.user_id == user_id  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def update_enabled(self, schedule_id: str, enabled: bool) -> None:
+        async with self._session_factory() as session:
+            record = await session.get(UserScheduleRecord, schedule_id)
+            if record is not None:
+                record.enabled = enabled
+                await session.commit()
+
+    async def update_last_run(
+        self,
+        schedule_id: str,
+        last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None:
+        async with self._session_factory() as session:
+            record = await session.get(UserScheduleRecord, schedule_id)
+            if record is not None:
+                record.last_run_at = last_run_at
+                record.next_run_at = next_run_at
+                await session.commit()
+
+    async def delete(self, schedule_id: str) -> bool:
+        async with self._session_factory() as session:
+            record = await session.get(UserScheduleRecord, schedule_id)
+            if record is None:
+                return False
+            await session.delete(record)
+            await session.commit()
+            return True

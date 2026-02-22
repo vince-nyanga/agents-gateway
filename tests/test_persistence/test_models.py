@@ -15,6 +15,7 @@ async def test_tables_created(db_engine: AsyncEngine):
     assert "execution_steps" in table_names
     assert "audit_log" in table_names
     assert "schedules" in table_names
+    assert "user_schedules" in table_names
 
 
 async def test_execution_columns(db_engine: AsyncEngine):
@@ -95,3 +96,13 @@ async def test_schedules_columns(db_engine: AsyncEngine):
         "created_at",
     }
     assert expected.issubset(columns)
+
+
+async def test_user_schedules_has_notify_column(db_engine: AsyncEngine):
+    """user_schedules table should have a notify column."""
+    async with db_engine.connect() as conn:
+        columns = await conn.run_sync(
+            lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("user_schedules")}
+        )
+
+    assert "notify" in columns

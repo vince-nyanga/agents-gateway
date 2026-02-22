@@ -14,6 +14,7 @@ from agent_gateway.persistence.domain import (
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
+    UserScheduleRecord,
 )
 
 
@@ -176,3 +177,25 @@ class UserAgentConfigRepository(Protocol):
     async def list_by_user(self, user_id: str) -> list[UserAgentConfig]: ...
 
     async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]: ...
+
+
+@runtime_checkable
+class UserScheduleRepository(Protocol):
+    """Interface for per-user schedule persistence."""
+
+    async def create(self, record: UserScheduleRecord) -> None: ...
+
+    async def get(self, schedule_id: str) -> UserScheduleRecord | None: ...
+
+    async def list_by_user(self, user_id: str) -> list[UserScheduleRecord]: ...
+
+    async def update_enabled(self, schedule_id: str, enabled: bool) -> None: ...
+
+    async def update_last_run(
+        self,
+        schedule_id: str,
+        last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None: ...
+
+    async def delete(self, schedule_id: str) -> bool: ...

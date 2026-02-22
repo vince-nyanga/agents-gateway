@@ -1,0 +1,117 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Setup {{ agent_name }} — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Agent Setup{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div class="page-title">
+    <a href="/dashboard/agents" class="btn btn-ghost btn-sm" style="margin-right: var(--space-2);">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+    </a>
+    Setup: {{ agent_name }}
+  </div>
+  <div class="page-description">Configure your personal settings for this agent</div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" style="margin-bottom: var(--space-4);">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success" style="margin-bottom: var(--space-4);">{{ success }}</div>
+{% endif %}
+
+<div style="max-width: 36rem;">
+  <form method="POST" action="/dashboard/agents/{{ agent_id }}/setup">
+    {% if setup_schema and setup_schema.properties %}
+    {% for prop_name, prop in setup_schema.properties.items() %}
+    <div class="form-group" style="margin-bottom: var(--space-4);">
+      <label for="field-{{ prop_name }}" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight: 500;">
+        {{ prop.get("title", prop_name) }}
+        {% if prop_name in required_fields %}<span style="color: var(--color-danger-text);">*</span>{% endif %}
+      </label>
+      {% if prop.description %}
+      <div class="text-sm text-muted" style="margin-bottom: var(--space-1);">{{ prop.description }}</div>
+      {% endif %}
+
+      {% set field_type = prop.get("type", "string") %}
+      {% set existing_val = existing_config.get(prop_name, "") %}
+      {% set is_secret = prop.get("sensitive", false) %}
+      {% set has_secret = prop_name in existing_secrets %}
+
+      {% if field_type == "boolean" %}
+      <label style="display:flex; align-items:center; gap: var(--space-2); cursor:pointer;">
+        <input type="checkbox" name="{{ prop_name }}" value="true" id="field-{{ prop_name }}"
+          {% if existing_val %}checked{% endif %} />
+        <span class="text-sm">Enable</span>
+      </label>
+
+      {% elif prop.get("enum") %}
+      <select name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;">
+        {% for opt in prop.enum %}
+        <option value="{{ opt }}" {% if existing_val == opt or (not existing_val and prop.get("default") == opt) %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+
+      {% elif is_secret %}
+      <input type="password" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
+        placeholder="{% if has_secret %}••••••••{% else %}Enter {{ prop.get('title', prop_name) }}{% endif %}"
+        {% if prop_name in required_fields and not has_secret %}required{% endif %} />
+      {% if has_secret %}
+      <div class="text-xs text-muted" style="margin-top: var(--space-1);">Leave blank to keep existing value</div>
+      {% endif %}
+
+      {% elif field_type in ("integer", "number") %}
+      <input type="number" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
+        value="{{ existing_val }}"
+        {% if prop_name in required_fields %}required{% endif %}
+        {% if prop.get("minimum") is not none %}min="{{ prop.minimum }}"{% endif %}
+        {% if prop.get("maximum") is not none %}max="{{ prop.maximum }}"{% endif %} />
+
+      {% elif field_type == "array" %}
+      <input type="text" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
+        value="{{ existing_val | join(', ') if existing_val is iterable and existing_val is not string else existing_val }}"
+        placeholder="Comma-separated values"
+        {% if prop_name in required_fields %}required{% endif %} />
+      <div class="text-xs text-muted" style="margin-top: var(--space-1);">Separate multiple values with commas</div>
+
+      {% else %}
+      <input type="text" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
+        value="{{ existing_val }}"
+        {% if prop_name in required_fields %}required{% endif %} />
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="text-muted" style="margin-bottom: var(--space-4);">This agent has no configurable fields.</div>
+    {% endif %}
+
+    <div class="form-group" style="margin-bottom: var(--space-4);">
+      <label for="field-instructions" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight: 500;">
+        Custom Instructions
+      </label>
+      <div class="text-sm text-muted" style="margin-bottom: var(--space-1);">Optional instructions to customize how this agent behaves for you</div>
+      <textarea name="instructions" id="field-instructions" class="input" rows="4" style="width:100%; resize:vertical;">{{ existing_instructions or "" }}</textarea>
+    </div>
+
+    <div style="display:flex; gap: var(--space-3); align-items:center;">
+      <button type="submit" class="btn btn-primary">Save Configuration</button>
+      <a href="/dashboard/agents" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+
+  {% if has_existing_config %}
+  <form method="POST" action="/dashboard/agents/{{ agent_id }}/setup/delete" style="margin-top: var(--space-4); text-align:right;">
+    <button type="submit" class="btn btn-ghost" style="color: var(--color-danger-text);"
+            onclick="return confirm('Delete your configuration for this agent?')">
+      Delete Configuration
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% endblock %}

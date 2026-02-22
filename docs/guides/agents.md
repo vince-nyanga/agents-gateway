@@ -128,6 +128,8 @@ setup_schema:
 | `GET` | `/v1/agents/{id}/config` | Get user config (secrets redacted) |
 | `DELETE` | `/v1/agents/{id}/config` | Remove user config |
 
+**Dashboard support:** Personal agents are fully supported in the dashboard. Agent cards show personal/configured status badges, and unconfigured personal agents link to a setup page with a dynamically-rendered form. See the [Dashboard guide](dashboard.md#personal-agents-in-the-dashboard) for details.
+
 ### Input schema
 
 Validate the input passed to the agent at invocation time using a [JSON Schema](https://json-schema.org/) object:

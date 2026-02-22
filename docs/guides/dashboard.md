@@ -32,7 +32,9 @@ The dashboard is mounted at `/dashboard`. Once enabled, open that path in your b
 | Conversations | `/dashboard/conversations` | List of conversation sessions across all agents. |
 | Conversation detail | `/dashboard/conversations/{id}` | Full message history for a session. |
 | Interactive chat | `/dashboard/chat` | Send messages to any agent and receive streaming responses over SSE. |
-| Schedules | `/dashboard/schedules` | View and manage cron-scheduled agent jobs. |
+| Schedules | `/dashboard/schedules` | View global and personal cron-scheduled agent jobs. |
+| My Schedules | `/dashboard/my-schedules` | Create and manage personal cron schedules. |
+| Agent Setup | `/dashboard/agents/{id}/setup` | Configure personal agents (secrets, preferences). |
 | Analytics | `/dashboard/analytics` | Cost and execution charts over time. Requires SQL persistence. |
 
 ## Authentication
@@ -132,6 +134,18 @@ dashboard:
 ```
 
 Each `*_dark` variant is applied when the UI is in dark mode.
+
+## Personal Agents in the Dashboard
+
+Agents with `scope: personal` are visually distinguished in the dashboard:
+
+- **Agent cards** show a purple "personal" badge, plus a green "configured" or amber "setup required" badge based on the current user's configuration status.
+- **Unconfigured personal agents** display a "Setup" button instead of "Chat", linking to the setup page.
+- **Setup page** (`/dashboard/agents/{id}/setup`) renders a dynamic form from the agent's `setup_schema`, with support for text inputs, password fields (for sensitive values), dropdowns (for enums), array inputs, and custom instructions.
+- **Chat page** blocks messaging to unconfigured personal agents and shows a setup banner.
+- **Schedules** page shows both global (agent-defined) and personal (user-created) schedules with visual badges. Users can create, toggle, and delete personal schedules from `/dashboard/my-schedules`.
+
+Personal agents require `AGENT_GATEWAY_SECRET_KEY` to be set for encrypting user secrets.
 
 ## Analytics
 

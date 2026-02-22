@@ -7,16 +7,20 @@
 
 <div class="page-header">
   <div class="page-title">Schedules</div>
-  <div class="page-description">Cron-based agent invocations</div>
+  <div class="page-description">
+    Cron-based agent invocations
+    <a href="/dashboard/my-schedules" class="btn btn-ghost btn-sm" style="margin-left: var(--space-3);">Manage My Schedules</a>
+  </div>
 </div>
 
-{% if schedules %}
+{% if schedules or user_schedules %}
 <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Name</th>
           <th>Agent</th>
+          <th>Type</th>
           <th>Cron</th>
           <th>Status</th>
           <th>Message</th>
@@ -30,6 +34,29 @@
         <tr>
           <td style="font-weight: 600;">{{ s.name }}</td>
           <td>{{ agent_names.get(s.agent_id, s.agent_id) }}</td>
+          <td><span class="badge badge-blue">Global</span></td>
+          <td><code class="text-mono text-xs">{{ s.cron_expr }}</code></td>
+          <td>
+            {% if s.enabled %}
+              <span class="badge badge-green"><span class="status-dot"></span>Enabled</span>
+            {% else %}
+              <span class="badge badge-gray"><span class="status-dot"></span>Disabled</span>
+            {% endif %}
+          </td>
+          <td class="text-sm text-muted">{{ (s.message or "")[:60] }}{% if s.message and s.message | length > 60 %}…{% endif %}</td>
+          <td class="text-xs text-muted">{{ s.timezone }}</td>
+          <td class="text-xs text-muted">{{ relative_time(s.last_run_at) }}</td>
+          <td class="text-xs text-muted">
+            {{ format_datetime(s.next_run_at) }}
+            {% if s.next_run_at %}<br><span class="text-mono" style="opacity:0.6;">{{ relative_time(s.next_run_at) }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% for s in user_schedules %}
+        <tr>
+          <td style="font-weight: 600;">{{ s.name }}</td>
+          <td>{{ agent_names.get(s.agent_id, s.agent_id) }}</td>
+          <td><span class="badge badge-purple">Personal</span></td>
           <td><code class="text-mono text-xs">{{ s.cron_expr }}</code></td>
           <td>
             {% if s.enabled %}
@@ -59,7 +86,7 @@
     </svg>
   </div>
   <div class="empty-title">No schedules configured</div>
-  <div class="empty-desc">Add <code>schedules:</code> to your agent's <code>AGENT.md</code> frontmatter to create cron-based invocations.</div>
+  <div class="empty-desc">Add <code>schedules:</code> to your agent's <code>AGENT.md</code> frontmatter or <a href="/dashboard/my-schedules">create a personal schedule</a>.</div>
 </div>
 {% endif %}
 

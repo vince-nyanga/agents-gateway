@@ -105,6 +105,25 @@ class UserAgentConfig:
 
 
 @dataclass
+class UserScheduleRecord:
+    """Per-user schedule for personal agent invocations."""
+
+    id: str
+    user_id: str
+    agent_id: str
+    name: str
+    cron_expr: str
+    message: str
+    input: dict[str, Any] | None = None
+    enabled: bool = True
+    timezone: str = "UTC"
+    notify: dict[str, Any] | None = None
+    last_run_at: datetime | None = None
+    next_run_at: datetime | None = None
+    created_at: datetime | None = None
+
+
+@dataclass
 class ConversationRecord:
     """A persisted conversation between a user and an agent."""
 

@@ -414,6 +414,61 @@ class SchedulerEngine:
             )
         return result
 
+    async def register_user_schedule(
+        self,
+        schedule_id: str,
+        agent_id: str,
+        cron_expr: str,
+        message: str,
+        input_data: dict[str, Any] | None = None,
+        timezone: str = "UTC",
+        enabled: bool = True,
+        notify: dict[str, Any] | None = None,
+    ) -> None:
+        """Register a per-user schedule as a cron job."""
+        if self._scheduler is None:
+            return
+
+        trigger = CronTrigger.from_crontab(cron_expr, timezone=timezone)
+
+        job_input = dict(input_data) if input_data else {}
+        job_input["source"] = "user_scheduled"
+        job_input["schedule_id"] = schedule_id
+        if notify:
+            job_input["_notify_config"] = notify
+
+        self._scheduler.add_job(
+            run_scheduled_job,
+            trigger=trigger,
+            id=schedule_id,
+            name=f"user-schedule:{schedule_id}",
+            kwargs={
+                "schedule_id": schedule_id,
+                "agent_id": agent_id,
+                "message": message,
+                "input": job_input,
+            },
+            replace_existing=True,
+            coalesce=self._config.coalesce,
+            misfire_grace_time=self._config.misfire_grace_seconds,
+            max_instances=1,
+        )
+
+        if not enabled:
+            self._scheduler.pause_job(schedule_id)
+
+        self._agent_map[schedule_id] = agent_id
+
+    async def remove_user_schedule(self, schedule_id: str) -> None:
+        """Remove a per-user schedule from APScheduler."""
+        import contextlib
+
+        if self._scheduler is None:
+            return
+        with contextlib.suppress(Exception):
+            self._scheduler.remove_job(schedule_id)
+        self._agent_map.pop(schedule_id, None)
+
     async def get_schedule(self, schedule_id: str) -> dict[str, Any] | None:
         """Get a single schedule with full details."""
         rec = await self._schedule_repo.get(schedule_id)

@@ -312,6 +312,7 @@ code, pre {
 .badge-red    { background: var(--color-danger-bg); color: var(--color-danger-text); }
 .badge-amber  { background: var(--color-warning-bg); color: var(--color-warning-text); }
 .badge-blue   { background: var(--color-info-bg); color: var(--color-info-text); }
+.badge-purple { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
 .badge-accent { background: var(--color-accent-muted); color: var(--color-accent-text); }
 
 .status-dot {

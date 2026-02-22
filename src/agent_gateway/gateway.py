@@ -53,6 +53,7 @@ from agent_gateway.persistence.null import (
     NullScheduleRepository,
     NullUserAgentConfigRepository,
     NullUserRepository,
+    NullUserScheduleRepository,
 )
 from agent_gateway.persistence.protocols import (
     AuditRepository,
@@ -61,6 +62,7 @@ from agent_gateway.persistence.protocols import (
     ScheduleRepository,
     UserAgentConfigRepository,
     UserRepository,
+    UserScheduleRepository,
 )
 from agent_gateway.queue.null import NullQueue
 from agent_gateway.queue.protocol import ExecutionQueue
@@ -137,6 +139,7 @@ class Gateway(FastAPI):
         self._user_repo: UserRepository = NullUserRepository()
         self._conversation_repo: ConversationRepository = NullConversationRepository()
         self._user_agent_config_repo: UserAgentConfigRepository = NullUserAgentConfigRepository()
+        self._user_schedule_repo: UserScheduleRepository = NullUserScheduleRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_cors_config: CorsConfig | None = None  # fluent API
@@ -326,6 +329,7 @@ class Gateway(FastAPI):
                 self._user_repo = backend.user_repo
                 self._conversation_repo = backend.conversation_repo
                 self._user_agent_config_repo = backend.user_agent_config_repo
+                self._user_schedule_repo = backend.user_schedule_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -2039,6 +2043,22 @@ class Gateway(FastAPI):
                 usage=result.usage.to_dict() if result.usage else None,
                 input=input,
             )
+
+            # Fire user-schedule notifications (embedded in input by scheduler)
+            if input and input.get("_notify_config"):
+                from agent_gateway.notifications.models import AgentNotificationConfig
+
+                user_notify = AgentNotificationConfig.from_dict(input["_notify_config"])
+                self.fire_notifications(
+                    execution_id=execution_id,
+                    agent_id=agent_id,
+                    status=result.stop_reason.value,
+                    message=message,
+                    config=user_notify,
+                    result=result.to_dict() if result.raw_text else None,
+                    usage=result.usage.to_dict() if result.usage else None,
+                    input=input,
+                )
 
             return result
         finally:

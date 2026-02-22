@@ -162,7 +162,20 @@ def register_dashboard(
         gw = request.app
         ws = gw.workspace
         agents = list(ws.agents.values()) if ws else []
-        cards = [AgentCard.from_definition(a) for a in agents]
+
+        # Fetch user configs for personal agent badges
+        user_configs_by_agent: dict[str, Any] = {}
+        if current_user.username and current_user.username != "anonymous":
+            try:
+                user_configs = await gw._user_agent_config_repo.list_by_user(current_user.username)
+                user_configs_by_agent = {uc.agent_id: uc for uc in user_configs}
+            except Exception:
+                logger.debug("Failed to fetch user configs for dashboard", exc_info=True)
+
+        cards = [
+            AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
+            for a in agents
+        ]
         workspace_errors = ws.errors if ws else []
 
         is_htmx = bool(request.headers.get("HX-Request"))
@@ -177,6 +190,176 @@ def register_dashboard(
                 "active_page": "agents",
             },
         )
+
+    @protected.get("/agents/{agent_id}/setup", response_class=HTMLResponse, response_model=None)
+    async def agent_setup_page(
+        request: Request,
+        agent_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> HTMLResponse | RedirectResponse:
+        gw = request.app
+        ws = gw.workspace
+        agent = ws.agents.get(agent_id) if ws else None
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        if agent.scope != "personal":
+            return RedirectResponse(url=f"/dashboard/chat?agent_id={agent_id}", status_code=303)
+
+        agent_name = agent.display_name or agent_id
+        setup_schema = agent.setup_schema or {}
+        required_fields = set(setup_schema.get("required", []))
+
+        # Load existing config
+        existing_config: dict[str, Any] = {}
+        existing_secrets: set[str] = set()
+        existing_instructions: str | None = None
+        has_existing_config = False
+
+        if current_user.username and current_user.username != "anonymous":
+            config = await gw._user_agent_config_repo.get(current_user.username, agent_id)
+            if config is not None:
+                has_existing_config = True
+                existing_config = dict(config.config_values)
+                existing_secrets = set(config.encrypted_secrets.keys())
+                existing_instructions = config.instructions
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/agent_setup.html",
+            context={
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "setup_schema": setup_schema,
+                "required_fields": required_fields,
+                "existing_config": existing_config,
+                "existing_secrets": existing_secrets,
+                "existing_instructions": existing_instructions,
+                "has_existing_config": has_existing_config,
+                "error": None,
+                "success": None,
+                "current_user": current_user,
+                "active_page": "agents",
+            },
+        )
+
+    @protected.post("/agents/{agent_id}/setup", response_class=HTMLResponse)
+    async def agent_setup_save(
+        request: Request,
+        agent_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> Any:
+        from datetime import UTC, datetime
+
+        from agent_gateway.persistence.domain import UserAgentConfig
+        from agent_gateway.secrets import encrypt_value, get_sensitive_fields
+
+        gw = request.app
+        ws = gw.workspace
+        agent = ws.agents.get(agent_id) if ws else None
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        user_id = current_user.username
+        if not user_id or user_id == "anonymous":
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        form_data = await request.form()
+        setup_schema = agent.setup_schema or {}
+        properties = setup_schema.get("properties", {})
+        sensitive_fields = get_sensitive_fields(setup_schema) if setup_schema else set()
+        required = set(setup_schema.get("required", []))
+
+        # Load existing config to preserve secrets not re-entered
+        existing = await gw._user_agent_config_repo.get(user_id, agent_id)
+        existing_encrypted = dict(existing.encrypted_secrets) if existing else {}
+
+        raw_instructions = form_data.get("instructions")
+        instructions = str(raw_instructions).strip() if raw_instructions else None
+        config_values: dict[str, Any] = {}
+        encrypted_secrets: dict[str, Any] = {}
+
+        for prop_name, prop in properties.items():
+            raw = form_data.get(prop_name, "")
+            raw_str = str(raw).strip() if raw else ""
+            prop_type = prop.get("type", "string")
+
+            if prop_name in sensitive_fields:
+                if raw_str:
+                    encrypted_secrets[prop_name] = encrypt_value(raw_str)
+                elif prop_name in existing_encrypted:
+                    encrypted_secrets[prop_name] = existing_encrypted[prop_name]
+            elif prop_type == "boolean":
+                config_values[prop_name] = raw_str == "true"
+            elif prop_type in ("integer", "number"):
+                if raw_str:
+                    try:
+                        config_values[prop_name] = (
+                            int(raw_str) if prop_type == "integer" else float(raw_str)
+                        )
+                    except ValueError:
+                        config_values[prop_name] = raw_str
+                elif prop_name not in required:
+                    pass  # skip optional empty numeric
+            elif prop_type == "array":
+                if raw_str:
+                    config_values[prop_name] = [v.strip() for v in raw_str.split(",") if v.strip()]
+                else:
+                    config_values[prop_name] = []
+            else:
+                if raw_str:
+                    config_values[prop_name] = raw_str
+
+        # Determine if setup is complete
+        provided = set(config_values.keys()) | set(encrypted_secrets.keys())
+        setup_completed = required.issubset(provided)
+
+        now = datetime.now(UTC)
+        config = UserAgentConfig(
+            user_id=user_id,
+            agent_id=agent_id,
+            instructions=instructions,
+            config_values=config_values,
+            encrypted_secrets=encrypted_secrets,
+            setup_completed=setup_completed,
+            created_at=existing.created_at if existing else now,
+            updated_at=now,
+        )
+        await gw._user_agent_config_repo.upsert(config)
+
+        if setup_completed:
+            return RedirectResponse(url=f"/dashboard/chat?agent_id={agent_id}", status_code=303)
+
+        # If not complete, show the form again with a message
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/agent_setup.html",
+            context={
+                "agent_id": agent_id,
+                "agent_name": agent.display_name or agent_id,
+                "setup_schema": setup_schema,
+                "required_fields": required,
+                "existing_config": config_values,
+                "existing_secrets": set(encrypted_secrets.keys()),
+                "existing_instructions": instructions,
+                "has_existing_config": True,
+                "error": "Some required fields are missing. Please complete all required fields.",
+                "success": None,
+                "current_user": current_user,
+                "active_page": "agents",
+            },
+        )
+
+    @protected.post("/agents/{agent_id}/setup/delete")
+    async def agent_setup_delete(
+        request: Request,
+        agent_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> RedirectResponse:
+        gw = request.app
+        user_id = current_user.username
+        if user_id and user_id != "anonymous":
+            await gw._user_agent_config_repo.delete(user_id, agent_id)
+        return RedirectResponse(url="/dashboard/agents", status_code=303)
 
     @protected.get("/executions", response_class=HTMLResponse)
     async def executions_page(
@@ -381,7 +564,20 @@ def register_dashboard(
         gw = request.app
         ws = gw.workspace
         agents = list(ws.agents.values()) if ws else []
-        agent_cards = [AgentCard.from_definition(a) for a in agents]
+
+        # Fetch user configs for personal agent status
+        user_configs_by_agent: dict[str, Any] = {}
+        if current_user.username and current_user.username != "anonymous":
+            try:
+                user_configs = await gw._user_agent_config_repo.list_by_user(current_user.username)
+                user_configs_by_agent = {uc.agent_id: uc for uc in user_configs}
+            except Exception:
+                logger.debug("Failed to fetch user configs for chat", exc_info=True)
+
+        agent_cards = [
+            AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
+            for a in agents
+        ]
         selected_agent_id = agent_id or (agents[0].id if agents else None)
         return templates.TemplateResponse(
             request=request,
@@ -433,6 +629,24 @@ def register_dashboard(
                 )
                 return
 
+            # Personal agent guard: check setup before streaming
+            user_instructions: str | None = None
+            if agent.scope == "personal":
+                if not user_id:
+                    err = {"message": "Auth required for personal agents"}
+                    yield f"event: error\ndata: {json.dumps(err)}\n\n"
+                    return
+                user_agent_config = await gw._user_agent_config_repo.get(user_id, agent_id)
+                if user_agent_config is None or not user_agent_config.setup_completed:
+                    setup_url = f"/dashboard/agents/{agent_id}/setup"
+                    err = {
+                        "message": "Setup required before chatting.",
+                        "setup_url": setup_url,
+                    }
+                    yield f"event: error\ndata: {json.dumps(err)}\n\n"
+                    return
+                user_instructions = user_agent_config.instructions
+
             session_store = gw._session_store
             if session_store is None:
                 yield (
@@ -460,6 +674,10 @@ def register_dashboard(
                 context_retrieval_config=snapshot.context_retrieval_config,
                 chat_mode=True,
             )
+
+            # Inject user instructions for personal agents
+            if user_instructions:
+                system_prompt = f"{system_prompt}\n\n## User Instructions\n{user_instructions}"
 
             # Inject memory context (user name + memories) into system prompt
             memory_block = await gw._get_memory_block(
@@ -531,6 +749,14 @@ def register_dashboard(
         schedule_repo = gw._schedule_repo
         records = await schedule_repo.list_all()
 
+        # Fetch user's personal schedules
+        user_schedules: list[Any] = []
+        if current_user.username and current_user.username != "anonymous":
+            try:
+                user_schedules = await gw._user_schedule_repo.list_by_user(current_user.username)
+            except Exception:
+                logger.debug("Failed to fetch user schedules", exc_info=True)
+
         ws = gw.workspace
         agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
 
@@ -539,11 +765,181 @@ def register_dashboard(
             name="dashboard/schedules.html",
             context={
                 "schedules": records,
+                "user_schedules": user_schedules,
                 "agent_names": agent_names,
                 "current_user": current_user,
                 "active_page": "schedules",
             },
         )
+
+    @protected.get("/my-schedules", response_class=HTMLResponse)
+    async def my_schedules_page(
+        request: Request,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> HTMLResponse:
+        gw = request.app
+        user_id = current_user.username
+        if not user_id or user_id == "anonymous":
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        user_schedules = await gw._user_schedule_repo.list_by_user(user_id)
+
+        ws = gw.workspace
+        agents = list(ws.agents.values()) if ws else []
+        agent_names = {a.id: (a.display_name or a.id) for a in agents}
+
+        # Only show configured personal agents for the add form
+        user_configs_by_agent: dict[str, Any] = {}
+        try:
+            user_configs = await gw._user_agent_config_repo.list_by_user(user_id)
+            user_configs_by_agent = {uc.agent_id: uc for uc in user_configs}
+        except Exception:
+            pass
+
+        available_agents = [
+            AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
+            for a in agents
+            if a.scope != "personal"
+            or (
+                user_configs_by_agent.get(a.id) is not None
+                and getattr(user_configs_by_agent.get(a.id), "setup_completed", False)
+            )
+        ]
+
+        # Expose available notification backends for the form
+        import contextlib
+
+        notification_channels: list[str] = []
+        with contextlib.suppress(Exception):
+            notification_channels = list(gw._notification_engine._backends.keys())
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/user_schedules.html",
+            context={
+                "user_schedules": user_schedules,
+                "agent_names": agent_names,
+                "available_agents": available_agents,
+                "notification_channels": notification_channels,
+                "current_user": current_user,
+                "active_page": "my-schedules",
+            },
+        )
+
+    @protected.post("/my-schedules")
+    async def create_user_schedule(
+        request: Request,
+        agent_id: str = Form(...),
+        name: str = Form(...),
+        cron_expr: str = Form(...),
+        schedule_message: str = Form(...),
+        timezone: str = Form("UTC"),
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> RedirectResponse:
+        import uuid
+
+        from agent_gateway.persistence.domain import UserScheduleRecord
+
+        gw = request.app
+        user_id = current_user.username
+        if not user_id or user_id == "anonymous":
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        # Validate cron expression
+        from apscheduler.triggers.cron import CronTrigger
+
+        try:
+            CronTrigger.from_crontab(cron_expr, timezone=timezone)
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid cron expression") from exc
+
+        from datetime import UTC, datetime
+
+        # Build notify config from form data
+        form_data = await request.form()
+        notify: dict[str, Any] | None = None
+        if form_data.get("notify_enabled") == "on":
+            targets: list[dict[str, Any]] = []
+            notify_channel = str(form_data.get("notify_channel", "slack"))
+            notify_target = str(form_data.get("notify_target", "")).strip()
+            if notify_channel and notify_target:
+                targets.append({"channel": notify_channel, "target": notify_target})
+            if targets:
+                on_complete = targets if form_data.get("notify_on_complete") == "on" else []
+                on_error = targets if form_data.get("notify_on_error") == "on" else []
+                notify = {
+                    "on_complete": [t for t in on_complete],
+                    "on_error": [t for t in on_error],
+                    "on_timeout": [],
+                }
+
+        schedule_id = f"user:{user_id}:{agent_id}:{str(uuid.uuid4())[:8]}"
+        record = UserScheduleRecord(
+            id=schedule_id,
+            user_id=user_id,
+            agent_id=agent_id,
+            name=name,
+            cron_expr=cron_expr,
+            message=schedule_message,
+            enabled=True,
+            timezone=timezone,
+            notify=notify,
+            created_at=datetime.now(UTC),
+        )
+        await gw._user_schedule_repo.create(record)
+
+        # Register with scheduler if available
+        if gw._scheduler is not None:
+            await gw._scheduler.register_user_schedule(
+                schedule_id=schedule_id,
+                agent_id=agent_id,
+                cron_expr=cron_expr,
+                message=schedule_message,
+                timezone=timezone,
+                notify=notify,
+            )
+
+        return RedirectResponse(url="/dashboard/my-schedules", status_code=303)
+
+    @protected.post("/my-schedules/{schedule_id}/toggle")
+    async def toggle_user_schedule(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> RedirectResponse:
+        gw = request.app
+        user_id = current_user.username
+        record = await gw._user_schedule_repo.get(schedule_id)
+        if record is None or record.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        new_enabled = not record.enabled
+        await gw._user_schedule_repo.update_enabled(schedule_id, new_enabled)
+        if gw._scheduler is not None:
+            if new_enabled:
+                await gw._scheduler.resume(schedule_id)
+            else:
+                await gw._scheduler.pause(schedule_id)
+
+        return RedirectResponse(url="/dashboard/my-schedules", status_code=303)
+
+    @protected.post("/my-schedules/{schedule_id}/delete")
+    async def delete_user_schedule(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> RedirectResponse:
+        gw = request.app
+        user_id = current_user.username
+        record = await gw._user_schedule_repo.get(schedule_id)
+        if record is None or record.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        await gw._user_schedule_repo.delete(schedule_id)
+        if gw._scheduler is not None:
+            await gw._scheduler.remove_user_schedule(schedule_id)
+
+        return RedirectResponse(url="/dashboard/my-schedules", status_code=303)
 
     @protected.get("/analytics", response_class=HTMLResponse)
     async def analytics_page(

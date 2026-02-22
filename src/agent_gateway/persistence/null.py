@@ -17,6 +17,7 @@ from agent_gateway.persistence.domain import (
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
+    UserScheduleRecord,
 )
 
 _EMPTY_ANALYTICS: list[dict[str, Any]] = []
@@ -235,3 +236,30 @@ class NullUserAgentConfigRepository:
 
     async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]:
         return []
+
+
+class NullUserScheduleRepository:
+    """No-op user schedule repository — used when persistence is disabled."""
+
+    async def create(self, record: UserScheduleRecord) -> None:
+        pass
+
+    async def get(self, schedule_id: str) -> UserScheduleRecord | None:
+        return None
+
+    async def list_by_user(self, user_id: str) -> list[UserScheduleRecord]:
+        return []
+
+    async def update_enabled(self, schedule_id: str, enabled: bool) -> None:
+        pass
+
+    async def update_last_run(
+        self,
+        schedule_id: str,
+        last_run_at: datetime,
+        next_run_at: datetime | None,
+    ) -> None:
+        pass
+
+    async def delete(self, schedule_id: str) -> bool:
+        return False

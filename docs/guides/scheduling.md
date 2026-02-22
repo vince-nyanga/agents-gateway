@@ -102,3 +102,16 @@ agents-gateway schedules
 ```
 
 Output shows each schedule's ID, cron expression, timezone, enabled state, and next fire time.
+
+## Per-User Schedules
+
+In addition to global schedules defined in `AGENT.md`, users can create personal schedules from the dashboard. These schedules:
+
+- Are scoped to a specific user and stored in the `user_schedules` table
+- Can target any agent the user has access to (including configured personal agents)
+- Are managed via the dashboard at `/dashboard/my-schedules`
+- Support creating, toggling (pause/resume), and deleting schedules
+- Use the same cron expression format as global schedules
+- Appear on the main schedules page with a "Personal" badge alongside global schedules
+
+Per-user schedules require SQL persistence to be enabled.

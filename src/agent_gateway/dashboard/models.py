@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from agent_gateway.persistence.domain import ExecutionRecord, ExecutionStep
+from agent_gateway.persistence.domain import ExecutionRecord, ExecutionStep, UserAgentConfig
 from agent_gateway.workspace.agent import AgentDefinition
 
 
@@ -22,12 +22,20 @@ class AgentCard:
     has_memory: bool
     has_schedules: bool
     initials: str  # 2-char avatar initials
+    scope: str = "global"
+    is_personal: bool = False
+    user_configured: bool = False
 
     @classmethod
-    def from_definition(cls, agent: AgentDefinition) -> AgentCard:
+    def from_definition(
+        cls,
+        agent: AgentDefinition,
+        user_config: UserAgentConfig | None = None,
+    ) -> AgentCard:
         name = agent.display_name or agent.id
         words = name.replace("-", " ").replace("_", " ").split()
         initials = (words[0][0] + (words[1][0] if len(words) > 1 else words[0][1])).upper()
+        is_personal = agent.scope == "personal"
         return cls(
             id=agent.id,
             display_name=name,
@@ -39,6 +47,9 @@ class AgentCard:
             has_memory=agent.memory_config.enabled if agent.memory_config else False,
             has_schedules=len(agent.schedules) > 0,
             initials=initials[:2] if len(initials) >= 2 else initials.ljust(2, "?"),
+            scope=agent.scope,
+            is_personal=is_personal,
+            user_configured=user_config.setup_completed if user_config else False,
         )
 
 

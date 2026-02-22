@@ -166,6 +166,15 @@ class WorkerPool:
         if notify_args is not None:
             gw.fire_notifications(**notify_args)
 
+            # Fire user-schedule notifications (embedded in input by scheduler)
+            job_input = notify_args.get("input") or {}
+            if job_input.get("_notify_config"):
+                from agent_gateway.notifications.models import AgentNotificationConfig
+
+                user_notify = AgentNotificationConfig.from_dict(job_input["_notify_config"])
+                user_args = {**notify_args, "config": user_notify}
+                gw.fire_notifications(**user_args)
+
         # Notify scheduler that a scheduled execution completed
         if job.schedule_id:
             scheduler = gw._scheduler

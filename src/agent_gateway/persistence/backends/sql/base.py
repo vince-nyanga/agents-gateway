@@ -38,6 +38,7 @@ from agent_gateway.persistence.domain import (
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
+    UserScheduleRecord,
 )
 
 if TYPE_CHECKING:
@@ -48,6 +49,7 @@ if TYPE_CHECKING:
         ScheduleRepository,
         UserAgentConfigRepository,
         UserRepository,
+        UserScheduleRepository,
     )
 
 logger = logging.getLogger(__name__)
@@ -224,6 +226,26 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Index(f"ix_{prefix}user_agent_configs_agent_id", "agent_id"),
     )
 
+    user_schedules = Table(
+        f"{prefix}user_schedules",
+        metadata,
+        Column("id", String, primary_key=True),
+        Column("user_id", String, nullable=False),
+        Column("agent_id", String, nullable=False),
+        Column("name", String, nullable=False),
+        Column("cron_expr", String, nullable=False),
+        Column("message", Text, nullable=False),
+        Column("input", JSON),
+        Column("enabled", Boolean, default=True),
+        Column("timezone", String, default="UTC"),
+        Column("notify", JSON, nullable=True),
+        Column("last_run_at", DateTime(timezone=True)),
+        Column("next_run_at", DateTime(timezone=True)),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Index(f"ix_{prefix}user_schedules_user_id", "user_id"),
+        Index(f"ix_{prefix}user_schedules_user_agent", "user_id", "agent_id"),
+    )
+
     return {
         "executions": executions,
         "execution_steps": execution_steps,
@@ -234,6 +256,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         "conversation_messages": conversation_messages,
         "memories": memories,
         "user_agent_configs": user_agent_configs,
+        "user_schedules": user_schedules,
     }
 
 
@@ -299,6 +322,8 @@ def configure_mappers(mapper_registry: registry, tables: dict[str, Table]) -> No
 
     mapper_registry.map_imperatively(UserAgentConfig, tables["user_agent_configs"])
 
+    mapper_registry.map_imperatively(UserScheduleRecord, tables["user_schedules"])
+
 
 class SqlBackend:
     """Base class for SQL persistence backends.
@@ -346,6 +371,9 @@ class SqlBackend:
         from agent_gateway.persistence.backends.sql.repository import (
             UserRepository as UserRepo,
         )
+        from agent_gateway.persistence.backends.sql.repository import (
+            UserScheduleRepository as UserSchedRepo,
+        )
 
         self._execution_repo: ExecutionRepository = ExecRepo(self._session_factory)
         self._audit_repo: AuditRepository = AuditRepo(self._session_factory)
@@ -355,6 +383,7 @@ class SqlBackend:
         self._user_agent_config_repo: UserAgentConfigRepository = UserAgentConfigRepo(
             self._session_factory
         )
+        self._user_schedule_repo: UserScheduleRepository = UserSchedRepo(self._session_factory)
 
     async def initialize(self) -> None:
         """Apply database migrations. Falls back to create_all for prefixed tables."""
@@ -406,3 +435,7 @@ class SqlBackend:
     @property
     def user_agent_config_repo(self) -> UserAgentConfigRepository:
         return self._user_agent_config_repo
+
+    @property
+    def user_schedule_repo(self) -> UserScheduleRepository:
+        return self._user_schedule_repo

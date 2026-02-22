@@ -171,7 +171,13 @@ async function sendChatMessage(form) {
             field.value = event.data.session_id;
           }
         } else if (event.type === 'error') {
-          bubbleContent.textContent = event.data.message || 'An error occurred';
+          const errMsg = event.data.message || 'An error occurred';
+          if (event.data.setup_url) {
+            bubbleContent.innerHTML = escapeHtml(errMsg) +
+              ' <a href="' + escapeHtml(event.data.setup_url) + '" class="btn btn-primary btn-sm" style="margin-left:var(--space-2)">Setup</a>';
+          } else {
+            bubbleContent.textContent = errMsg;
+          }
           bubble.classList.add('message-error');
         }
       }
@@ -290,11 +296,37 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// --- Agent selector in chat: update hidden input and reload page ---
+// --- Agent selector in chat: update hidden input and handle personal agents ---
+function updateChatForAgent(selector) {
+  const selected = selector.options[selector.selectedIndex];
+  if (!selected) return;
+
+  const isPersonal = selected.dataset.personal === 'true';
+  const isConfigured = selected.dataset.configured === 'true';
+  const banner = document.getElementById('setup-required-banner');
+  const inputArea = document.getElementById('chat-input-area');
+  const setupLink = document.getElementById('setup-required-link');
+
+  if (isPersonal && !isConfigured) {
+    if (banner) banner.style.display = 'block';
+    if (inputArea) inputArea.style.display = 'none';
+    if (setupLink) setupLink.href = '/dashboard/agents/' + selected.value + '/setup';
+  } else {
+    if (banner) banner.style.display = 'none';
+    if (inputArea) inputArea.style.display = '';
+  }
+}
+
 document.addEventListener('change', (e) => {
   if (e.target && e.target.id === 'agent-selector') {
     const url = new URL(window.location.href);
     url.searchParams.set('agent_id', e.target.value);
     window.location.href = url.toString();
   }
+});
+
+// Check personal agent status on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const selector = document.getElementById('agent-selector');
+  if (selector) updateChatForAgent(selector);
 });
