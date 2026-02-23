@@ -1,39 +1,5 @@
-<!-- Summary stats -->
-<div class="stats-strip">
-  <div class="stat-card">
-    <div class="stat-label">Total Cost</div>
-    <div class="stat-value">{{ format_cost(summary.total_cost_usd) }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Executions</div>
-    <div class="stat-value">{{ "{:,}".format(summary.total_executions) }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Success Rate</div>
-    <div class="stat-value">{{ "%.0f" | format(summary.success_rate) }}%</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Period</div>
-    <div class="stat-value">{{ summary.days }}d</div>
-  </div>
-</div>
-
 <!-- Charts grid -->
-<div class="charts-grid">
-
-  <!-- Cost over time -->
-  <div class="chart-card">
-    <div class="chart-title">Cost Over Time</div>
-    {% if summary.cost_by_day %}
-    <div class="chart-container">
-      <canvas id="chart-cost"></canvas>
-    </div>
-    {% else %}
-    <div class="empty-state" style="padding: var(--space-8) 0;">
-      <div class="empty-desc">No cost data for the selected period.</div>
-    </div>
-    {% endif %}
-  </div>
+<div class="charts-grid" id="analytics-charts-grid">
 
   <!-- Executions over time -->
   <div class="chart-card">
@@ -45,6 +11,20 @@
     {% else %}
     <div class="empty-state" style="padding: var(--space-8) 0;">
       <div class="empty-desc">No execution data for the selected period.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Cost over time -->
+  <div class="chart-card">
+    <div class="chart-title">Cost Over Time</div>
+    {% if summary.cost_by_day %}
+    <div class="chart-container">
+      <canvas id="chart-cost"></canvas>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: var(--space-8) 0;">
+      <div class="empty-desc">No cost data for the selected period.</div>
     </div>
     {% endif %}
   </div>
@@ -93,20 +73,20 @@
       if (existing) existing.destroy();
     });
 
-    // Cost over time
-    {% if summary.cost_by_day %}
-    initCostChart('chart-cost',
-      {{ summary.cost_by_day | map(attribute='day') | list | tojson }},
-      {{ summary.cost_by_day | map(attribute='total_cost_usd') | list | tojson }}
-    );
-    {% endif %}
-
     // Executions per day
     {% if summary.executions_by_day %}
     initExecutionsChart('chart-executions',
       {{ summary.executions_by_day | map(attribute='day') | list | tojson }},
       {{ summary.executions_by_day | map(attribute='success_count') | list | tojson }},
       {{ summary.executions_by_day | map(attribute='failed_count') | list | tojson }}
+    );
+    {% endif %}
+
+    // Cost over time
+    {% if summary.cost_by_day %}
+    initCostChart('chart-cost',
+      {{ summary.cost_by_day | map(attribute='day') | list | tojson }},
+      {{ summary.cost_by_day | map(attribute='total_cost_usd') | list | tojson }}
     );
     {% endif %}
 

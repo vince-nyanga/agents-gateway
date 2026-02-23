@@ -32,7 +32,7 @@
               dark: '#0d7ff2',
             },
             background: {
-              dark: '#0b0f1a',
+              dark: '#101922',
               surface: '#161b26',
             },
             border: {
@@ -86,11 +86,7 @@
       </div>
     </div>
 
-    <nav class="flex-1 px-4 space-y-1.5 sidebar-nav">
-      <div class="px-3 mt-6 mb-2">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 opacity-50">Monitor</p>
-      </div>
-
+    <nav class="flex-1 px-4 space-y-1 sidebar-nav pt-4">
       <a href="/dashboard/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'agents' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'agents' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">smart_toy</span>
         <span class="text-sm font-semibold">Agents</span>
@@ -115,10 +111,6 @@
         <span class="material-symbols-outlined text-xl {% if active_page == 'analytics' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">bar_chart</span>
         <span class="text-sm font-semibold">Analytics</span>
       </a>
-
-      <div class="px-3 mt-8 mb-2">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 opacity-50">Personal</p>
-      </div>
 
       <a href="/dashboard/chat" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'chat' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'chat' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">chat_bubble</span>

@@ -4,114 +4,228 @@
 {% block page_title %}Agent Setup{% endblock %}
 
 {% block content %}
+<div class="px-8 py-6 max-w-3xl">
 
-<div class="page-header">
-  <div class="page-title">
-    <a href="/dashboard/agents" class="btn btn-ghost btn-sm" style="margin-right: var(--space-2);">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
+  <!-- Back + Header -->
+  <div class="mb-6">
+    <a href="/dashboard/agents" class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white transition-colors mb-3">
+      <span class="material-symbols-outlined text-sm">arrow_back</span>
+      Back to Agents
     </a>
-    Setup: {{ agent_name }}
+    <h1 class="text-2xl font-bold text-white tracking-tight">Configure Agent</h1>
+    <p class="text-slate-400 text-sm mt-1">Personalize your settings for <span class="text-white font-semibold">{{ agent_name }}</span></p>
   </div>
-  <div class="page-description">Configure your personal settings for this agent</div>
-</div>
 
-{% if error %}
-<div class="alert alert-danger" style="margin-bottom: var(--space-4);">{{ error }}</div>
-{% endif %}
+  {% if error %}
+  <div class="p-4 mb-5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex gap-3">
+    <span class="material-symbols-outlined text-rose-500 flex-shrink-0">error</span>
+    <span class="text-sm">{{ error }}</span>
+  </div>
+  {% endif %}
 
-{% if success %}
-<div class="alert alert-success" style="margin-bottom: var(--space-4);">{{ success }}</div>
-{% endif %}
+  {% if success %}
+  <div class="p-4 mb-5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 flex gap-3">
+    <span class="material-symbols-outlined text-emerald-500 flex-shrink-0">check_circle</span>
+    <span class="text-sm">{{ success }}</span>
+  </div>
+  {% endif %}
 
-<div style="max-width: 36rem;">
-  <form method="POST" action="/dashboard/agents/{{ agent_id }}/setup">
-    {% if setup_schema and setup_schema.properties %}
-    {% for prop_name, prop in setup_schema.properties.items() %}
-    <div class="form-group" style="margin-bottom: var(--space-4);">
-      <label for="field-{{ prop_name }}" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight: 500;">
-        {{ prop.get("title", prop_name) }}
-        {% if prop_name in required_fields %}<span style="color: var(--color-danger-text);">*</span>{% endif %}
-      </label>
-      {% if prop.description %}
-      <div class="text-sm text-muted" style="margin-bottom: var(--space-1);">{{ prop.description }}</div>
-      {% endif %}
+  <form method="POST" action="/dashboard/agents/{{ agent_id }}/setup" id="setup-form">
 
-      {% set field_type = prop.get("type", "string") %}
-      {% set existing_val = existing_config.get(prop_name, "") %}
-      {% set is_secret = prop.get("sensitive", false) %}
-      {% set has_secret = prop_name in existing_secrets %}
-
-      {% if field_type == "boolean" %}
-      <label style="display:flex; align-items:center; gap: var(--space-2); cursor:pointer;">
-        <input type="checkbox" name="{{ prop_name }}" value="true" id="field-{{ prop_name }}"
-          {% if existing_val %}checked{% endif %} />
-        <span class="text-sm">Enable</span>
-      </label>
-
-      {% elif prop.get("enum") %}
-      <select name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;">
-        {% for opt in prop.enum %}
-        <option value="{{ opt }}" {% if existing_val == opt or (not existing_val and prop.get("default") == opt) %}selected{% endif %}>{{ opt }}</option>
-        {% endfor %}
-      </select>
-
-      {% elif is_secret %}
-      <input type="password" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
-        placeholder="{% if has_secret %}••••••••{% else %}Enter {{ prop.get('title', prop_name) }}{% endif %}"
-        {% if prop_name in required_fields and not has_secret %}required{% endif %} />
-      {% if has_secret %}
-      <div class="text-xs text-muted" style="margin-top: var(--space-1);">Leave blank to keep existing value</div>
-      {% endif %}
-
-      {% elif field_type in ("integer", "number") %}
-      <input type="number" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
-        value="{{ existing_val }}"
-        {% if prop_name in required_fields %}required{% endif %}
-        {% if prop.get("minimum") is not none %}min="{{ prop.minimum }}"{% endif %}
-        {% if prop.get("maximum") is not none %}max="{{ prop.maximum }}"{% endif %} />
-
-      {% elif field_type == "array" %}
-      <input type="text" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
-        value="{{ existing_val | join(', ') if existing_val is iterable and existing_val is not string else existing_val }}"
-        placeholder="Comma-separated values"
-        {% if prop_name in required_fields %}required{% endif %} />
-      <div class="text-xs text-muted" style="margin-top: var(--space-1);">Separate multiple values with commas</div>
-
-      {% else %}
-      <input type="text" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input" style="width:100%;"
-        value="{{ existing_val }}"
-        {% if prop_name in required_fields %}required{% endif %} />
-      {% endif %}
+    <!-- Agent Identity Card (read-only) -->
+    <div class="bg-surface border border-border-dark rounded-xl p-5 mb-5">
+      <h2 class="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Agent Identity</h2>
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-xl bg-surface-2 border border-border-dark flex items-center justify-center text-primary font-bold text-xl flex-shrink-0">
+          {{ agent_name[0].upper() if agent_name else 'A' }}
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">{{ agent_name }}</h3>
+          <p class="text-xs text-slate-500">Agent ID: <span class="font-mono text-slate-400">{{ agent_id }}</span></p>
+        </div>
+      </div>
     </div>
-    {% endfor %}
+
+    <!-- Agent Configuration Fields -->
+    {% if setup_schema and setup_schema.properties %}
+    <div class="bg-surface border border-border-dark rounded-xl p-5 mb-5">
+      <h2 class="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Configuration</h2>
+      <div class="space-y-4">
+        {% for prop_name, prop in setup_schema.properties.items() %}
+        <div>
+          <label for="field-{{ prop_name }}" class="block text-sm font-medium text-slate-300 mb-1">
+            {{ prop.get("title", prop_name) }}
+            {% if prop_name in required_fields %}<span class="text-rose-500 ml-0.5">*</span>{% endif %}
+          </label>
+          {% if prop.description %}
+          <p class="text-xs text-slate-500 mb-1.5">{{ prop.description }}</p>
+          {% endif %}
+
+          {% set field_type = prop.get("type", "string") %}
+          {% set existing_val = existing_config.get(prop_name, "") %}
+          {% set is_secret = prop.get("sensitive", false) %}
+          {% set has_secret = prop_name in existing_secrets %}
+
+          {% if field_type == "boolean" %}
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="{{ prop_name }}" value="true" id="field-{{ prop_name }}"
+              {% if existing_val %}checked{% endif %}
+              class="w-4 h-4 accent-primary rounded" />
+            <span class="text-sm text-slate-300">Enable</span>
+          </label>
+
+          {% elif prop.get("enum") %}
+          <select name="{{ prop_name }}" id="field-{{ prop_name }}" class="input w-full">
+            {% for opt in prop.enum %}
+            <option value="{{ opt }}" {% if existing_val == opt or (not existing_val and prop.get("default") == opt) %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+
+          {% elif is_secret %}
+          <input type="password" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input w-full"
+            placeholder="{% if has_secret %}Leave blank to keep existing value{% else %}Enter {{ prop.get('title', prop_name) }}{% endif %}"
+            {% if prop_name in required_fields and not has_secret %}required{% endif %} />
+          {% if has_secret %}
+          <p class="text-xs text-slate-500 mt-1">Leave blank to keep existing value</p>
+          {% endif %}
+
+          {% elif field_type in ("integer", "number") %}
+          <input type="number" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input w-full"
+            value="{{ existing_val }}"
+            {% if prop_name in required_fields %}required{% endif %}
+            {% if prop.get("minimum") is not none %}min="{{ prop.minimum }}"{% endif %}
+            {% if prop.get("maximum") is not none %}max="{{ prop.maximum }}"{% endif %} />
+
+          {% elif field_type == "array" %}
+          <input type="text" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input w-full"
+            value="{{ existing_val | join(', ') if existing_val is iterable and existing_val is not string else existing_val }}"
+            placeholder="Comma-separated values"
+            {% if prop_name in required_fields %}required{% endif %} />
+          <p class="text-xs text-slate-500 mt-1">Separate multiple values with commas</p>
+
+          {% else %}
+          <input type="text" name="{{ prop_name }}" id="field-{{ prop_name }}" class="input w-full"
+            value="{{ existing_val }}"
+            {% if prop_name in required_fields %}required{% endif %} />
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
     {% else %}
-    <div class="text-muted" style="margin-bottom: var(--space-4);">This agent has no configurable fields.</div>
+    <div class="bg-surface border border-border-dark rounded-xl p-5 mb-5">
+      <p class="text-sm text-slate-500">This agent has no configurable fields.</p>
+    </div>
     {% endif %}
 
-    <div class="form-group" style="margin-bottom: var(--space-4);">
-      <label for="field-instructions" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight: 500;">
-        Custom Instructions
-      </label>
-      <div class="text-sm text-muted" style="margin-bottom: var(--space-1);">Optional instructions to customize how this agent behaves for you</div>
-      <textarea name="instructions" id="field-instructions" class="input" rows="4" style="width:100%; resize:vertical;">{{ existing_instructions or "" }}</textarea>
+    <!-- System Instructions Card -->
+    <div class="bg-surface border border-border-dark rounded-xl p-5 mb-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider">System Instructions</h2>
+        <span id="instructions-char-count" class="text-xs text-slate-500">0 chars</span>
+      </div>
+      <p class="text-xs text-slate-500 mb-3">Optional instructions to customize how this agent behaves for you.</p>
+      <textarea
+        name="instructions"
+        id="field-instructions"
+        class="input w-full resize-none"
+        rows="5"
+        oninput="document.getElementById('instructions-char-count').textContent = this.value.length + ' chars'"
+      >{{ existing_instructions or "" }}</textarea>
     </div>
 
-    <div style="display:flex; gap: var(--space-3); align-items:center;">
+    <!-- Automation Settings Card -->
+    <div class="bg-surface border border-border-dark rounded-xl p-5 mb-5">
+      <h2 class="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Automation Settings</h2>
+
+      {% if user_schedule %}
+      <div class="p-3 mb-4 rounded-lg bg-primary/5 border border-primary/20 text-xs text-slate-400">
+        <span class="font-bold text-primary">Existing schedule:</span> {{ user_schedule.name }} &mdash; <code class="font-mono text-slate-300">{{ user_schedule.cron_expr }}</code>
+        {% if user_schedule.enabled %}
+        <span class="ml-2 text-emerald-400 font-bold">Active</span>
+        {% else %}
+        <span class="ml-2 text-slate-500 font-bold">Paused</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <label for="schedule_enabled" class="text-sm font-medium text-slate-300">Enable Schedule</label>
+            <p class="text-xs text-slate-500 mt-0.5">Run this agent on a recurring schedule</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" name="schedule_enabled" id="schedule_enabled" value="true"
+              {% if user_schedule and user_schedule.enabled %}checked{% endif %}
+              onchange="document.getElementById('schedule-fields').classList.toggle('hidden', !this.checked)" />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+
+        <div id="schedule-fields" class="{% if not user_schedule or not user_schedule.enabled %}hidden{% endif %} space-y-4 border-t border-border-dark/50 pt-4">
+          <div>
+            <label for="schedule_label" class="block text-sm font-medium text-slate-300 mb-1">Schedule Name</label>
+            <input type="text" name="schedule_label" id="schedule_label" class="input w-full"
+              value="{{ user_schedule.name if user_schedule else '' }}"
+              placeholder="e.g. Daily Morning Briefing" />
+          </div>
+          <div>
+            <label for="schedule_cron" class="block text-sm font-medium text-slate-300 mb-1">Cron Expression</label>
+            <input type="text" name="schedule_cron" id="schedule_cron" class="input w-full font-mono"
+              value="{{ user_schedule.cron_expr if user_schedule else '' }}"
+              placeholder="e.g. 0 9 * * *" />
+            <p class="text-xs text-slate-500 mt-1">Standard cron format: minute hour day-of-month month day-of-week</p>
+          </div>
+          <div>
+            <label for="schedule_message" class="block text-sm font-medium text-slate-300 mb-1">Scheduled Message</label>
+            <input type="text" name="schedule_message" id="schedule_message" class="input w-full"
+              value="{{ user_schedule.message if user_schedule else '' }}"
+              placeholder="Message to send when the schedule triggers" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advanced Settings (collapsible) -->
+    <div class="bg-surface border border-border-dark rounded-xl overflow-hidden mb-6">
+      <button type="button"
+        onclick="const c=document.getElementById('advanced-fields'); c.classList.toggle('hidden'); this.querySelector('.adv-icon').textContent = c.classList.contains('hidden') ? 'expand_more' : 'expand_less';"
+        class="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-slate-300 hover:bg-surface-2 transition-colors">
+        <span>Advanced Settings</span>
+        <span class="material-symbols-outlined adv-icon text-slate-500">expand_more</span>
+      </button>
+      <div id="advanced-fields" class="hidden px-5 pb-5 border-t border-border-dark/50 pt-4">
+        <p class="text-xs text-slate-500">No advanced settings available for this agent.</p>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center gap-3">
       <button type="submit" class="btn btn-primary">Save Configuration</button>
-      <a href="/dashboard/agents" class="btn btn-ghost">Cancel</a>
+      <a href="/dashboard/agents" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
 
   {% if has_existing_config %}
-  <form method="POST" action="/dashboard/agents/{{ agent_id }}/setup/delete" style="margin-top: var(--space-4); text-align:right;">
-    <button type="submit" class="btn btn-ghost" style="color: var(--color-danger-text);"
+  <form method="POST" action="/dashboard/agents/{{ agent_id }}/setup/delete" class="mt-6 flex justify-end">
+    <button type="submit" class="btn btn-ghost text-rose-500 hover:text-rose-400"
             onclick="return confirm('Delete your configuration for this agent?')">
+      <span class="material-symbols-outlined text-sm">delete</span>
       Delete Configuration
     </button>
   </form>
   {% endif %}
+
 </div>
 
+<script>
+// Initialize char counter
+document.addEventListener('DOMContentLoaded', function() {
+  const ta = document.getElementById('field-instructions');
+  if (ta) {
+    document.getElementById('instructions-char-count').textContent = ta.value.length + ' chars';
+  }
+});
+</script>
 {% endblock %}

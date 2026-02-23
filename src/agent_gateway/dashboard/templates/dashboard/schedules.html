@@ -4,169 +4,154 @@
 {% block page_title %}Schedules{% endblock %}
 
 {% block content %}
-<div class="px-2 py-4">
-  <!-- Header Section -->
-  <div class="mb-8">
-    <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Schedules</h1>
-    <p class="text-slate-500 dark:text-slate-400 mt-1">Manage and monitor your automated workflows and cronjobs.</p>
+<div class="px-8 py-6">
+
+  <!-- Page Header -->
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-white tracking-tight">Schedules &amp; Cronjobs</h1>
+    <p class="text-slate-400 text-sm mt-1">Manage and monitor your automated workflows.</p>
   </div>
 
-  <!-- Stats Overview -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-      <div class="flex justify-between items-start mb-2">
-        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Cronjobs</span>
-        <div class="p-1.5 bg-primary/10 rounded-lg text-primary">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-        </div>
-      </div>
-      <div class="flex items-end gap-2">
-        <span class="text-2xl font-bold">{{ (schedules|length + user_schedules|length) }}</span>
+  <!-- Stats Bar -->
+  <div class="stats-bar mb-6">
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Total Scheduled</div>
+      <div class="stats-bar-value">
+        {% if schedule_stats %}{{ schedule_stats.total_scheduled }}{% else %}{{ (schedules|length + user_schedules|length) }}{% endif %}
       </div>
     </div>
-    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-      <div class="flex justify-between items-start mb-2">
-        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">Active Tasks</span>
-        <div class="p-1.5 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg text-emerald-600">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        </div>
-      </div>
-      <div class="flex items-end gap-2">
-        <span class="text-2xl font-bold text-emerald-500">{{ (schedules|selectattr('enabled')|list|length + user_schedules|selectattr('enabled')|list|length) }}</span>
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Active</div>
+      <div class="stats-bar-value text-emerald-400">
+        {% if schedule_stats %}{{ schedule_stats.active_schedules }}{% else %}{{ (schedules|selectattr('enabled')|list|length + user_schedules|selectattr('enabled')|list|length) }}{% endif %}
       </div>
     </div>
-    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-      <div class="flex justify-between items-start mb-2">
-        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">Success Rate</span>
-        <div class="p-1.5 bg-blue-100 dark:bg-blue-900/20 rounded-lg text-blue-600">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        </div>
-      </div>
-      <div class="flex items-end gap-2">
-        <span class="text-2xl font-bold">99.2%</span>
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Success (24h)</div>
+      <div class="stats-bar-value">
+        {% if schedule_stats %}{{ schedule_stats.success }}{% else %}—{% endif %}
       </div>
     </div>
-    <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-      <div class="flex justify-between items-start mb-2">
-        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">Recent Failures</span>
-        <div class="p-1.5 bg-rose-100 dark:bg-rose-900/20 rounded-lg text-rose-600">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        </div>
-      </div>
-      <div class="flex items-end gap-2">
-        <span class="text-2xl font-bold text-rose-500">0</span>
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Recent Failures</div>
+      <div class="stats-bar-value text-rose-400">
+        {% if schedule_stats %}{{ schedule_stats.failed }}{% else %}0{% endif %}
       </div>
     </div>
   </div>
 
   {% if schedules or user_schedules %}
-  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-    <div class="flex flex-col sm:flex-row items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4 gap-4">
-      <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-full sm:w-auto">
-        <button class="px-4 py-1.5 text-xs font-bold bg-white dark:bg-slate-700 text-primary rounded-md shadow-sm whitespace-nowrap">Global</button>
-        <a href="/dashboard/my-schedules" class="px-4 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 whitespace-nowrap transition-colors">Personal</a>
+  <div class="bg-surface rounded-xl border border-border-dark shadow-sm overflow-hidden">
+
+    <!-- Tab Bar + Filter Actions -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-border-dark px-5 py-3 gap-3">
+      <div class="flex gap-0.5 bg-surface-2 rounded-lg p-1">
+        <button id="sched-tab-all" onclick="filterSchedules('all')" class="px-3 py-1.5 text-xs font-bold rounded-md bg-surface text-white shadow-sm whitespace-nowrap">All</button>
+        <button id="sched-tab-enabled" onclick="filterSchedules('enabled')" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap transition-colors rounded-md">Enabled</button>
+        <button id="sched-tab-disabled" onclick="filterSchedules('disabled')" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap transition-colors rounded-md">Disabled</button>
       </div>
     </div>
 
     <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse">
+      <table class="w-full text-left border-collapse" id="schedules-table">
         <thead>
-          <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[11px] font-bold tracking-wider">
-            <th class="px-6 py-4">Name</th>
-            <th class="px-6 py-4">Agent</th>
-            <th class="px-6 py-4">Cron Expression</th>
-            <th class="px-6 py-4 text-center">Status</th>
-            <th class="px-6 py-4">Next Run</th>
-            <th class="px-6 py-4 text-right">Actions</th>
+          <tr class="bg-surface-2 border-b border-border-dark text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+            <th class="px-5 py-3.5">Name</th>
+            <th class="px-5 py-3.5">Agent</th>
+            <th class="px-5 py-3.5">Cron</th>
+            <th class="px-5 py-3.5">Type</th>
+            <th class="px-5 py-3.5 text-center">Enabled</th>
+            <th class="px-5 py-3.5">Next Run</th>
+            <th class="px-5 py-3.5 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+        <tbody class="divide-y divide-border-dark/50">
           {% for s in schedules %}
-          <tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-            <td class="px-6 py-4 whitespace-nowrap">
+          <tr class="group hover:bg-surface-2 transition-colors sched-row" data-enabled="{{ 'true' if s.enabled else 'false' }}">
+            <td class="px-5 py-4 whitespace-nowrap">
               <div class="flex items-center gap-3">
-                <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                  <span class="material-symbols-outlined text-sm">schedule</span>
                 </div>
                 <div>
-                  <p class="text-sm font-bold text-slate-900 dark:text-white">{{ s.name }}</p>
+                  <p class="text-sm font-semibold text-white">{{ s.name }}</p>
                   <p class="text-[10px] text-slate-500 uppercase">{{ s.timezone }}</p>
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span class="text-sm text-slate-600 dark:text-slate-300">{{ agent_names.get(s.agent_id, s.agent_id) }}</span>
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="text-sm text-slate-300">{{ agent_names.get(s.agent_id, s.agent_id) }}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <code class="text-xs font-mono text-primary font-bold">{{ s.cron_expr }}</code>
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="cron-chip">{{ s.cron_expr }}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center">
-              {% if s.enabled %}
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 uppercase tracking-wider">
-                Active
-              </span>
-              {% else %}
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 uppercase tracking-wider">
-                Paused
-              </span>
-              {% endif %}
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary uppercase">Global</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-5 py-4 whitespace-nowrap text-center">
+              <label class="toggle-switch">
+                <input type="checkbox" {% if s.enabled %}checked{% endif %}
+                  hx-post="/dashboard/schedules/{{ s.id }}/toggle"
+                  hx-swap="none"
+                  onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
+                <span class="toggle-track"></span>
+              </label>
+            </td>
+            <td class="px-5 py-4 whitespace-nowrap">
               <div class="flex flex-col">
-                <span class="text-sm text-slate-900 dark:text-slate-100">{{ format_datetime(s.next_run_at) if s.next_run_at else '—' }}</span>
+                <span class="text-sm text-slate-200">{{ format_datetime(s.next_run_at) if s.next_run_at else '—' }}</span>
                 <span class="text-[10px] text-slate-500">{{ relative_time(s.next_run_at) if s.next_run_at else '' }}</span>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-right">
-              <button class="text-slate-400 hover:text-primary transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
+            <td class="px-5 py-4 whitespace-nowrap text-right">
+              <button class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10">
+                <span class="material-symbols-outlined text-base">more_horiz</span>
               </button>
             </td>
           </tr>
           {% endfor %}
 
           {% for s in user_schedules %}
-          <tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-            <td class="px-6 py-4 whitespace-nowrap">
+          <tr class="group hover:bg-surface-2 transition-colors sched-row" data-enabled="{{ 'true' if s.enabled else 'false' }}">
+            <td class="px-5 py-4 whitespace-nowrap">
               <div class="flex items-center gap-3">
-                <div class="h-8 w-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                <div class="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 flex-shrink-0">
+                  <span class="material-symbols-outlined text-sm">person</span>
                 </div>
                 <div>
-                  <p class="text-sm font-bold text-slate-900 dark:text-white">{{ s.name }}</p>
-                  <p class="text-[10px] text-slate-500 uppercase">PERSONAL • {{ s.timezone }}</p>
+                  <p class="text-sm font-semibold text-white">{{ s.name }}</p>
+                  <p class="text-[10px] text-slate-500 uppercase">{{ s.timezone }}</p>
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span class="text-sm text-slate-600 dark:text-slate-300">{{ agent_names.get(s.agent_id, s.agent_id) }}</span>
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="text-sm text-slate-300">{{ agent_names.get(s.agent_id, s.agent_id) }}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <code class="text-xs font-mono text-primary font-bold">{{ s.cron_expr }}</code>
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="cron-chip">{{ s.cron_expr }}</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center">
-              {% if s.enabled %}
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 uppercase tracking-wider">
-                Active
-              </span>
-              {% else %}
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 uppercase tracking-wider">
-                Paused
-              </span>
-              {% endif %}
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/10 border border-purple-500/20 text-purple-400 uppercase">Personal</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-5 py-4 whitespace-nowrap text-center">
+              <label class="toggle-switch">
+                <input type="checkbox" {% if s.enabled %}checked{% endif %}
+                  hx-post="/dashboard/schedules/{{ s.id }}/toggle"
+                  hx-swap="none"
+                  onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
+                <span class="toggle-track"></span>
+              </label>
+            </td>
+            <td class="px-5 py-4 whitespace-nowrap">
               <div class="flex flex-col">
-                <span class="text-sm text-slate-900 dark:text-slate-100">{{ format_datetime(s.next_run_at) if s.next_run_at else '—' }}</span>
+                <span class="text-sm text-slate-200">{{ format_datetime(s.next_run_at) if s.next_run_at else '—' }}</span>
                 <span class="text-[10px] text-slate-500">{{ relative_time(s.next_run_at) if s.next_run_at else '' }}</span>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-right">
-              <div class="flex items-center justify-end gap-2">
-                <a href="/dashboard/my-schedules" class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Edit Schedule">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                </a>
-              </div>
+            <td class="px-5 py-4 whitespace-nowrap text-right">
+              <a href="/dashboard/my-schedules" class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10 inline-flex" title="Edit Schedule">
+                <span class="material-symbols-outlined text-base">edit</span>
+              </a>
             </td>
           </tr>
           {% endfor %}
@@ -174,19 +159,49 @@
       </table>
     </div>
 
-    <!-- Empty/Footer Info -->
-    <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
-      <p class="text-[10px] text-slate-500">Schedules are derived from agent <code>AGENT.md</code> files or manually created personal tasks.</p>
+    <!-- Footer -->
+    <div class="px-5 py-3 border-t border-border-dark/50 bg-surface-2/30">
+      <p class="text-[10px] text-slate-600">Schedules are derived from agent <code class="text-slate-500">AGENT.md</code> files or manually created personal tasks.</p>
     </div>
   </div>
+
   {% else %}
-  <div class="py-20 flex flex-col items-center justify-center text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-    <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mb-4">
-      <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+  <div class="py-20 flex flex-col items-center justify-center text-center bg-surface rounded-xl border border-border-dark">
+    <div class="w-16 h-16 bg-surface-2 border border-border-dark rounded-full flex items-center justify-center text-slate-500 mb-4">
+      <span class="material-symbols-outlined text-3xl">calendar_month</span>
     </div>
-    <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">No schedules configured</h3>
-    <p class="text-sm text-slate-500 max-w-sm">Add <code>schedules:</code> to your agent's <code>AGENT.md</code> or <a href="/dashboard/my-schedules" class="text-primary font-bold">create a personal schedule</a>.</p>
+    <h3 class="text-base font-bold text-white mb-1">No schedules configured</h3>
+    <p class="text-sm text-slate-500 max-w-sm">Add <code class="text-slate-400">schedules:</code> to your agent's <code class="text-slate-400">AGENT.md</code> or <a href="/dashboard/my-schedules" class="text-primary font-bold">create a personal schedule</a>.</p>
   </div>
   {% endif %}
+
 </div>
+
+<script>
+function filterSchedules(filter) {
+  // Update tab styles
+  const tabs = {all: 'sched-tab-all', enabled: 'sched-tab-enabled', disabled: 'sched-tab-disabled'};
+  Object.keys(tabs).forEach(key => {
+    const el = document.getElementById(tabs[key]);
+    if (key === filter) {
+      el.className = 'px-3 py-1.5 text-xs font-bold rounded-md bg-surface text-white shadow-sm whitespace-nowrap';
+    } else {
+      el.className = 'px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap transition-colors rounded-md';
+    }
+  });
+
+  // Filter rows
+  const rows = document.querySelectorAll('.sched-row');
+  rows.forEach(row => {
+    const enabled = row.dataset.enabled === 'true';
+    if (filter === 'all') {
+      row.style.display = '';
+    } else if (filter === 'enabled') {
+      row.style.display = enabled ? '' : 'none';
+    } else if (filter === 'disabled') {
+      row.style.display = !enabled ? '' : 'none';
+    }
+  });
+}
+</script>
 {% endblock %}

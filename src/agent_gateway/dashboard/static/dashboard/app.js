@@ -239,6 +239,14 @@ document.addEventListener('click', (e) => {
   });
 });
 
+// --- HTMX schedule toggle: refresh row state on success ---
+document.addEventListener('htmx:afterRequest', (e) => {
+  const url = e.detail?.requestConfig?.path || '';
+  if (url.includes('/toggle') && e.detail.xhr?.status === 200) {
+    // Toggle was successful, the checkbox state is already updated visually
+  }
+});
+
 document.addEventListener('click', (e) => {
   const header = e.target.closest('.trace-card-header');
   if (!header) return;

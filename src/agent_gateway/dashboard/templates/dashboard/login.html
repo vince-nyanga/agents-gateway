@@ -10,71 +10,113 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
   {% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/dashboard/static/dashboard/tokens.css" />
   <link rel="stylesheet" href="/dashboard/static/dashboard/app.css" />
   <style>
     :root {
       --color-accent: {{ dashboard_colors.accent }};
-      --color-accent-dark: {{ dashboard_colors.accent_dark }};
       --color-primary: {{ dashboard_colors.primary }};
-      --color-primary-dark: {{ dashboard_colors.primary_dark }};
-      --color-secondary: {{ dashboard_colors.secondary }};
-      --color-secondary-dark: {{ dashboard_colors.secondary_dark }};
-      --color-cfg-surface: {{ dashboard_colors.surface }};
-      --color-cfg-surface-dark: {{ dashboard_colors.surface_dark }};
-      --color-cfg-sidebar: {{ dashboard_colors.sidebar }};
-      --color-cfg-sidebar-dark: {{ dashboard_colors.sidebar_dark }};
-      --color-cfg-danger: {{ dashboard_colors.danger }};
-      --color-cfg-danger-dark: {{ dashboard_colors.danger_dark }};
+    }
+    body {
+      background: var(--color-bg);
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(13, 127, 242, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.04) 0%, transparent 50%);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     }
   </style>
 </head>
 <body>
-<div class="login-page">
-  <div class="login-card">
-    {% if dashboard_logo_url %}
-      <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="login-logo" />
-    {% endif %}
+<div class="min-h-screen flex items-center justify-center p-6">
+  <div class="w-full max-w-sm">
 
-    <div class="login-title">{{ dashboard_title }}</div>
-    <div class="login-subtitle">Sign in to your dashboard</div>
+    <!-- Branding -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary shadow-lg shadow-primary/30 mb-5">
+        <span class="material-symbols-outlined text-white text-3xl">hub</span>
+      </div>
+      {% if dashboard_logo_url %}
+      <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="h-7 w-auto mx-auto mb-3" />
+      {% endif %}
+      <h1 class="text-2xl font-bold text-white tracking-tight">{{ dashboard_title }}</h1>
+      <p class="text-slate-500 text-sm mt-1">Sign in to your dashboard</p>
+    </div>
 
+    <!-- Error Alert -->
     {% set error_msg = error or request.query_params.get('error') %}
     {% if error_msg %}
-    <div class="alert alert-danger" style="margin-bottom: var(--space-4);">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-      </svg>
-      {{ error_msg }}
+    <div class="flex items-start gap-3 p-3.5 mb-5 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-400">
+      <span class="material-symbols-outlined text-rose-500 flex-shrink-0 text-lg mt-0.5">error</span>
+      <span class="text-sm">{{ error_msg }}</span>
     </div>
     {% endif %}
 
-    {% if auth_method == "oauth2" %}
-    <a href="/dashboard/oauth2/authorize" class="btn btn-primary w-full" style="justify-content:center; margin-top: var(--space-2); text-decoration: none;">
-      {{ login_button_text }}
-    </a>
-    {% else %}
-    <form action="/dashboard/login" method="post">
-      <div class="form-group">
-        <label for="username" class="form-label">Username</label>
-        <input type="text" id="username" name="username" class="input"
-               autocomplete="username" autofocus required
-               placeholder="admin" />
-      </div>
+    <!-- Login Card -->
+    <div class="bg-surface border border-border-dark rounded-2xl shadow-xl p-7">
+      {% if auth_method == "oauth2" %}
+      <a href="/dashboard/oauth2/authorize"
+         class="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 no-underline">
+        <span class="material-symbols-outlined text-lg">login</span>
+        {{ login_button_text }}
+      </a>
+      {% else %}
+      <form action="/dashboard/login" method="post" class="space-y-4">
+        <div>
+          <label for="username" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            class="input w-full h-10 px-3"
+            autocomplete="username"
+            autofocus
+            required
+            placeholder="admin"
+          />
+        </div>
 
-      <div class="form-group">
-        <label for="password" class="form-label">Password</label>
-        <input type="password" id="password" name="password" class="input"
-               autocomplete="current-password"
-               placeholder="••••••••" />
-      </div>
+        <div>
+          <label for="password" class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+          <div class="relative">
+            <input
+              type="password"
+              id="password"
+              name="password"
+              class="input w-full h-10 px-3 pr-10"
+              autocomplete="current-password"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onclick="const i=document.getElementById('password'); i.type=i.type==='password'?'text':'password'; this.querySelector('span').textContent=i.type==='password'?'visibility':'visibility_off';"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              tabindex="-1"
+            >
+              <span class="material-symbols-outlined text-lg">visibility</span>
+            </button>
+          </div>
+        </div>
 
-      <button type="submit" class="btn btn-primary w-full" style="justify-content:center; margin-top: var(--space-2);">
-        Sign in
-      </button>
-    </form>
-    {% endif %}
+        <button
+          type="submit"
+          class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 mt-2"
+        >
+          <span class="material-symbols-outlined text-base">login</span>
+          Sign in
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <p class="text-center text-xs text-slate-600 mt-6">
+      Agent Gateway &mdash; AI Control Plane
+    </p>
   </div>
 </div>
 <script src="/dashboard/static/dashboard/app.js" defer></script>

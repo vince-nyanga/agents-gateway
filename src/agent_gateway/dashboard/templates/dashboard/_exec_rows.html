@@ -1,80 +1,80 @@
 {% macro status_badge(status) %}
   {% if status == 'completed' %}
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
       Success
     </span>
   {% elif status == 'running' %}
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 animate-pulse">
-      <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-primary/10 border border-primary/20 text-primary animate-pulse">
+      <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
       Running
     </span>
   {% elif status == 'failed' %}
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400">
       <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
       Failed
     </span>
   {% elif status == 'queued' %}
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-500/10 border border-slate-500/20 text-slate-400">
       <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
       Queued
     </span>
   {% elif status == 'timeout' %}
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400">
       <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
       Timeout
     </span>
   {% else %}
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-500/10 border border-slate-500/20 text-slate-400">
       {{ status|upper }}
     </span>
   {% endif %}
 {% endmacro %}
 
 {% if rows %}
-<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm flex-1 flex flex-col">
-  <div class="overflow-x-auto flex-1">
-    <table class="w-full text-left border-collapse min-w-[1000px]">
+<div class="bg-surface rounded-xl border border-border-dark overflow-hidden shadow-sm">
+  <div class="overflow-x-auto">
+    <table class="w-full text-left border-collapse min-w-[900px]">
       <thead>
-        <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">ID</th>
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Agent Name</th>
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Message/Task</th>
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Session</th>
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Duration</th>
-          <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Cost</th>
+        <tr class="bg-surface-2 border-b border-border-dark">
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">ID</th>
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Agent</th>
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Message / Task</th>
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Session</th>
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Duration</th>
+          <th class="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Cost</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+      <tbody class="divide-y divide-border-dark/50">
         {% for row in rows %}
-        <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-          <td class="px-6 py-4 whitespace-nowrap">
-            <a href="/dashboard/executions/{{ row.id }}" class="text-primary font-bold hover:underline decoration-2 underline-offset-4 font-mono text-sm">#{{ row.id_short }}</a>
+        <tr class="hover:bg-surface-2 transition-colors group">
+          <td class="px-5 py-4 whitespace-nowrap">
+            <a href="/dashboard/executions/{{ row.id }}" class="text-primary font-bold hover:underline decoration-2 underline-offset-4 font-mono text-xs">#{{ row.id_short }}</a>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded bg-primary/10 text-primary flex items-center justify-center">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          <td class="px-5 py-4 whitespace-nowrap">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-sm">smart_toy</span>
               </div>
-              <span class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ agent_names.get(row.agent_id, row.agent_id) }}</span>
+              <span class="text-sm font-medium text-slate-200">{{ agent_names.get(row.agent_id, row.agent_id) }}</span>
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-5 py-4 whitespace-nowrap">
             {{ status_badge(row.status) }}
           </td>
-          <td class="px-6 py-4 max-w-xs">
-            <p class="text-sm text-slate-600 dark:text-slate-400 truncate">{{ row.message_preview or 'No message available' }}</p>
+          <td class="px-5 py-4 max-w-xs">
+            <p class="text-sm text-slate-400 truncate">{{ row.message_preview or 'No message available' }}</p>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-400">
+          <td class="px-5 py-4 whitespace-nowrap font-mono text-xs text-slate-500">
             {% if row.session_id %}
-            <a href="/dashboard/conversations/{{ row.session_id }}" class="hover:text-primary transition-colors underline decoration-slate-200 dark:decoration-slate-700 underline-offset-4">{{ row.session_id[:8] }}</a>
+            <a href="/dashboard/conversations/{{ row.session_id }}" class="hover:text-primary transition-colors">{{ row.session_id[:8] }}</a>
             {% else %}
-            <span class="opacity-50">—</span>
+            <span class="opacity-40">—</span>
             {% endif %}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-600 dark:text-slate-400">{{ format_duration(row.duration_ms) }}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-slate-900 dark:text-slate-100">{{ format_cost(row.cost_usd) }}</td>
+          <td class="px-5 py-4 whitespace-nowrap text-right text-sm text-slate-400 font-mono">{{ format_duration(row.duration_ms) }}</td>
+          <td class="px-5 py-4 whitespace-nowrap text-right text-sm font-bold text-white">{{ format_cost(row.cost_usd) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -82,40 +82,59 @@
   </div>
 
   <!-- Pagination -->
-  <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+  <div class="px-5 py-4 border-t border-border-dark/50 flex items-center justify-between bg-surface-2/50">
     <p class="text-xs text-slate-500">
-      Showing <span class="font-bold text-slate-900 dark:text-white">{{ rows|length }}</span> of <span class="font-bold text-slate-900 dark:text-white">{{ total }}</span> results
+      Showing <span class="font-bold text-slate-300">{{ rows|length }}</span> of <span class="font-bold text-slate-300">{{ total }}</span> results
     </p>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1.5">
       {% if page > 1 %}
-      <button 
+      <button
         hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page - 1 }}"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
-        class="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 transition-colors"
+        class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
       >
-        Previous
+        &larr; Prev
       </button>
       {% endif %}
+
+      <!-- Page numbers -->
+      {% if total_pages %}
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+        <span class="px-3 py-1.5 border border-primary/50 rounded-lg text-xs font-bold text-primary bg-primary/10">{{ p }}</span>
+        {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+        <button
+          hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ p }}"
+          hx-target="#exec-table-wrap"
+          hx-swap="outerHTML"
+          class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
+        >{{ p }}</button>
+        {% elif p == page - 3 or p == page + 3 %}
+        <span class="text-slate-600 text-xs px-1">...</span>
+        {% endif %}
+      {% endfor %}
+      {% endif %}
+
       {% if page < total_pages %}
-      <button 
+      <button
         hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page + 1 }}"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
-        class="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 transition-colors"
+        class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
       >
-        Next
+        Next &rarr;
       </button>
       {% endif %}
     </div>
   </div>
 </div>
 {% else %}
-<div class="py-20 flex flex-col items-center justify-center text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-  <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mb-4">
-    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+<div class="py-20 flex flex-col items-center justify-center text-center bg-surface rounded-xl border border-border-dark">
+  <div class="w-16 h-16 bg-surface-2 border border-border-dark rounded-full flex items-center justify-center text-slate-500 mb-4">
+    <span class="material-symbols-outlined text-3xl">terminal</span>
   </div>
-  <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">No executions found</h3>
+  <h3 class="text-base font-bold text-white mb-1">No executions found</h3>
   <p class="text-sm text-slate-500 max-w-sm">Try adjusting your filters or check if agents are correctly configured to run.</p>
 </div>
 {% endif %}
