@@ -338,6 +338,22 @@ notifications:
 
 ## Example configurations
 
+### Minimal
+
+Just agents, no extras — the smallest possible config:
+
+```yaml
+# gateway.yaml — minimal
+auth:
+  mode: api_key
+  api_keys:
+    - name: default
+      key: "${API_KEY}"
+      scopes: ["*"]
+```
+
+All other settings use built-in defaults (SQLite, console telemetry, no dashboard).
+
 ### Development
 
 ```yaml

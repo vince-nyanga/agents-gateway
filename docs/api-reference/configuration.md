@@ -40,6 +40,8 @@ Root configuration object. Loaded from `workspace/gateway.yaml`.
 | `context_retrieval` | `ContextRetrievalConfig` | — | RAG context retrieval settings. |
 | `memory` | `MemoryConfig` | — | Agent memory settings. |
 | `cors` | `CorsConfig` | — | CORS middleware settings. |
+| `rate_limit` | `RateLimitConfig` | — | Rate limiting middleware settings. |
+| `security` | `SecurityConfig` | — | Security headers middleware settings. |
 | `dashboard` | `DashboardConfig` | — | Built-in web dashboard settings. |
 | `context` | `dict[str, Any]` | `{}` | Arbitrary key-value context injected into all agent prompts. |
 
@@ -85,6 +87,7 @@ Env prefix: `AGENT_GATEWAY_GUARDRAILS__`
 | `max_tool_calls` | `int` | `20` | Maximum tool invocations per execution. Triggers reason `"max_tool_calls"`. |
 | `max_iterations` | `int` | `10` | Maximum LLM reasoning steps per execution. Triggers reason `"max_iterations"`. |
 | `timeout_ms` | `int` | `60000` | Maximum wall-clock time in milliseconds. Triggers reason `"timeout"`. |
+| `max_delegation_depth` | `int` | `3` | Maximum depth for agent-to-agent delegation chains. Prevents infinite loops. |
 
 ---
 
@@ -316,6 +319,7 @@ Env prefix: `AGENT_GATEWAY_DASHBOARD__`
 | `enabled` | `bool` | `False` | Enable the dashboard at `/dashboard`. Opt-in. |
 | `title` | `str` | `"Agent Gateway"` | Browser tab title and sidebar heading. |
 | `logo_url` | `str \| None` | `None` | URL of a logo image displayed in the sidebar. |
+| `favicon_url` | `str \| None` | `None` | URL of a custom favicon. |
 | `auth` | `DashboardAuthConfig` | — | Dashboard authentication settings. |
 | `theme` | `DashboardThemeConfig` | — | Visual theme settings. |
 

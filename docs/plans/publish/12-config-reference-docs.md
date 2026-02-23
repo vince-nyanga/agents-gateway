@@ -1,6 +1,6 @@
 ---
 title: "Configuration Reference Docs"
-status: pending
+status: completed
 priority: P1
 category: Documentation
 date: 2026-02-22
