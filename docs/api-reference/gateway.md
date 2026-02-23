@@ -489,6 +489,30 @@ gw.use_cors(allow_origins=["https://app.example.com"], allow_credentials=True)
 
 ---
 
+### Security Headers
+
+#### `use_security_headers`
+
+```python
+def use_security_headers(
+    *,
+    x_content_type_options: str = "nosniff",
+    x_frame_options: str = "DENY",
+    strict_transport_security: str = "max-age=31536000; includeSubDomains",
+    content_security_policy: str = "default-src 'self'",
+    referrer_policy: str = "strict-origin-when-cross-origin",
+    dashboard_content_security_policy: str | None = None,
+) -> Gateway
+```
+
+Customize security headers. Headers are enabled by default -- this method overrides individual values. To disable entirely, set `security.enabled: false` in `gateway.yaml`.
+
+```python
+gw.use_security_headers(x_frame_options="SAMEORIGIN")
+```
+
+---
+
 ### Dashboard
 
 #### `use_dashboard`

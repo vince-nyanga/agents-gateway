@@ -29,6 +29,7 @@ from agent_gateway.config import (
     NotificationsConfig,
     PersistenceConfig,
     RateLimitConfig,
+    SecurityConfig,
 )
 from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.context.registry import RetrieverRegistry
@@ -145,6 +146,7 @@ class Gateway(FastAPI):
         self._memory_manager: MemoryManager | None = None
         self._pending_cors_config: CorsConfig | None = None  # fluent API
         self._pending_rate_limit_config: RateLimitConfig | None = None  # fluent API
+        self._pending_security_config: SecurityConfig | None = None  # fluent API
         self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
         self._oauth2_issuer: str | None = None  # for OpenAPI security scheme
         self._extraction_cooldowns: dict[str, float] = {}
@@ -603,6 +605,20 @@ class Gateway(FastAPI):
                 engine=self._notification_engine,
             )
             await self._notification_worker.start()
+
+        # 10a. Wire security headers middleware if enabled
+        if self._pending_security_config is not None:
+            self._config.security = self._pending_security_config
+        if self._config.security.enabled:
+            from agent_gateway.api.middleware.security import SecurityHeadersMiddleware
+
+            if self.middleware_stack is not None:
+                self.middleware_stack = SecurityHeadersMiddleware(
+                    app=self.middleware_stack,
+                    config=self._config.security,
+                )
+            else:
+                self.add_middleware(SecurityHeadersMiddleware, config=self._config.security)
 
         # 10b. Wire CORS middleware if enabled
         if self._pending_cors_config is not None:
@@ -1221,6 +1237,44 @@ class Gateway(FastAPI):
             storage_uri=storage_uri,
             trust_forwarded_for=trust_forwarded_for,
         )
+        return self
+
+    # --- Security headers configuration (fluent API) ---
+
+    def use_security_headers(
+        self,
+        *,
+        x_content_type_options: str = "nosniff",
+        x_frame_options: str = "DENY",
+        strict_transport_security: str = "max-age=31536000; includeSubDomains",
+        content_security_policy: str = "default-src 'self'",
+        referrer_policy: str = "strict-origin-when-cross-origin",
+        dashboard_content_security_policy: str | None = None,
+    ) -> Gateway:
+        """Customize security headers.
+
+        Security headers are enabled by default. Use this method to override
+        individual header values. To disable entirely, set ``security.enabled: false``
+        in gateway.yaml.
+
+        Example::
+
+            gw = Gateway(workspace="workspace/")
+            gw.use_security_headers(x_frame_options="SAMEORIGIN")
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure security headers after gateway has started")
+        kwargs: dict[str, Any] = {
+            "enabled": True,
+            "x_content_type_options": x_content_type_options,
+            "x_frame_options": x_frame_options,
+            "strict_transport_security": strict_transport_security,
+            "content_security_policy": content_security_policy,
+            "referrer_policy": referrer_policy,
+        }
+        if dashboard_content_security_policy is not None:
+            kwargs["dashboard_content_security_policy"] = dashboard_content_security_policy
+        self._pending_security_config = SecurityConfig(**kwargs)
         return self
 
     # --- Dashboard configuration (fluent API) ---

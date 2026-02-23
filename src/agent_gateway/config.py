@@ -268,6 +268,21 @@ class RateLimitConfig(BaseModel):
     trust_forwarded_for: bool = False
 
 
+class SecurityConfig(BaseModel):
+    enabled: bool = True  # opt-out, not opt-in
+    x_content_type_options: str = "nosniff"
+    x_frame_options: str = "DENY"
+    strict_transport_security: str = "max-age=31536000; includeSubDomains"
+    content_security_policy: str = "default-src 'self'"
+    referrer_policy: str = "strict-origin-when-cross-origin"
+    # Relaxed CSP for dashboard paths (needs inline styles/scripts)
+    dashboard_content_security_policy: str = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+        "font-src 'self' data:"
+    )
+
+
 class CorsConfig(BaseModel):
     enabled: bool = False
     allow_origins: list[str] = Field(default_factory=lambda: ["*"])
@@ -310,6 +325,7 @@ class GatewayConfig(BaseSettings):
     context: dict[str, Any] = Field(default_factory=dict)
     cors: CorsConfig = CorsConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
+    security: SecurityConfig = SecurityConfig()
     dashboard: DashboardConfig = DashboardConfig()
 
     @classmethod

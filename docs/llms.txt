@@ -180,6 +180,12 @@ rate_limit:
   # storage_uri: "redis://localhost:6379"  # for multi-worker
   # trust_forwarded_for: false
 
+security:
+  enabled: true  # on by default (opt-out)
+  x_frame_options: "DENY"
+  content_security_policy: "default-src 'self'"
+  # strict_transport_security: ""  # disable HSTS for local dev
+
 dashboard:
   enabled: true
 

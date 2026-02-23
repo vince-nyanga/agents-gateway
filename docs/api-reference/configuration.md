@@ -291,6 +291,22 @@ Env prefix: `AGENT_GATEWAY_RATE_LIMIT__`
 
 ---
 
+## SecurityConfig
+
+Env prefix: `AGENT_GATEWAY_SECURITY__`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `bool` | `True` | Enable security headers middleware. Enabled by default (opt-out). |
+| `x_content_type_options` | `str` | `"nosniff"` | Value for the `X-Content-Type-Options` header. |
+| `x_frame_options` | `str` | `"DENY"` | Value for the `X-Frame-Options` header. Use `"SAMEORIGIN"` to allow same-origin framing. |
+| `strict_transport_security` | `str` | `"max-age=31536000; includeSubDomains"` | Value for the `Strict-Transport-Security` header. Set to `""` to omit. |
+| `content_security_policy` | `str` | `"default-src 'self'"` | Value for the `Content-Security-Policy` header on API paths. |
+| `referrer_policy` | `str` | `"strict-origin-when-cross-origin"` | Value for the `Referrer-Policy` header. |
+| `dashboard_content_security_policy` | `str` | *(relaxed CSP)* | CSP applied to `/dashboard` paths. Allows inline styles/scripts by default. |
+
+---
+
 ## DashboardConfig
 
 Env prefix: `AGENT_GATEWAY_DASHBOARD__`

@@ -77,6 +77,7 @@ nav:
       - Structured Output: guides/structured-output.md
       - CORS: guides/cors.md
       - Rate Limiting: guides/rate-limiting.md
+      - Security Headers: guides/security-headers.md
   - API Reference:
       - Gateway: api-reference/gateway.md
       - Configuration: api-reference/configuration.md

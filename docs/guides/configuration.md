@@ -209,6 +209,24 @@ When running with multiple workers, set `storage_uri` to a Redis URL so rate lim
 
 See the [Rate Limiting guide](rate-limiting.md) for details.
 
+### security
+
+Security headers are injected into every HTTP response by default:
+
+```yaml
+security:
+  enabled: true                          # Enabled by default (set false to disable)
+  x_content_type_options: "nosniff"
+  x_frame_options: "DENY"
+  strict_transport_security: "max-age=31536000; includeSubDomains"
+  content_security_policy: "default-src 'self'"
+  referrer_policy: "strict-origin-when-cross-origin"
+```
+
+Unlike CORS and rate limiting, security headers are enabled by default (opt-out). Dashboard paths automatically receive a relaxed Content-Security-Policy that allows inline styles and scripts.
+
+See the [Security Headers guide](security-headers.md) for details.
+
 ### dashboard
 
 The built-in monitoring dashboard (opt-in):

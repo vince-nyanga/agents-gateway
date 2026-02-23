@@ -23,6 +23,12 @@ rate_limit:
   # storage_uri: "redis://localhost:6379"  # for multi-worker deployments
   # trust_forwarded_for: false  # set true when behind a reverse proxy
 
+security:
+  enabled: true
+  # x_frame_options: DENY
+  # strict_transport_security: "max-age=31536000; includeSubDomains"
+  # content_security_policy: "default-src 'self'"
+
 telemetry:
   enabled: true
   exporter: console

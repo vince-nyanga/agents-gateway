@@ -100,6 +100,10 @@ else:
         sidebar_color="#0f172a",
     )
 
+# --- Security headers ---
+# Enabled by default. Customize if needed:
+# gw.use_security_headers(x_frame_options="SAMEORIGIN")
+
 # --- Notifications (optional — configure via env vars) ---
 
 slack_token = os.environ.get("SLACK_BOT_TOKEN")
