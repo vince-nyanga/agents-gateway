@@ -1,6 +1,6 @@
 ---
 title: "API Route Unit Tests"
-status: pending
+status: completed
 priority: P1
 category: Testing
 date: 2026-02-22

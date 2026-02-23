@@ -26,7 +26,7 @@ After a thorough review of the entire codebase, here are all items that need add
 - [x] **#10** [Security headers middleware](publish/10-security-headers.md) — Security
 - [x] **#11** [OpenAPI endpoint documentation](publish/11-openapi-docs.md) — API
 - [x] **#12** [Configuration reference docs](publish/12-config-reference-docs.md) — Documentation
-- [ ] **#13** [API route unit tests](publish/13-api-route-tests.md) — Testing
+- [x] **#13** [API route unit tests](publish/13-api-route-tests.md) — Testing
 - [x] **#14** [PyPI publish workflow](publish/14-pypi-publish-workflow.md) — CI/CD
 - [x] **#15** [Package metadata completeness](publish/15-package-metadata.md) — Packaging
 
