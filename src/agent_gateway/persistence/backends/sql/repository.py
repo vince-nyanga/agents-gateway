@@ -144,6 +144,7 @@ class ExecutionRepository:
         status: str | None = None,
         since: datetime | None = None,
         session_id: str | None = None,
+        search: str | None = None,
     ) -> list[ExecutionRecord]:
         """List executions across all agents, most recent first."""
         async with self._session_factory() as session:
@@ -166,6 +167,13 @@ class ExecutionRepository:
                 stmt = stmt.where(
                     ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
                 )
+            if search is not None:
+                like_pattern = f"%{search}%"
+                stmt = stmt.where(
+                    (ExecutionRecord.message.ilike(like_pattern))  # type: ignore[attr-defined]
+                    | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined]
+                    | (ExecutionRecord.session_id.like(like_pattern))  # type: ignore[union-attr]
+                )
             stmt = stmt.limit(limit).offset(offset)
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -176,6 +184,7 @@ class ExecutionRepository:
         status: str | None = None,
         since: datetime | None = None,
         session_id: str | None = None,
+        search: str | None = None,
     ) -> int:
         """Count executions with optional filters."""
         async with self._session_factory() as session:
@@ -195,6 +204,13 @@ class ExecutionRepository:
             if session_id is not None:
                 stmt = stmt.where(
                     ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
+                )
+            if search is not None:
+                like_pattern = f"%{search}%"
+                stmt = stmt.where(
+                    (ExecutionRecord.message.ilike(like_pattern))  # type: ignore[attr-defined]
+                    | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined]
+                    | (ExecutionRecord.session_id.like(like_pattern))  # type: ignore[union-attr]
                 )
             result = await session.execute(stmt)
             return result.scalar_one()
@@ -348,14 +364,24 @@ class ExecutionRepository:
         cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
         inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
         out = _json_field("usage", "output_tokens", is_postgres=self._pg)
+
+        if self._pg:
+            duration_expr = "EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000"
+        else:
+            duration_expr = "(julianday(completed_at) - julianday(started_at)) * 86400000"
+
         async with self._session_factory() as session:
             stmt = text(f"""
                 SELECT
                     agent_id,
                     COUNT(*) as execution_count,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
                     SUM({cost}) as total_cost_usd,
                     SUM({inp}) as total_input_tokens,
-                    SUM({out}) as total_output_tokens
+                    SUM({out}) as total_output_tokens,
+                    AVG(CASE WHEN status = 'completed' AND started_at IS NOT NULL
+                             AND completed_at IS NOT NULL
+                             THEN {duration_expr} ELSE NULL END) as avg_duration_ms
                 FROM executions
                 WHERE created_at >= :since
                   AND usage IS NOT NULL
@@ -394,6 +420,40 @@ class ExecutionRepository:
             result = await session.execute(stmt, {"since": since_param})
             row = result.one()
             return _normalize_row(row._mapping)
+
+    async def get_schedule_stats(self, hours: int = 24) -> dict[str, Any]:
+        """Return counts of schedule-linked executions by status in the last N hours."""
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        async with self._session_factory() as session:
+            stmt = text("""
+                SELECT
+                    COUNT(*) as total_scheduled,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+                    SUM(CASE WHEN status IN ('queued', 'running') THEN 1 ELSE 0 END) as running
+                FROM executions
+                WHERE schedule_id IS NOT NULL
+                  AND created_at >= :since
+            """)
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            row = result.one()
+            stats = _normalize_row(row._mapping)
+
+            # Count active schedules from both schedules and user_schedules tables
+            active_stmt = text("""
+                SELECT
+                    (SELECT COUNT(*) FROM schedules
+                     WHERE enabled = :enabled AND deleted_at IS NULL)
+                    +
+                    (SELECT COUNT(*) FROM user_schedules
+                     WHERE enabled = :enabled)
+                    AS active_schedules
+            """)
+            active_result = await session.execute(active_stmt, {"enabled": True})
+            active_count = int(active_result.scalar_one())
+            stats["active_schedules"] = active_count
+            return stats
 
     async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily execution count by status for the last N days."""

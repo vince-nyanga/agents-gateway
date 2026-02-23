@@ -63,6 +63,35 @@ dashboard:
     password: s3cr3t
 ```
 
+### Admin Account
+
+You can configure a separate admin account with elevated privileges. Admin users can toggle schedules and retry executions — regular users can only view them.
+
+```python
+gw.use_dashboard(
+    auth_username="user",
+    auth_password="userpass",
+    admin_username="admin",
+    admin_password="supersecret",
+)
+```
+
+Or in `gateway.yaml`:
+
+```yaml
+dashboard:
+  enabled: true
+  auth:
+    username: user
+    password: userpass
+    admin_username: admin
+    admin_password: supersecret
+```
+
+The admin account is completely separate from regular user credentials. Both are valid for login but result in different session roles. Admin status is re-derived on every request from the config, so changing the `admin_username` takes effect immediately after restart.
+
+OAuth2 users are always regular (non-admin) users — admin access requires password login.
+
 ### OAuth2 / OIDC
 
 Use the Authorization Code flow with any OIDC-compliant provider (Google, Entra ID, Okta, Keycloak, etc.).
@@ -98,6 +127,8 @@ gw.use_dashboard(
     logo_url="/static/logo.png",       # URL for the header logo image
     auth_username="admin",             # Password auth username
     auth_password="s3cr3t",            # Password auth password
+    admin_username="admin",            # Separate admin account username
+    admin_password="supersecret",      # Separate admin account password
     auth_mode="oidc",                  # "password" | "oidc" | None
     auth_issuer="https://...",         # OIDC issuer URL
     auth_client_id="...",              # OIDC client ID

@@ -51,6 +51,7 @@ class ExecutionRepository(Protocol):
         status: str | None = None,
         since: datetime | None = None,
         session_id: str | None = None,
+        search: str | None = None,
     ) -> list[ExecutionRecord]: ...
 
     async def count_all(
@@ -59,6 +60,7 @@ class ExecutionRepository(Protocol):
         status: str | None = None,
         since: datetime | None = None,
         session_id: str | None = None,
+        search: str | None = None,
     ) -> int: ...
 
     async def list_conversations_summary(
@@ -74,6 +76,14 @@ class ExecutionRepository(Protocol):
     async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]: ...
 
     async def get_summary_stats(self, days: int = 30) -> dict[str, Any]: ...
+
+    async def get_schedule_stats(self, hours: int = 24) -> dict[str, Any]:
+        """Return counts of schedule-linked executions by status in the last N hours.
+
+        Returns: {'total_scheduled': N, 'active_schedules': N,
+                  'success': N, 'failed': N, 'running': N}
+        """
+        ...
 
     async def list_by_root_execution(self, root_execution_id: str) -> list[ExecutionRecord]: ...
 

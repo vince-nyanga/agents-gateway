@@ -68,6 +68,7 @@ class NullExecutionRepository:
         status: str | None = None,
         since: datetime | None = None,
         session_id: str | None = None,
+        search: str | None = None,
     ) -> list[ExecutionRecord]:
         return []
 
@@ -77,6 +78,7 @@ class NullExecutionRepository:
         status: str | None = None,
         since: datetime | None = None,
         session_id: str | None = None,
+        search: str | None = None,
     ) -> int:
         return 0
 
@@ -103,6 +105,15 @@ class NullExecutionRepository:
             "total_cost_usd": 0.0,
             "success_count": 0,
             "avg_duration_ms": 0.0,
+        }
+
+    async def get_schedule_stats(self, hours: int = 24) -> dict[str, Any]:
+        return {
+            "total_scheduled": 0,
+            "active_schedules": 0,
+            "success": 0,
+            "failed": 0,
+            "running": 0,
         }
 
     async def list_by_root_execution(self, root_execution_id: str) -> list[ExecutionRecord]:

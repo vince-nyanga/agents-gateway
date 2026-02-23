@@ -1320,6 +1320,8 @@ class Gateway(FastAPI):
         oauth2_client_secret: str | None = None,
         oauth2_scopes: list[str] | None = None,
         login_button_text: str | None = None,
+        admin_username: str | None = None,
+        admin_password: str | None = None,
     ) -> Gateway:
         """Enable and configure the built-in web dashboard at /dashboard.
 
@@ -1340,6 +1342,8 @@ class Gateway(FastAPI):
             sidebar_color: CSS hex color for sidebar background.
             danger_color: CSS hex color for error/destructive actions.
             login_button_text: Text for the SSO login button (default: "Sign in with SSO").
+            admin_username: Separate admin account username (optional).
+            admin_password: Separate admin account password (optional).
         """
         if self._started:
             raise RuntimeError("Cannot configure dashboard after gateway has started")
@@ -1352,6 +1356,14 @@ class Gateway(FastAPI):
             self._pending_dashboard_overrides.setdefault("auth", {})["username"] = auth_username
         if auth_password is not None:
             self._pending_dashboard_overrides.setdefault("auth", {})["password"] = auth_password
+        if admin_username is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["admin_username"] = (
+                admin_username
+            )
+        if admin_password is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["admin_password"] = (
+                admin_password
+            )
         if login_button_text is not None:
             self._pending_dashboard_overrides.setdefault("auth", {})["login_button_text"] = (
                 login_button_text

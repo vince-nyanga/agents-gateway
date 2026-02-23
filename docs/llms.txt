@@ -227,6 +227,11 @@ security:
 
 dashboard:
   enabled: true
+  auth:
+    username: user
+    password: userpass
+    admin_username: admin
+    admin_password: supersecret
 
 queue:
   backend: none  # none | memory | redis | rabbitmq

@@ -21,12 +21,14 @@
     <span class="material-symbols-outlined text-lg">download</span>
     Download Trace
   </button>
+  {% if current_user and current_user.is_admin %}
   <form method="POST" action="/dashboard/executions/{{ detail.record.id }}/retry">
     <button type="submit" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
       <span class="material-symbols-outlined text-lg">refresh</span>
       Retry
     </button>
   </form>
+  {% endif %}
 </div>
 {% endblock %}
 

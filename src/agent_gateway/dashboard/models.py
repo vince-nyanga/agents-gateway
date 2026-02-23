@@ -25,6 +25,7 @@ class AgentCard:
     scope: str = "global"
     is_personal: bool = False
     user_configured: bool = False
+    status: str = "online"  # "online" | "busy" | "setup_required"
 
     @classmethod
     def from_definition(

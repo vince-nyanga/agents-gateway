@@ -7,6 +7,12 @@ function applyTheme(theme) {
   if (theme === 'dark') html.classList.add('dark');
   else if (theme === 'light') html.classList.add('light');
   // 'auto' → no class, CSS media query handles it
+
+  // Update toggle icon visibility
+  const isDarkNow = html.classList.contains('dark') ||
+    (!html.classList.contains('light') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('.theme-icon-sun').forEach(el => el.classList.toggle('hidden', isDarkNow));
+  document.querySelectorAll('.theme-icon-moon').forEach(el => el.classList.toggle('hidden', !isDarkNow));
 }
 
 function initTheme() {

@@ -18,6 +18,7 @@ from agent_gateway.dashboard.auth import (
     DashboardUser,
     make_get_dashboard_user,
     make_login_handler,
+    make_require_admin,
 )
 from agent_gateway.dashboard.models import (
     AgentCard,
@@ -84,6 +85,7 @@ def register_dashboard(
     templates.env.globals["auth_method"] = auth_method
     templates.env.globals["login_button_text"] = dash_config.auth.login_button_text
     get_dashboard_user = make_get_dashboard_user(dash_config.auth)
+    require_admin = make_require_admin(dash_config.auth)
     login_handler = make_login_handler(dash_config.auth)
 
     # Static files
@@ -96,6 +98,18 @@ def register_dashboard(
         )
     except Exception:
         logger.warning("Dashboard static files not found; static assets may be missing")
+
+    # Warn if admin credentials are partially configured
+    auth_config = dash_config.auth
+    has_user = auth_config.admin_username is not None
+    has_pass = auth_config.admin_password is not None
+    if has_user != has_pass:
+        missing = "admin_password" if has_user else "admin_username"
+        logger.warning(
+            "Dashboard admin credentials are partially configured: %s is not set. "
+            "Admin login will not work until both admin_username and admin_password are provided.",
+            missing,
+        )
 
     # --- Public router (no auth) ---
     public = APIRouter(prefix="/dashboard", include_in_schema=False)
@@ -172,10 +186,29 @@ def register_dashboard(
             except Exception:
                 logger.debug("Failed to fetch user configs for dashboard", exc_info=True)
 
-        cards = [
-            AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
-            for a in agents
-        ]
+        # Determine which agents have running executions
+        busy_agents: set[str] = set()
+        try:
+            running_records = await gw._execution_repo.list_all(limit=100, status="running")
+            for rec in running_records:
+                busy_agents.add(rec.agent_id)
+            queued_records = await gw._execution_repo.list_all(limit=100, status="queued")
+            for rec in queued_records:
+                busy_agents.add(rec.agent_id)
+        except Exception:
+            logger.debug("Failed to fetch running executions for status badges", exc_info=True)
+
+        cards = []
+        for a in agents:
+            card = AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
+            if a.scope == "personal" and not card.user_configured:
+                card.status = "setup_required"
+            elif a.id in busy_agents:
+                card.status = "busy"
+            else:
+                card.status = "online"
+            cards.append(card)
+
         workspace_errors = ws.errors if ws else []
 
         is_htmx = bool(request.headers.get("HX-Request"))
@@ -215,6 +248,8 @@ def register_dashboard(
         existing_instructions: str | None = None
         has_existing_config = False
 
+        # Fetch existing user schedule for this agent
+        user_schedule = None
         if current_user.username and current_user.username != "anonymous":
             config = await gw._user_agent_config_repo.get(current_user.username, agent_id)
             if config is not None:
@@ -222,6 +257,18 @@ def register_dashboard(
                 existing_config = dict(config.config_values)
                 existing_secrets = set(config.encrypted_secrets.keys())
                 existing_instructions = config.instructions
+
+            # Find user's schedule for this agent
+            try:
+                all_user_schedules = await gw._user_schedule_repo.list_by_user(
+                    current_user.username
+                )
+                for sched in all_user_schedules:
+                    if sched.agent_id == agent_id:
+                        user_schedule = sched
+                        break
+            except Exception:
+                logger.debug("Failed to fetch user schedule for setup page", exc_info=True)
 
         return templates.TemplateResponse(
             request=request,
@@ -235,6 +282,7 @@ def register_dashboard(
                 "existing_secrets": existing_secrets,
                 "existing_instructions": existing_instructions,
                 "has_existing_config": has_existing_config,
+                "user_schedule": user_schedule,
                 "error": None,
                 "success": None,
                 "current_user": current_user,
@@ -326,6 +374,76 @@ def register_dashboard(
         )
         await gw._user_agent_config_repo.upsert(config)
 
+        # Handle schedule settings from the setup form
+        schedule_enabled = form_data.get("schedule_enabled") == "true"
+        schedule_cron = str(form_data.get("schedule_cron", "")).strip()
+        schedule_label = str(form_data.get("schedule_label", "")).strip()
+        schedule_message_val = str(form_data.get("schedule_message", "")).strip()
+
+        # Find existing user schedule for this agent
+        existing_schedule = None
+        try:
+            all_user_schedules = await gw._user_schedule_repo.list_by_user(user_id)
+            for sched in all_user_schedules:
+                if sched.agent_id == agent_id:
+                    existing_schedule = sched
+                    break
+        except Exception:
+            logger.debug("Failed to fetch user schedules during setup save", exc_info=True)
+
+        if schedule_enabled and schedule_cron:
+            from apscheduler.triggers.cron import CronTrigger
+
+            try:
+                CronTrigger.from_crontab(schedule_cron)
+            except (ValueError, KeyError):
+                pass  # Skip invalid cron — don't block the config save
+            else:
+                import uuid
+
+                from agent_gateway.persistence.domain import UserScheduleRecord
+
+                if existing_schedule is not None:
+                    # Update existing schedule
+                    await gw._user_schedule_repo.update_enabled(existing_schedule.id, True)
+                    # For cron/label changes, delete and recreate
+                    if (
+                        existing_schedule.cron_expr != schedule_cron
+                        or existing_schedule.name != schedule_label
+                    ):
+                        await gw._user_schedule_repo.delete(existing_schedule.id)
+                        if gw._scheduler is not None:
+                            await gw._scheduler.remove_user_schedule(existing_schedule.id)
+                        existing_schedule = None  # force create below
+
+                if existing_schedule is None:
+                    sched_id = f"user:{user_id}:{agent_id}:{str(uuid.uuid4())[:8]}"
+                    new_sched = UserScheduleRecord(
+                        id=sched_id,
+                        user_id=user_id,
+                        agent_id=agent_id,
+                        name=schedule_label or f"{agent_id} schedule",
+                        cron_expr=schedule_cron,
+                        message=schedule_message_val or "Scheduled run",
+                        enabled=True,
+                        timezone="UTC",
+                        created_at=now,
+                    )
+                    await gw._user_schedule_repo.create(new_sched)
+                    if gw._scheduler is not None:
+                        await gw._scheduler.register_user_schedule(
+                            schedule_id=sched_id,
+                            agent_id=agent_id,
+                            cron_expr=schedule_cron,
+                            message=schedule_message_val or "Scheduled run",
+                            timezone="UTC",
+                        )
+        elif not schedule_enabled and existing_schedule is not None:
+            # Disable existing schedule
+            await gw._user_schedule_repo.update_enabled(existing_schedule.id, False)
+            if gw._scheduler is not None:
+                await gw._scheduler.pause(existing_schedule.id)
+
         if setup_completed:
             return RedirectResponse(url=f"/dashboard/chat?agent_id={agent_id}", status_code=303)
 
@@ -374,19 +492,26 @@ def register_dashboard(
         repo = gw._execution_repo
         offset = (page - 1) * _PAGE_SIZE
 
+        search: str | None = request.query_params.get("search") or None
+
         records = await repo.list_all(
             limit=_PAGE_SIZE,
             offset=offset,
             agent_id=agent_id or None,
             status=status or None,
             session_id=session_id or None,
+            search=search,
         )
         total = await repo.count_all(
             agent_id=agent_id or None,
             status=status or None,
             session_id=session_id or None,
+            search=search,
         )
         rows = [ExecutionRow.from_record(r) for r in records]
+
+        # Summary stats for the stats bar
+        exec_stats = await repo.get_summary_stats(days=30)
 
         ws = gw.workspace
         agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
@@ -404,9 +529,11 @@ def register_dashboard(
                 "agent_names": agent_names,
                 "agent_id_filter": agent_id or "",
                 "status_filter": status or "",
+                "search": search or "",
                 "page": page,
                 "total_pages": total_pages,
                 "total": total,
+                "exec_stats": exec_stats,
                 "has_running": has_running,
                 "current_user": current_user,
                 "active_page": "executions",
@@ -499,7 +626,7 @@ def register_dashboard(
     async def execution_retry(
         request: Request,
         execution_id: str,
-        current_user: DashboardUser = Depends(get_dashboard_user),
+        current_user: DashboardUser = Depends(require_admin),
     ) -> RedirectResponse:
         import uuid
 
@@ -827,6 +954,7 @@ def register_dashboard(
     ) -> HTMLResponse:
         gw = request.app
         schedule_repo = gw._schedule_repo
+        exec_repo = gw._execution_repo
         records = await schedule_repo.list_all()
 
         # Fetch user's personal schedules
@@ -837,6 +965,9 @@ def register_dashboard(
             except Exception:
                 logger.debug("Failed to fetch user schedules", exc_info=True)
 
+        # Schedule execution stats for the stats bar
+        schedule_stats = await exec_repo.get_schedule_stats(hours=24)
+
         ws = gw.workspace
         agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
 
@@ -846,11 +977,34 @@ def register_dashboard(
             context={
                 "schedules": records,
                 "user_schedules": user_schedules,
+                "schedule_stats": schedule_stats,
                 "agent_names": agent_names,
                 "current_user": current_user,
                 "active_page": "schedules",
             },
         )
+
+    @protected.post("/schedules/{schedule_id}/toggle")
+    async def toggle_schedule(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> RedirectResponse:
+        gw = request.app
+        schedule_repo = gw._schedule_repo
+        record = await schedule_repo.get(schedule_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        new_enabled = not record.enabled
+        await schedule_repo.update_enabled(schedule_id, new_enabled)
+        if gw._scheduler is not None:
+            if new_enabled:
+                await gw._scheduler.resume(schedule_id)
+            else:
+                await gw._scheduler.pause(schedule_id)
+
+        return RedirectResponse(url="/dashboard/schedules", status_code=303)
 
     @protected.get("/my-schedules", response_class=HTMLResponse)
     async def my_schedules_page(
@@ -1063,22 +1217,6 @@ def register_dashboard(
         ws = gw.workspace
         agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
 
-        # Fetch recent activity (Audit Logs)
-        recent_activity = []
-        if persistence_enabled:
-            try:
-                recent_activity = await gw._audit_repo.list_recent(limit=5)
-            except Exception:
-                logger.debug("Failed to fetch recent activity", exc_info=True)
-
-        # Fetch latest conversations
-        latest_conversations = []
-        if persistence_enabled:
-            try:
-                latest_conversations = await repo.list_conversations_summary(limit=3)
-            except Exception:
-                logger.debug("Failed to fetch latest conversations", exc_info=True)
-
         summary = AnalyticsSummary(
             total_cost_usd=total_cost,
             total_executions=total_execs,
@@ -1117,8 +1255,7 @@ def register_dashboard(
                 "persistence_enabled": persistence_enabled,
                 "agent_names": agent_names,
                 "agents": agent_cards,
-                "recent_activity": recent_activity,
-                "latest_conversations": latest_conversations,
+                "cost_by_agent": cost_by_agent_data,
                 "current_user": current_user,
                 "active_page": "analytics",
             },

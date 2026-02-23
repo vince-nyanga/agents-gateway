@@ -1269,4 +1269,75 @@ textarea:focus-visible {
 .glass-card { box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
 
 html.dark body { background-color: #101922; color: #e2e8f0; }
+
+/* === Light Mode Structural Overrides === */
+html.light body { background-color: #f1f5f9; color: #0f172a; }
+html.light .layout { background-color: #f1f5f9; }
+
+/* Sidebar */
+html.light aside { background-color: rgba(255,255,255,0.9) !important; border-right-color: #e2e8f0 !important; }
+html.light aside h1 { color: #0f172a !important; }
+html.light aside .sidebar-branding p { color: #64748b !important; }
+html.light aside nav a { color: #334155 !important; }
+html.light aside nav a span.text-slate-500 { color: #475569 !important; }
+html.light aside nav a:hover { background-color: rgba(0,0,0,0.04) !important; color: #0f172a !important; }
+html.light aside nav a.bg-primary\/10 { color: #0d7ff2 !important; }
+html.light aside .sidebar-footer { border-top-color: #e2e8f0 !important; }
+html.light aside .sidebar-footer button { background-color: rgba(0,0,0,0.04) !important; color: #334155 !important; border-color: rgba(0,0,0,0.08) !important; }
+html.light aside .sidebar-footer button:hover { background-color: rgba(0,0,0,0.08) !important; color: #0f172a !important; }
+
+/* Main area */
+html.light main { background-color: #f8fafc !important; }
+html.light .topbar { background-color: #ffffff !important; border-bottom-color: #e2e8f0 !important; }
+html.light .topbar h2 { color: #475569 !important; }
+html.light .topbar input { background-color: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.06) !important; color: #0f172a !important; }
+html.light .topbar button { color: #475569 !important; }
+html.light .topbar button:hover { background-color: rgba(0,0,0,0.04) !important; }
+
+/* Cards & surfaces */
+html.light .card, html.light [class*="bg-surface"], html.light [class*="bg-background-surface"] { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+html.light .bg-white\/5, html.light .hover\:bg-white\/5:hover { background-color: rgba(0,0,0,0.04) !important; }
+html.light .bg-white\/10, html.light .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.08) !important; }
+html.light .bg-background-dark { background-color: #ffffff !important; }
+html.light .bg-background-dark\/50 { background-color: rgba(255,255,255,0.8) !important; }
+
+/* Text: remap muted slate shades to have proper contrast on white */
+html.light .text-slate-300 { color: #334155 !important; }
+html.light .text-slate-400 { color: #475569 !important; }
+html.light .text-slate-500 { color: #475569 !important; }
+html.light .text-slate-600 { color: #64748b !important; }
+html.light .text-white { color: #0f172a !important; }
+
+/* Borders */
+html.light .border-border-dark, html.light .border-border-dark\/30 { border-color: #e2e8f0 !important; }
+html.light .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+
+/* Tables */
+html.light table { background-color: #ffffff !important; }
+html.light thead { background-color: #f8fafc !important; }
+html.light th { color: #475569 !important; border-bottom-color: #e2e8f0 !important; }
+html.light td { border-bottom-color: #f1f5f9 !important; color: #0f172a !important; }
+html.light td * { color: inherit; }
+html.light td .text-slate-400, html.light td .text-slate-500 { color: #475569 !important; }
+html.light td .text-slate-600 { color: #64748b !important; }
+html.light tbody tr:hover { background-color: #f8fafc !important; }
+
+/* Stats bar cards */
+html.light .stats-bar-card { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+html.light .stats-bar-card .text-slate-400,
+html.light .stats-bar-card .text-slate-500 { color: #475569 !important; }
+
+/* Tag / cron chips */
+html.light .cron-chip { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #334155 !important; }
+html.light [class*="rounded"][class*="bg-white\/5"],
+html.light [class*="rounded"][class*="bg-white\/10"] { color: #334155 !important; }
+
+/* Inputs */
+html.light .input { background-color: #ffffff !important; border-color: #cbd5e1 !important; color: #0f172a !important; }
+html.light .input:focus { border-color: #0d7ff2 !important; }
+html.light .input::placeholder { color: #94a3b8 !important; }
+
+/* Scrollbar */
+html.light ::-webkit-scrollbar-thumb { background: rgba(203,213,225,0.8); }
+
 .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }

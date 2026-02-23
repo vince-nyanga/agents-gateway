@@ -89,13 +89,17 @@
               <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary uppercase">Global</span>
             </td>
             <td class="px-5 py-4 whitespace-nowrap text-center">
+              {% if current_user and current_user.is_admin %}
               <label class="toggle-switch">
                 <input type="checkbox" {% if s.enabled %}checked{% endif %}
-                  hx-post="/dashboard/schedules/{{ s.id }}/toggle"
+                  hx-post="/dashboard/my-schedules/{{ s.id }}/toggle"
                   hx-swap="none"
                   onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
                 <span class="toggle-track"></span>
               </label>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium {% if s.enabled %}text-emerald-400{% else %}text-slate-500{% endif %}">{{ 'On' if s.enabled else 'Off' }}</span>
+              {% endif %}
             </td>
             <td class="px-5 py-4 whitespace-nowrap">
               <div class="flex flex-col">
@@ -136,7 +140,7 @@
             <td class="px-5 py-4 whitespace-nowrap text-center">
               <label class="toggle-switch">
                 <input type="checkbox" {% if s.enabled %}checked{% endif %}
-                  hx-post="/dashboard/schedules/{{ s.id }}/toggle"
+                  hx-post="/dashboard/my-schedules/{{ s.id }}/toggle"
                   hx-swap="none"
                   onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
                 <span class="toggle-track"></span>

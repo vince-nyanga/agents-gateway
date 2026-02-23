@@ -330,6 +330,8 @@ Env prefix: `AGENT_GATEWAY_DASHBOARD__`
 | `enabled` | `bool` | `True` | Require login to access the dashboard. |
 | `username` | `str` | `"admin"` | Login username (password auth mode). |
 | `password` | `str` | `""` | Login password. Empty string disables password protection (warned at startup). |
+| `admin_username` | `str \| None` | `None` | Separate admin account username. Admin users can toggle schedules and retry executions. |
+| `admin_password` | `str \| None` | `None` | Admin account password. Both `admin_username` and `admin_password` must be set to enable the admin account. |
 | `login_button_text` | `str` | `"Sign in with SSO"` | Text on the SSO login button (OAuth2 mode). |
 | `session_secret` | `str` | `""` | Secret for signing session cookies. Auto-generated if empty. |
 | `oauth2` | `DashboardOAuth2Config \| None` | `None` | OAuth2/OIDC configuration. Mutually exclusive with `password`. |

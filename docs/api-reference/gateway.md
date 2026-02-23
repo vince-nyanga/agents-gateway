@@ -538,12 +538,16 @@ def use_dashboard(
     oauth2_client_secret: str | None = None,
     oauth2_scopes: list[str] | None = None,
     login_button_text: str | None = None,
+    admin_username: str | None = None,
+    admin_password: str | None = None,
 ) -> Gateway
 ```
 
 Enable the built-in web dashboard at `/dashboard`. The dashboard has its own session-based authentication independent of the API auth.
 
 Password auth and OAuth2 are mutually exclusive. Setting both raises `ConfigError` at startup. A missing password logs a warning but does not prevent startup.
+
+Optionally configure a separate admin account with `admin_username`/`admin_password`. Admin users can toggle schedules and retry executions. OAuth2 users are always non-admin.
 
 ```python
 gw.use_dashboard(auth_password="secret", title="My Agents")

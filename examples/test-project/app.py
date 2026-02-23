@@ -101,8 +101,10 @@ if use_keycloak_dashboard:
 else:
     gw.use_dashboard(
         title="Agent Gateway — Test Project",
-        auth_username="admin",
-        auth_password=os.environ.get("DASHBOARD_PASSWORD", "admin"),
+        auth_username="user",
+        auth_password=os.environ.get("DASHBOARD_PASSWORD", "userpass"),
+        admin_username="admin",
+        admin_password=os.environ.get("DASHBOARD_ADMIN_PASSWORD", "adminpass"),
         primary_color="#2563eb",
         sidebar_color="#0f172a",
     )

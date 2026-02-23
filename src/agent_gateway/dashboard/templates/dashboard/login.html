@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme-mode="{{ dashboard_theme_mode }}">
+<html lang="en" class="dark" data-theme-mode="{{ dashboard_theme_mode }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,6 +13,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#0d7ff2' },
+            background: { dark: '#101922', surface: '#161b26' },
+            border: { dark: '#2d333b' },
+          },
+        },
+      },
+    }
+  </script>
   <link rel="stylesheet" href="/dashboard/static/dashboard/tokens.css" />
   <link rel="stylesheet" href="/dashboard/static/dashboard/app.css" />
   <style>
