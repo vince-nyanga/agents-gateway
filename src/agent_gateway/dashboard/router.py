@@ -453,6 +453,26 @@ def register_dashboard(
                 executions=[ExecutionRow.from_record(r) for r in session_records],
             )
 
+        # Build delegation context
+        parent_execution: ExecutionRow | None = None
+        child_executions: list[ExecutionRow] = []
+        workflow_cost: float | None = None
+
+        if record.parent_execution_id:
+            parent_record = await repo.get(record.parent_execution_id)
+            if parent_record:
+                parent_execution = ExecutionRow.from_record(parent_record)
+
+        children = await repo.list_children(execution_id)
+        if children:
+            child_executions = [ExecutionRow.from_record(c) for c in children]
+
+        # Show workflow cost rollup for root executions with children
+        if not record.parent_execution_id and child_executions:
+            workflow_cost = await repo.cost_by_root_execution(
+                record.root_execution_id or execution_id
+            )
+
         is_htmx = bool(request.headers.get("HX-Request"))
         is_running = record.status in ("queued", "running")
         template = (
@@ -466,6 +486,9 @@ def register_dashboard(
             context={
                 "detail": detail,
                 "conversation": conversation,
+                "parent_execution": parent_execution,
+                "child_executions": child_executions,
+                "workflow_cost": workflow_cost,
                 "is_running": is_running,
                 "current_user": current_user,
                 "active_page": "executions",
@@ -498,21 +521,28 @@ def register_dashboard(
         ws = gw.workspace
         agent = ws.agents.get(agent_id) if ws else None
         if agent is None:
-            raise HTTPException(status_code=400, detail=f"Agent '{agent_id}' no longer available in workspace.")
+            raise HTTPException(
+                status_code=400, detail=f"Agent '{agent_id}' no longer available in workspace."
+            )
 
         # 3. Create context + session
-        user_id = current_user.username if current_user.username and current_user.username != "anonymous" else None
+        user_id = (
+            current_user.username
+            if current_user.username and current_user.username != "anonymous"
+            else None
+        )
 
         session = None
         if session_id:
             session = gw._session_store.get_session(session_id)
-        
+
         # 4. Trigger new execution async
         exec_options = ExecutionOptions()
         new_exec_id = str(uuid.uuid4())
-        
+
         # We fire and forget this task
         import asyncio
+
         asyncio.create_task(
             gw.invoke_agent(
                 agent_id=agent_id,
@@ -520,7 +550,7 @@ def register_dashboard(
                 session_id=session_id,
                 user_id=user_id,
                 options=exec_options,
-                execution_id=new_exec_id
+                execution_id=new_exec_id,
             )
         )
 
@@ -1012,7 +1042,12 @@ def register_dashboard(
         total_execs = 0
         success_count = 0
 
-        stats = {"total_executions": 0, "success_count": 0, "total_cost_usd": 0.0, "avg_duration_ms": 0.0}
+        stats = {
+            "total_executions": 0,
+            "success_count": 0,
+            "total_cost_usd": 0.0,
+            "avg_duration_ms": 0.0,
+        }
         if persistence_enabled:
             try:
                 stats = await repo.get_summary_stats(days=days)
@@ -1069,10 +1104,10 @@ def register_dashboard(
                 user_configs_by_agent = {uc.agent_id: uc for uc in user_configs}
             except Exception:
                 pass
-        
+
         agent_cards = [
             AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
-            for a in agents[:3] # Show top 3 in the grid
+            for a in agents[:3]  # Show top 3 in the grid
         ]
 
         is_htmx = bool(request.headers.get("HX-Request"))

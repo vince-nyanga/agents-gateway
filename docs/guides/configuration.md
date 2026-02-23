@@ -41,9 +41,10 @@ Hard limits applied to every agent execution:
 
 ```yaml
 guardrails:
-  max_tool_calls: 20    # Maximum tool calls per execution (default: 20)
-  max_iterations: 10    # Maximum LLM reasoning iterations (default: 10)
-  timeout_ms: 60000     # Execution timeout in milliseconds (default: 60000)
+  max_tool_calls: 20          # Maximum tool calls per execution (default: 20)
+  max_iterations: 10          # Maximum LLM reasoning iterations (default: 10)
+  timeout_ms: 60000           # Execution timeout in milliseconds (default: 60000)
+  max_delegation_depth: 3     # Maximum agent-to-agent delegation depth (default: 3)
 ```
 
 An execution that hits any of these limits is stopped with the appropriate `stop_reason`.

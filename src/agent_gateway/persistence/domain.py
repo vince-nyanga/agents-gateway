@@ -27,6 +27,9 @@ class ExecutionRecord:
     session_id: str | None = None
     schedule_id: str | None = None
     schedule_name: str | None = None
+    parent_execution_id: str | None = None
+    root_execution_id: str | None = None
+    delegation_depth: int = 0
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime | None = None

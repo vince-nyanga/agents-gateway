@@ -68,6 +68,7 @@ nav:
       - Persistence: guides/persistence.md
       - Notifications: guides/notifications.md
       - Scheduling: guides/scheduling.md
+      - Delegation: guides/delegation.md
       - Memory: guides/memory.md
       - Queue: guides/queue.md
       - Telemetry: guides/telemetry.md

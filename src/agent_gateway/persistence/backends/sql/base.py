@@ -86,12 +86,17 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("session_id", String, nullable=True),
         Column("schedule_id", String, nullable=True),
         Column("schedule_name", String, nullable=True),
+        Column("parent_execution_id", String(36), nullable=True),
+        Column("root_execution_id", String(36), nullable=True),
+        Column("delegation_depth", Integer, nullable=False, server_default="0"),
         Column("started_at", DateTime(timezone=True)),
         Column("completed_at", DateTime(timezone=True)),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}executions_agent_id", "agent_id"),
         Index(f"ix_{prefix}executions_session_id", "session_id"),
         Index(f"ix_{prefix}executions_schedule_id", "schedule_id"),
+        Index(f"ix_{prefix}executions_parent_execution_id", "parent_execution_id"),
+        Index(f"ix_{prefix}executions_root_execution_id", "root_execution_id"),
     )
 
     execution_steps = Table(

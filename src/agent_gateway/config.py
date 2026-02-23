@@ -87,6 +87,7 @@ class GuardrailsConfig(BaseModel):
     max_tool_calls: int = 20
     max_iterations: int = 10
     timeout_ms: int = 60_000
+    max_delegation_depth: int = 3
 
 
 class AuthKeyConfig(BaseModel):

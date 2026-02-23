@@ -474,6 +474,68 @@ class Gateway(FastAPI):
                 logger.warning("Failed to init memory backend", exc_info=True)
                 self._memory_manager = None
 
+        # 7.3: Register delegation tool for agents with delegates_to
+        delegation_agents = [aid for aid, a in workspace.agents.items() if a.delegates_to]
+        if delegation_agents:
+            from agent_gateway.engine.delegation import run_delegation
+
+            async def _delegate_to_agent(
+                agent_id: str,
+                message: str,
+                input: dict[str, Any] | None = None,
+                context: Any = None,
+            ) -> str:
+                """Delegate a task to another agent and get their result."""
+                from agent_gateway.engine.models import ToolContext
+
+                ctx: ToolContext = context
+                return await run_delegation(
+                    self,
+                    caller_agent_id=ctx.agent_id,
+                    delegates_to=ctx.delegates_to,
+                    execution_id=ctx.execution_id,
+                    root_execution_id=ctx.root_execution_id or ctx.execution_id,
+                    delegation_depth=ctx.delegation_depth,
+                    user_id=ctx.caller_identity,
+                    agent_id=agent_id,
+                    message=message,
+                    input=input,
+                )
+
+            delegation_tool = CodeTool(
+                name="delegate_to_agent",
+                description=(
+                    "Delegate a task to another agent and get their result. "
+                    "Use this to hand off specialized work to another agent."
+                ),
+                fn=_delegate_to_agent,
+                parameters_schema={
+                    "type": "object",
+                    "properties": {
+                        "agent_id": {
+                            "type": "string",
+                            "description": "The ID of the agent to delegate to.",
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "The task/message to send to the target agent.",
+                        },
+                        "input": {
+                            "type": "object",
+                            "description": "Optional structured input for the target agent.",
+                        },
+                    },
+                    "required": ["agent_id", "message"],
+                },
+                allowed_agents=delegation_agents,
+            )
+            tool_registry.register_code_tool(delegation_tool)
+            logger.info(
+                "Delegation tool registered for %d agent(s): %s",
+                len(delegation_agents),
+                ", ".join(delegation_agents),
+            )
+
         # 7.5. Apply code-registered input schemas (overrides frontmatter)
         self._apply_pending_input_schemas(workspace)
 
@@ -1952,6 +2014,9 @@ class Gateway(FastAPI):
         input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
         auth: Any | None = None,
+        parent_execution_id: str | None = None,
+        root_execution_id: str | None = None,
+        delegation_depth: int = 0,
     ) -> ExecutionResult:
         """Invoke an agent programmatically (bypasses HTTP).
 
@@ -1961,6 +2026,9 @@ class Gateway(FastAPI):
             input: Optional input dict.
             options: Optional execution options.
             auth: Optional AuthResult from the request (for user-scoped operations).
+            parent_execution_id: ID of the parent execution (for delegated calls).
+            root_execution_id: ID of the root execution in a delegation tree.
+            delegation_depth: Current depth in the delegation tree.
 
         Returns:
             ExecutionResult with output, usage, and stop reason.
@@ -2016,6 +2084,28 @@ class Gateway(FastAPI):
         handle = ExecutionHandle(execution_id=execution_id)
         self._execution_handles[execution_id] = handle
 
+        # Resolve root execution ID for delegation tree
+        effective_root_id = root_execution_id or execution_id
+
+        # Persist execution record for delegated calls
+        if parent_execution_id is not None:
+            from datetime import UTC, datetime
+
+            from agent_gateway.persistence.domain import ExecutionRecord
+
+            record = ExecutionRecord(
+                id=execution_id,
+                agent_id=agent_id,
+                status="running",
+                message=message,
+                input=input or None,
+                parent_execution_id=parent_execution_id,
+                root_execution_id=effective_root_id,
+                delegation_depth=delegation_depth,
+                started_at=datetime.now(UTC),
+            )
+            await self._execution_repo.create(record)
+
         try:
             result = await snapshot.engine.execute(
                 agent=agent,
@@ -2030,6 +2120,10 @@ class Gateway(FastAPI):
                 caller_identity=user_id,
                 user_secrets=user_secrets,
                 user_config=user_config_values,
+                parent_execution_id=parent_execution_id,
+                root_execution_id=effective_root_id,
+                delegation_depth=delegation_depth,
+                delegates_to=agent.delegates_to if agent.delegates_to else None,
             )
 
             # Fire notifications
@@ -2058,6 +2152,19 @@ class Gateway(FastAPI):
                     result=result.to_dict() if result.raw_text else None,
                     usage=result.usage.to_dict() if result.usage else None,
                     input=input,
+                )
+
+            # Update delegated execution record with result
+            if parent_execution_id is not None:
+                from datetime import UTC, datetime
+
+                status = "completed" if result.stop_reason.value == "completed" else "failed"
+                await self._execution_repo.update_status(
+                    execution_id,
+                    status,
+                    result=result.to_dict(),
+                    usage=result.usage.to_dict(),
+                    completed_at=datetime.now(UTC),
                 )
 
             return result

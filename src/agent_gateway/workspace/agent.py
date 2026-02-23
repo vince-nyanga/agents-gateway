@@ -68,6 +68,9 @@ class AgentDefinition:
     notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
     input_schema: dict[str, Any] | None = None
 
+    # Delegation: list of agent IDs this agent can delegate to
+    delegates_to: list[str] = field(default_factory=list)
+
     # Agent scope: "global" (default) or "personal" (requires per-user config)
     scope: str = "global"
     setup_schema: dict[str, Any] | None = None
@@ -177,6 +180,13 @@ class AgentDefinition:
 
         memory_config = _parse_memory_config(agent_meta.get("memory", {}), agent_dir)
 
+        delegates_to = agent_meta.get("delegates_to", [])
+        if not isinstance(delegates_to, list) or not all(isinstance(d, str) for d in delegates_to):
+            logger.warning(
+                "Agent '%s': 'delegates_to' must be a list of strings, ignoring", agent_id
+            )
+            delegates_to = []
+
         scope_raw = agent_meta.get("scope", "global")
         scope = str(scope_raw) if scope_raw in ("global", "personal") else "global"
         if scope_raw not in ("global", "personal") and scope_raw is not None:
@@ -205,6 +215,7 @@ class AgentDefinition:
             context_content=context_content,
             retrievers=retrievers,
             memory_config=memory_config,
+            delegates_to=delegates_to,
             scope=scope,
             setup_schema=setup_schema,
         )

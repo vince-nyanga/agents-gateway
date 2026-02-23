@@ -97,6 +97,15 @@ class NullExecutionRepository:
     async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         return _EMPTY_ANALYTICS
 
+    async def list_by_root_execution(self, root_execution_id: str) -> list[ExecutionRecord]:
+        return []
+
+    async def cost_by_root_execution(self, root_execution_id: str) -> float:
+        return 0.0
+
+    async def list_children(self, parent_execution_id: str) -> list[ExecutionRecord]:
+        return []
+
     async def add_step(self, step: ExecutionStep) -> None:
         pass
 

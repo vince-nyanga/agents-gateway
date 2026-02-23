@@ -275,6 +275,49 @@ class ExecutionRepository:
             result = await session.execute(stmt)
             return int(result.scalar_one())
 
+    async def list_by_root_execution(self, root_execution_id: str) -> list[ExecutionRecord]:
+        """Return all executions in a workflow tree."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ExecutionRecord)
+                .where(
+                    ExecutionRecord.root_execution_id == root_execution_id  # type: ignore[arg-type]
+                )
+                .order_by(
+                    ExecutionRecord.delegation_depth,  # type: ignore[arg-type]
+                    ExecutionRecord.created_at,  # type: ignore[arg-type]
+                )
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def cost_by_root_execution(self, root_execution_id: str) -> float:
+        """Aggregated cost across the entire workflow tree."""
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        async with self._session_factory() as session:
+            stmt = text(f"""
+                SELECT COALESCE(SUM({cost}), 0) as total_cost
+                FROM executions
+                WHERE root_execution_id = :root_id
+                  AND usage IS NOT NULL
+                """)
+            result = await session.execute(stmt, {"root_id": root_execution_id})
+            val = result.scalar()
+            return float(val) if val else 0.0
+
+    async def list_children(self, parent_execution_id: str) -> list[ExecutionRecord]:
+        """Return direct child executions of a parent."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ExecutionRecord)
+                .where(
+                    ExecutionRecord.parent_execution_id == parent_execution_id  # type: ignore[arg-type]
+                )
+                .order_by(ExecutionRecord.created_at)  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
     async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily cost aggregation for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)
@@ -327,8 +370,8 @@ class ExecutionRepository:
         """Aggregate summary stats for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)
         cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
-        
-        # Calculate duration in ms. 
+
+        # Calculate duration in ms.
         # PostgreSQL: EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000
         # SQLite: (julianday(completed_at) - julianday(started_at)) * 86400000
         if self._pg:

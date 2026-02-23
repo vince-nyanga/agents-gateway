@@ -90,6 +90,9 @@ class ExecutionResponse(BaseModel):
     error: str | None = None
     usage: dict[str, Any] | None = None
     session_id: str | None = None
+    parent_execution_id: str | None = None
+    root_execution_id: str | None = None
+    delegation_depth: int = 0
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime | None = None

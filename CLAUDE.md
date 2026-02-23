@@ -57,6 +57,17 @@ After every feature or fix, the example project in `examples/test-project/` MUST
 
 After every feature or fix, the documentation in `docs/` MUST be updated to reflect the change. If a new feature is added, add or update the relevant guide in `docs/guides/`. If configuration changes, update `docs/guides/configuration.md` and `docs/api-reference/configuration.md`. If the public API changes, update `docs/api-reference/gateway.md`. Keep `docs/llms.txt` in sync for AI-friendly documentation access. Build docs locally with `uv run mkdocs serve`.
 
+## Agent Workflow
+
+Use the project's specialized agents to handle tasks:
+
+- **implementation-planner**: Use for planning features, fixes, or refactors before writing code. Produces a structured implementation plan.
+- **backend-implementer**: Use after planning to implement backend code. Takes a plan and writes production-quality code using `/workflows:work`.
+- **frontend-builder**: Use for building or modifying UI components, pages, layouts, and client-side functionality.
+- **code-reviewer**: Use before merging any PR. Runs `/workflows:review` for multi-agent code review.
+
+**Typical flow**: `implementation-planner` → `backend-implementer` and/or `frontend-builder` → `code-reviewer`
+
 ## Pre-PR Checklist
 
 Before creating any PR, always run:

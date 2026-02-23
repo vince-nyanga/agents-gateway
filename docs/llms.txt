@@ -64,6 +64,9 @@ model:
   name: gemini/gemini-2.0-flash
   temperature: 0.1
 execution_mode: sync
+delegates_to:
+  - researcher
+  - writer
 schedules:
   - name: daily
     cron: "0 9 * * 1-5"
@@ -137,6 +140,7 @@ Composable workflow units grouping tools with optional sequential/parallel steps
 | POST | /v1/agents/{id}/invoke | Single-turn invocation |
 | POST | /v1/agents/{id}/chat | Multi-turn chat |
 | GET | /v1/executions/{id} | Execution status |
+| GET | /v1/executions/{id}/workflow | Full delegation workflow tree |
 | POST | /v1/executions/{id}/cancel | Cancel execution |
 | GET | /v1/sessions | List chat sessions |
 | GET | /v1/skills | List skills |

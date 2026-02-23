@@ -145,6 +145,11 @@ class ToolContext:
     metadata: dict[str, Any] = field(default_factory=dict)
     user_secrets: dict[str, str] = field(default_factory=dict)
     user_config: dict[str, Any] = field(default_factory=dict)
+    # Delegation context
+    parent_execution_id: str | None = None
+    root_execution_id: str | None = None
+    delegation_depth: int = 0
+    delegates_to: list[str] = field(default_factory=list)
 
 
 class ExecutionHandle:

@@ -76,6 +76,18 @@ model:
 
 All fields are optional. Omitted fields inherit the global defaults.
 
+### Delegation
+
+Agents can delegate tasks to other agents using the built-in `delegate_to_agent` tool:
+
+```yaml
+delegates_to:
+  - researcher
+  - writer
+```
+
+When `delegates_to` is configured, the agent gains access to a `delegate_to_agent` tool that allows it to invoke other agents and receive their results. See the [Delegation Guide](delegation.md) for details.
+
 ### Execution mode
 
 ```yaml

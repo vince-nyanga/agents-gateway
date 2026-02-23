@@ -42,6 +42,9 @@ def _record_to_response(record: ExecutionRecord) -> ExecutionResponse:
         error=record.error,
         usage=record.usage,
         session_id=record.session_id,
+        parent_execution_id=record.parent_execution_id,
+        root_execution_id=record.root_execution_id,
+        delegation_depth=record.delegation_depth,
         started_at=record.started_at,
         completed_at=record.completed_at,
         created_at=record.created_at,
@@ -76,10 +79,17 @@ async def list_executions(
     request: Request,
     agent_id: str | None = Query(None, description="Filter by agent ID"),
     session_id: str | None = Query(None, description="Filter by session/conversation ID"),
+    root_execution_id: str | None = Query(
+        None, description="Filter by root execution ID (delegation tree)"
+    ),
     limit: int = Query(50, ge=1, le=500, description="Max results"),
 ) -> list[ExecutionResponse]:
-    """List executions, optionally filtered by agent or session."""
+    """List executions, optionally filtered by agent, session, or delegation tree."""
     gw: Gateway = request.app
+
+    if root_execution_id:
+        records = await gw._execution_repo.list_by_root_execution(root_execution_id)
+        return [_record_to_response(r) for r in records[:limit]]
 
     if session_id:
         records = await gw._execution_repo.list_by_session(session_id, limit=limit)
@@ -90,6 +100,33 @@ async def list_executions(
         return [_record_to_response(r) for r in records]
 
     records = await gw._execution_repo.list_all(limit=limit)
+    return [_record_to_response(r) for r in records]
+
+
+@router.get(
+    "/executions/{execution_id}/workflow",
+    response_model=list[ExecutionResponse],
+    dependencies=[Depends(RequireScope("executions:read"))],
+)
+async def get_execution_workflow(
+    request: Request,
+    execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
+) -> list[ExecutionResponse] | JSONResponse:
+    """Get the full delegation workflow tree for an execution."""
+    gw: Gateway = request.app
+
+    record = await gw._execution_repo.get(execution_id)
+    if record is None:
+        return error_response(404, "execution_not_found", f"Execution '{execution_id}' not found")
+
+    # Use root_execution_id if available, otherwise this is the root
+    root_id = record.root_execution_id or execution_id
+    records = await gw._execution_repo.list_by_root_execution(root_id)
+
+    # If no records found via root query, return just the single record
+    if not records:
+        return [_record_to_response(record)]
+
     return [_record_to_response(r) for r in records]
 
 

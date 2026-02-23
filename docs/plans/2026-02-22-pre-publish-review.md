@@ -21,7 +21,7 @@ After a thorough review of the entire codebase, here are all items that need add
 
 ### P1 — Should Fix Before Publish
 
-- [ ] **#8** [Agent-to-agent communication & handover](publish/08-agent-to-agent-communication.md) — Feature
+- [x] **#8** [Agent-to-agent communication & handover](publish/08-agent-to-agent-communication.md) — Feature
 - [ ] **#9** [Rate limiting](publish/09-rate-limiting.md) — Security
 - [ ] **#10** [Security headers middleware](publish/10-security-headers.md) — Security
 - [ ] **#11** [OpenAPI endpoint documentation](publish/11-openapi-docs.md) — API

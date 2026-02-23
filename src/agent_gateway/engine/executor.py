@@ -113,6 +113,10 @@ class ExecutionEngine:
         user_instructions: str | None = None,
         user_secrets: dict[str, str] | None = None,
         user_config: dict[str, Any] | None = None,
+        parent_execution_id: str | None = None,
+        root_execution_id: str | None = None,
+        delegation_depth: int = 0,
+        delegates_to: list[str] | None = None,
     ) -> ExecutionResult:
         """Run the full agent execution loop.
 
@@ -204,6 +208,10 @@ class ExecutionEngine:
             metadata=input or {},
             user_secrets=user_secrets or {},
             user_config=user_config or {},
+            parent_execution_id=parent_execution_id,
+            root_execution_id=root_execution_id or execution_id,
+            delegation_depth=delegation_depth,
+            delegates_to=delegates_to or [],
         )
 
         exec_start = time.monotonic()

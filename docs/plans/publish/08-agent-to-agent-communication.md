@@ -1,6 +1,6 @@
 ---
 title: "Agent-to-Agent Communication & Handover"
-status: pending
+status: completed
 priority: P1
 category: Feature
 date: 2026-02-22
