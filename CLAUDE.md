@@ -66,10 +66,11 @@ Use the project's specialized agents to handle tasks. **Every step below is mand
 - **backend-implementer**: ALWAYS run after the plan is approved to implement backend code. Uses `/workflows:work`.
 - **frontend-builder**: Run for any UI/frontend changes (in addition to or instead of backend-implementer).
 - **code-reviewer**: ALWAYS run after implementation, before considering the task done. Runs `/workflows:review`. Do not mark a task complete or check it off without running this agent.
+- **docs-updater**: Run after the code-reviewer completes, when a feature or fix has been implemented. Updates `docs/` to reflect the change.
 
 **Mandatory flow** (no steps may be skipped):
 ```
-implementation-planner → plan-reviewer → [HUMAN APPROVAL] → backend-implementer and/or frontend-builder → code-reviewer
+implementation-planner → plan-reviewer → [HUMAN APPROVAL] → backend-implementer and/or frontend-builder → code-reviewer → docs-updater
 ```
 
 After `plan-reviewer` completes, **always present the plan to the user and wait for explicit approval before writing any code.** Do not proceed to implementation automatically.

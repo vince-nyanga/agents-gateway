@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response
 from agent_gateway.api.models import ExecutionResponse
+from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import ExecutionStatus
@@ -54,6 +55,10 @@ def _record_to_response(record: ExecutionRecord) -> ExecutionResponse:
 @router.get(
     "/executions/{execution_id}",
     response_model=ExecutionResponse,
+    summary="Get execution",
+    description="Retrieve execution details by ID. Use for polling async executions.",
+    tags=["Executions"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("executions:read"))],
 )
 async def get_execution(
@@ -73,6 +78,10 @@ async def get_execution(
 @router.get(
     "/executions",
     response_model=list[ExecutionResponse],
+    summary="List executions",
+    description="List executions, optionally filtered by agent, session, or delegation tree.",
+    tags=["Executions"],
+    responses=build_responses(auth=True),
     dependencies=[Depends(RequireScope("executions:read"))],
 )
 async def list_executions(
@@ -106,6 +115,10 @@ async def list_executions(
 @router.get(
     "/executions/{execution_id}/workflow",
     response_model=list[ExecutionResponse],
+    summary="Get execution workflow",
+    description="Get the full delegation workflow tree for an execution.",
+    tags=["Executions"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("executions:read"))],
 )
 async def get_execution_workflow(
@@ -132,6 +145,10 @@ async def get_execution_workflow(
 
 @router.post(
     "/executions/{execution_id}/cancel",
+    summary="Cancel execution",
+    description="Cancel a running or queued execution.",
+    tags=["Executions"],
+    responses=build_responses(auth=True, not_found=True, conflict=True),
     dependencies=[Depends(RequireScope("executions:cancel"))],
 )
 async def cancel_execution(

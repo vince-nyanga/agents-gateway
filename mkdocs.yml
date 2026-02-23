@@ -78,6 +78,7 @@ nav:
       - CORS: guides/cors.md
       - Rate Limiting: guides/rate-limiting.md
       - Security Headers: guides/security-headers.md
+      - OpenAPI Documentation: guides/openapi.md
   - API Reference:
       - Gateway: api-reference/gateway.md
       - Configuration: api-reference/configuration.md

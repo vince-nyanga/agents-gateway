@@ -16,6 +16,7 @@ from agent_gateway.api.models import (
     SkillInfo,
     ToolInfo,
 )
+from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
@@ -51,6 +52,10 @@ def _build_notification_config(agent: AgentDefinition) -> NotificationConfigInfo
 @router.get(
     "/agents",
     response_model=list[AgentInfo],
+    summary="List agents",
+    description="List all discovered agents and their configurations.",
+    tags=["Agents"],
+    responses=build_responses(auth=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def list_agents(request: Request) -> list[AgentInfo]:
@@ -85,6 +90,10 @@ async def list_agents(request: Request) -> list[AgentInfo]:
 @router.get(
     "/agents/{agent_id}",
     response_model=AgentInfo,
+    summary="Get agent details",
+    description="Get detailed information about a specific agent.",
+    tags=["Agents"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def get_agent(
@@ -122,6 +131,10 @@ async def get_agent(
 @router.get(
     "/skills",
     response_model=list[SkillInfo],
+    summary="List skills",
+    description="List all discovered skills and their configurations.",
+    tags=["Skills"],
+    responses=build_responses(auth=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def list_skills(request: Request) -> list[SkillInfo]:
@@ -147,6 +160,10 @@ async def list_skills(request: Request) -> list[SkillInfo]:
 @router.get(
     "/skills/{skill_id}",
     response_model=SkillInfo,
+    summary="Get skill details",
+    description="Get detailed information about a specific skill.",
+    tags=["Skills"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def get_skill(
@@ -176,6 +193,10 @@ async def get_skill(
 @router.get(
     "/tools",
     response_model=list[ToolInfo],
+    summary="List tools",
+    description="List all registered tools (file-based and code-based).",
+    tags=["Tools"],
+    responses=build_responses(auth=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def list_tools(request: Request) -> list[ToolInfo]:
@@ -199,6 +220,10 @@ async def list_tools(request: Request) -> list[ToolInfo]:
 @router.get(
     "/tools/{tool_id}",
     response_model=ToolInfo,
+    summary="Get tool details",
+    description="Get detailed information about a specific tool.",
+    tags=["Tools"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def get_tool(
@@ -223,7 +248,16 @@ async def get_tool(
     )
 
 
-@router.post("/reload", dependencies=[Depends(RequireScope("admin"))])
+@router.post(
+    "/reload",
+    summary="Reload workspace",
+    description=(
+        "Re-scan the workspace directory and reload all agent, skill, and tool definitions."
+    ),
+    tags=["Admin"],
+    responses=build_responses(auth=True),
+    dependencies=[Depends(RequireScope("admin"))],
+)
 async def reload_workspace(request: Request) -> JSONResponse:
     """Re-scan workspace and reload all definitions."""
     gw: Gateway = request.app

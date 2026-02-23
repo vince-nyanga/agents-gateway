@@ -1,6 +1,6 @@
 ---
 title: "OpenAPI Endpoint Documentation"
-status: pending
+status: completed
 priority: P1
 category: API
 date: 2026-02-22

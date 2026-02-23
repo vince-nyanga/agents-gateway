@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response
+from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
@@ -29,6 +30,10 @@ def _get_user_id(request: Request, gw: Gateway) -> str | None:
 
 @router.get(
     "/agents/{agent_id}/setup-schema",
+    summary="Get agent setup schema",
+    description="Get the setup schema for a personal agent.",
+    tags=["User Config"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:read"))],
 )
 async def get_setup_schema(
@@ -63,6 +68,10 @@ async def get_setup_schema(
 
 @router.post(
     "/agents/{agent_id}/config",
+    summary="Save user config",
+    description="Save or update the caller's configuration for a personal agent.",
+    tags=["User Config"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:configure"))],
 )
 async def save_user_config(
@@ -154,6 +163,10 @@ async def save_user_config(
 
 @router.get(
     "/agents/{agent_id}/config",
+    summary="Get user config",
+    description="Get the caller's configuration for a personal agent (secrets redacted).",
+    tags=["User Config"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:configure"))],
 )
 async def get_user_config(
@@ -191,6 +204,10 @@ async def get_user_config(
 
 @router.delete(
     "/agents/{agent_id}/config",
+    summary="Delete user config",
+    description="Delete the caller's configuration for a personal agent.",
+    tags=["User Config"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:configure"))],
 )
 async def delete_user_config(

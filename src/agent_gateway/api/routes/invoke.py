@@ -19,6 +19,7 @@ from agent_gateway.api.models import (
     ResultPayload,
     UsagePayload,
 )
+from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.api.routes.status import stop_reason_to_status
 from agent_gateway.auth.scopes import RequireScope
@@ -92,6 +93,18 @@ def _build_response(
 @router.post(
     "/agents/{agent_id}/invoke",
     response_model=InvokeResponse,
+    summary="Invoke an agent",
+    description=(
+        "Send a message to an agent and receive a response. "
+        "Supports synchronous, asynchronous (polling), and streaming modes."
+    ),
+    tags=["Agents"],
+    responses={
+        202: {
+            "description": "Accepted — async execution queued. Poll via the returned URL.",
+        },
+        **build_responses(auth=True, not_found=True, rate_limit=True),
+    },
     dependencies=[Depends(RequireScope("agents:invoke"))],
 )
 async def invoke_agent(

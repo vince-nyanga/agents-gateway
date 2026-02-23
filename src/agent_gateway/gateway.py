@@ -78,6 +78,20 @@ logger = logging.getLogger(__name__)
 _AUTH_NOT_SET = object()  # sentinel: distinguishes "not configured" from "explicitly disabled"
 _MAX_CONCURRENT_EXECUTIONS = 50
 
+_GATEWAY_OPENAPI_TAGS: list[dict[str, str]] = [
+    {"name": "Health", "description": "Gateway health and readiness checks."},
+    {"name": "Agents", "description": "Agent invocation and introspection."},
+    {"name": "Chat", "description": "Multi-turn conversational sessions."},
+    {"name": "Sessions", "description": "Session lifecycle management."},
+    {"name": "Conversations", "description": "Persistent conversation history."},
+    {"name": "Executions", "description": "Execution history, polling, and cancellation."},
+    {"name": "Schedules", "description": "Cron schedule management."},
+    {"name": "Tools", "description": "Tool registry introspection."},
+    {"name": "Skills", "description": "Skill registry introspection."},
+    {"name": "User Config", "description": "Per-user agent configuration (personal agents)."},
+    {"name": "Admin", "description": "Administrative operations."},
+]
+
 
 @dataclass(frozen=True)
 class WorkspaceSnapshot:
@@ -152,6 +166,12 @@ class Gateway(FastAPI):
         self._extraction_cooldowns: dict[str, float] = {}
         _EXTRACTION_DEBOUNCE_SECONDS = 30.0
         self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
+
+        # Merge default OpenAPI tags with any caller-supplied tags (de-duplicate by name)
+        caller_tags = fastapi_kwargs.pop("openapi_tags", None) or []
+        gateway_names = {t["name"] for t in _GATEWAY_OPENAPI_TAGS}
+        extra_tags = [t for t in caller_tags if t.get("name") not in gateway_names]
+        fastapi_kwargs["openapi_tags"] = [*_GATEWAY_OPENAPI_TAGS, *extra_tags]
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)

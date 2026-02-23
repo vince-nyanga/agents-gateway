@@ -23,6 +23,13 @@ use_keycloak_api = os.environ.get("KEYCLOAK_API", "").strip() in ("1", "true")
 gw_kwargs: dict = {
     "workspace": "./workspace",
     "title": "Test Project",
+    "description": "Example agent-gateway project for development and testing.",
+    "version": "0.1.0",
+    # Caller-supplied tags are merged with gateway defaults (de-duplicated by name).
+    # Gateway defaults (Health, Agents, Chat, etc.) are always included automatically.
+    "openapi_tags": [
+        {"name": "Demo", "description": "Example endpoints for testing gateway features."},
+    ],
 }
 
 # When API is protected with OAuth2, configure Swagger UI to show the login button

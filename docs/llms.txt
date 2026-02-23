@@ -130,21 +130,60 @@ def add(a: float, b: float) -> float:
 
 Composable workflow units grouping tools with optional sequential/parallel steps.
 
+## OpenAPI Documentation
+
+Interactive API docs are available at `/docs` (Swagger UI) and `/redoc` out of the box. All built-in endpoints have summaries, descriptions, tags, and error response schemas. Routes are organised into 11 tag groups: Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Admin.
+
+Add custom tag groups via the `openapi_tags` constructor kwarg — they are merged with the built-in tags (de-duplicated by name).
+
+Use `build_responses` from `agent_gateway.api.openapi` when writing custom routes to produce a consistent `responses` dict that matches built-in endpoint style:
+
+```python
+from agent_gateway.api.openapi import build_responses
+
+@gw.get("/v1/reports/{id}", responses=build_responses(auth=True, not_found=True))
+async def get_report(id: str): ...
+```
+
+Flags: `auth` (401/403), `not_found` (404), `conflict` (409), `rate_limit` (429). All error bodies use the standard `ErrorResponse` schema.
+
+Guide: https://vince-nyanga.github.io/agents-gateway/guides/openapi/
+
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /v1/health | Health check |
-| GET | /v1/agents | List agents |
-| GET | /v1/agents/{id} | Agent details |
-| POST | /v1/agents/{id}/invoke | Single-turn invocation |
-| POST | /v1/agents/{id}/chat | Multi-turn chat |
-| GET | /v1/executions/{id} | Execution status |
-| GET | /v1/executions/{id}/workflow | Full delegation workflow tree |
-| POST | /v1/executions/{id}/cancel | Cancel execution |
-| GET | /v1/sessions | List chat sessions |
-| GET | /v1/skills | List skills |
-| GET | /v1/tools | List tools |
+All endpoints include OpenAPI summaries, descriptions, and error response documentation. The interactive API docs at `/docs` are grouped by tag (Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Admin).
+
+| Method | Path | Tag | Description |
+|--------|------|-----|-------------|
+| GET | /v1/health | Health | Health check |
+| GET | /v1/agents | Agents | List agents |
+| GET | /v1/agents/{id} | Agents | Agent details |
+| POST | /v1/agents/{id}/invoke | Agents | Single-turn invocation |
+| POST | /v1/agents/{id}/chat | Chat | Multi-turn chat |
+| GET | /v1/executions | Executions | List executions |
+| GET | /v1/executions/{id} | Executions | Execution status |
+| GET | /v1/executions/{id}/workflow | Executions | Full delegation workflow tree |
+| POST | /v1/executions/{id}/cancel | Executions | Cancel execution |
+| GET | /v1/sessions | Sessions | List chat sessions |
+| GET | /v1/sessions/{id} | Sessions | Session details |
+| DELETE | /v1/sessions/{id} | Sessions | Delete session |
+| GET | /v1/users/me/conversations | Conversations | List conversations |
+| GET | /v1/users/me/conversations/{id}/messages | Conversations | Get conversation messages |
+| GET | /v1/schedules | Schedules | List schedules |
+| GET | /v1/schedules/{id} | Schedules | Schedule details |
+| POST | /v1/schedules/{id}/pause | Schedules | Pause schedule |
+| POST | /v1/schedules/{id}/resume | Schedules | Resume schedule |
+| POST | /v1/schedules/{id}/trigger | Schedules | Trigger schedule |
+| GET | /v1/skills | Skills | List skills |
+| GET | /v1/skills/{id} | Skills | Skill details |
+| GET | /v1/tools | Tools | List tools |
+| GET | /v1/tools/{id} | Tools | Tool details |
+| GET | /v1/agents/{id}/setup-schema | User Config | Get agent setup schema |
+| POST | /v1/agents/{id}/config | User Config | Save user config |
+| GET | /v1/agents/{id}/config | User Config | Get user config |
+| DELETE | /v1/agents/{id}/config | User Config | Delete user config |
+| POST | /v1/agents/{id}/memory/compact | Admin | Compact agent memory |
+| POST | /v1/reload | Admin | Reload workspace |
 
 ## Configuration (workspace/gateway.yaml)
 

@@ -28,6 +28,8 @@ Gateway(
 
 Any `lifespan` passed in `fastapi_kwargs` is composed with the Gateway's own lifespan, not replaced.
 
+**OpenAPI tags:** The Gateway automatically registers OpenAPI tag groups (Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Admin). If you pass `openapi_tags` in `fastapi_kwargs`, your tags are appended after the defaults.
+
 **Example:**
 
 ```python

@@ -16,6 +16,7 @@ from agent_gateway.api.models import (
     SessionInfo,
     UsagePayload,
 )
+from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.api.routes.status import stop_reason_to_status
 from agent_gateway.auth.scopes import RequireScope
@@ -32,6 +33,16 @@ router = APIRouter(route_class=GatewayAPIRoute)
 @router.post(
     "/agents/{agent_id}/chat",
     response_model=None,
+    summary="Chat with an agent",
+    description=(
+        "Send a message in a multi-turn conversation. "
+        "Creates a new session or continues an existing one."
+    ),
+    tags=["Chat"],
+    responses={
+        200: {"model": ChatResponse, "description": "Successful non-streaming chat response."},
+        **build_responses(auth=True, not_found=True, rate_limit=True),
+    },
     dependencies=[Depends(RequireScope("agents:invoke"))],
 )
 async def chat_with_agent(
@@ -210,6 +221,10 @@ def _create_streaming_response(
 @router.get(
     "/sessions/{session_id}",
     response_model=SessionInfo,
+    summary="Get session details",
+    description="Retrieve details of a specific chat session.",
+    tags=["Sessions"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("sessions:read"))],
 )
 async def get_session(
@@ -244,6 +259,10 @@ async def get_session(
 
 @router.delete(
     "/sessions/{session_id}",
+    summary="Delete a session",
+    description="Delete a chat session and its history.",
+    tags=["Sessions"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("sessions:manage"))],
 )
 async def delete_session(
@@ -270,7 +289,16 @@ async def delete_session(
     return JSONResponse(status_code=200, content={"deleted": True})
 
 
-@router.get("/sessions", dependencies=[Depends(RequireScope("sessions:read"))])
+@router.get(
+    "/sessions",
+    summary="List sessions",
+    description=(
+        "List active chat sessions. In multi-user mode, only returns the caller's sessions."
+    ),
+    tags=["Sessions"],
+    responses=build_responses(auth=True),
+    dependencies=[Depends(RequireScope("sessions:read"))],
+)
 async def list_sessions(
     request: Request,
     agent_id: str | None = Query(None),
@@ -305,6 +333,10 @@ async def list_sessions(
 @router.get(
     "/users/me/conversations",
     response_model=None,
+    summary="List conversations",
+    description="List the caller's persisted conversations.",
+    tags=["Conversations"],
+    responses=build_responses(auth=True),
     dependencies=[Depends(RequireScope("sessions:read"))],
 )
 async def list_conversations(
@@ -343,6 +375,10 @@ async def list_conversations(
 @router.get(
     "/users/me/conversations/{conversation_id}/messages",
     response_model=None,
+    summary="Get conversation messages",
+    description="Retrieve messages from a persisted conversation.",
+    tags=["Conversations"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("sessions:read"))],
 )
 async def get_conversation_messages(
@@ -385,6 +421,10 @@ async def get_conversation_messages(
 
 @router.post(
     "/agents/{agent_id}/memory/compact",
+    summary="Compact agent memory",
+    description="Trigger memory compaction for an agent. Administrative operation.",
+    tags=["Admin"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("agents:manage"))],
 )
 async def compact_agent_memory(

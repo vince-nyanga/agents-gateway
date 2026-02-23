@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response, not_found
 from agent_gateway.api.models import ScheduleDetailInfo, ScheduleInfo
+from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
@@ -26,6 +27,10 @@ _SCHEDULE_ID_PATTERN = r"^[a-zA-Z0-9_.:/-]+$"
 @router.get(
     "/schedules",
     response_model=list[ScheduleInfo],
+    summary="List schedules",
+    description="List all registered cron schedules.",
+    tags=["Schedules"],
+    responses=build_responses(auth=True),
     dependencies=[Depends(RequireScope("schedules:read"))],
 )
 async def list_schedules(request: Request) -> list[ScheduleInfo]:
@@ -38,6 +43,10 @@ async def list_schedules(request: Request) -> list[ScheduleInfo]:
 @router.get(
     "/schedules/{schedule_id:path}",
     response_model=ScheduleDetailInfo,
+    summary="Get schedule details",
+    description="Get detailed information about a specific schedule.",
+    tags=["Schedules"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("schedules:read"))],
 )
 async def get_schedule(
@@ -55,6 +64,10 @@ async def get_schedule(
 
 @router.post(
     "/schedules/{schedule_id:path}/pause",
+    summary="Pause schedule",
+    description="Pause a schedule to stop future cron fires.",
+    tags=["Schedules"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("schedules:manage"))],
 )
 async def pause_schedule(
@@ -78,6 +91,10 @@ async def pause_schedule(
 
 @router.post(
     "/schedules/{schedule_id:path}/resume",
+    summary="Resume schedule",
+    description="Resume a previously paused schedule.",
+    tags=["Schedules"],
+    responses=build_responses(auth=True, not_found=True),
     dependencies=[Depends(RequireScope("schedules:manage"))],
 )
 async def resume_schedule(
@@ -101,6 +118,13 @@ async def resume_schedule(
 
 @router.post(
     "/schedules/{schedule_id:path}/trigger",
+    summary="Trigger schedule",
+    description="Manually trigger a scheduled job to run immediately.",
+    tags=["Schedules"],
+    responses={
+        202: {"description": "Accepted — job queued. Returns execution_id for polling."},
+        **build_responses(auth=True, not_found=True),
+    },
     dependencies=[Depends(RequireScope("schedules:manage"))],
 )
 async def trigger_schedule(

@@ -15,7 +15,13 @@ if TYPE_CHECKING:
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="Health check",
+    description="Return gateway health status and resource counts.",
+    tags=["Health"],
+)
 async def health_check(request: Request) -> HealthResponse:
     """Return gateway health status and resource counts."""
     gw: Gateway = request.app
