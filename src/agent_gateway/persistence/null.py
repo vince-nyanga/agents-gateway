@@ -98,7 +98,12 @@ class NullExecutionRepository:
         return _EMPTY_ANALYTICS
 
     async def get_summary_stats(self, days: int = 30) -> dict[str, Any]:
-        return {"total_executions": 0, "total_cost_usd": 0.0, "success_count": 0, "avg_duration_ms": 0.0}
+        return {
+            "total_executions": 0,
+            "total_cost_usd": 0.0,
+            "success_count": 0,
+            "avg_duration_ms": 0.0,
+        }
 
     async def list_by_root_execution(self, root_execution_id: str) -> list[ExecutionRecord]:
         return []
