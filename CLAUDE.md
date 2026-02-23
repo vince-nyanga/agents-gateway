@@ -69,8 +69,10 @@ Use the project's specialized agents to handle tasks. **Every step below is mand
 
 **Mandatory flow** (no steps may be skipped):
 ```
-implementation-planner → plan-reviewer → backend-implementer and/or frontend-builder → code-reviewer
+implementation-planner → plan-reviewer → [HUMAN APPROVAL] → backend-implementer and/or frontend-builder → code-reviewer
 ```
+
+After `plan-reviewer` completes, **always present the plan to the user and wait for explicit approval before writing any code.** Do not proceed to implementation automatically.
 
 ## Pre-PR Checklist
 
