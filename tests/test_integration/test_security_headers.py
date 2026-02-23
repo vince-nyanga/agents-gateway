@@ -16,6 +16,8 @@ FIXTURE_WORKSPACE = FIXTURES_DIR / "workspace"
 
 def _make_gateway(**overrides: object) -> Gateway:
     gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False)
+    if overrides:
+        gw.use_security_headers(**overrides)  # type: ignore[arg-type]
     return gw
 
 
@@ -55,9 +57,7 @@ class TestSecurityHeadersCustom:
 
 class TestSecurityHeadersDisabled:
     async def test_no_security_headers_when_disabled(self) -> None:
-        gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False)
-        # Use pending config to disable security headers before startup
-        gw._pending_security_config = SecurityConfig(enabled=False)
+        gw = _make_gateway(enabled=False)
         async with gw:
             transport = ASGITransport(app=gw)  # type: ignore[arg-type]
             async with AsyncClient(transport=transport, base_url="http://test") as ac:

@@ -606,20 +606,6 @@ class Gateway(FastAPI):
             )
             await self._notification_worker.start()
 
-        # 10a. Wire security headers middleware if enabled
-        if self._pending_security_config is not None:
-            self._config.security = self._pending_security_config
-        if self._config.security.enabled:
-            from agent_gateway.api.middleware.security import SecurityHeadersMiddleware
-
-            if self.middleware_stack is not None:
-                self.middleware_stack = SecurityHeadersMiddleware(
-                    app=self.middleware_stack,
-                    config=self._config.security,
-                )
-            else:
-                self.add_middleware(SecurityHeadersMiddleware, config=self._config.security)
-
         # 10b. Wire CORS middleware if enabled
         if self._pending_cors_config is not None:
             self._config.cors = self._pending_cors_config
@@ -686,6 +672,21 @@ class Gateway(FastAPI):
         # 11b. Add OpenAPI security scheme (enables Swagger UI Authorize button)
         if auth_provider is not None:
             await self._inject_openapi_security_scheme()
+
+        # 11c. Wire security headers middleware if enabled (outermost layer so
+        # headers are applied even when CORS or auth short-circuit responses).
+        if self._pending_security_config is not None:
+            self._config.security = self._pending_security_config
+        if self._config.security.enabled:
+            from agent_gateway.api.middleware.security import SecurityHeadersMiddleware
+
+            if self.middleware_stack is not None:
+                self.middleware_stack = SecurityHeadersMiddleware(
+                    app=self.middleware_stack,
+                    config=self._config.security,
+                )
+            else:
+                self.add_middleware(SecurityHeadersMiddleware, config=self._config.security)
 
         # 12. Mount dashboard if enabled
         self._maybe_init_dashboard()
@@ -1244,6 +1245,7 @@ class Gateway(FastAPI):
     def use_security_headers(
         self,
         *,
+        enabled: bool = True,
         x_content_type_options: str = "nosniff",
         x_frame_options: str = "DENY",
         strict_transport_security: str = "max-age=31536000; includeSubDomains",
@@ -1254,18 +1256,18 @@ class Gateway(FastAPI):
         """Customize security headers.
 
         Security headers are enabled by default. Use this method to override
-        individual header values. To disable entirely, set ``security.enabled: false``
-        in gateway.yaml.
+        individual header values or to disable them entirely.
 
         Example::
 
             gw = Gateway(workspace="workspace/")
             gw.use_security_headers(x_frame_options="SAMEORIGIN")
+            gw.use_security_headers(enabled=False)  # disable
         """
         if self._started:
             raise RuntimeError("Cannot configure security headers after gateway has started")
         kwargs: dict[str, Any] = {
-            "enabled": True,
+            "enabled": enabled,
             "x_content_type_options": x_content_type_options,
             "x_frame_options": x_frame_options,
             "strict_transport_security": strict_transport_security,
