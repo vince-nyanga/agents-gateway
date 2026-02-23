@@ -1054,9 +1054,9 @@ def register_dashboard(
             exec_by_day_data = await repo.executions_by_day(days=days)
             cost_by_agent_data = await repo.cost_by_agent(days=days)
 
-        total_execs = stats["total_executions"]
-        total_cost = stats["total_cost_usd"]
-        success_count = stats["success_count"]
+        total_execs = int(stats["total_executions"])
+        total_cost = float(stats["total_cost_usd"])
+        success_count = int(stats["success_count"])
         avg_duration_ms = stats["avg_duration_ms"]
         success_rate = (success_count / total_execs * 100) if total_execs > 0 else 0.0
 
