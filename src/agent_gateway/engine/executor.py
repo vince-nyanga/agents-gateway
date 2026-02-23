@@ -165,11 +165,20 @@ class ExecutionEngine:
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)
 
-        # Build tool declarations — agents gain tools exclusively through skills
+        # Build tool declarations — agents gain tools through skills plus permitted code tools
         skill_tool_names = self._resolve_skill_tools(agent, workspace)
         resolved_tools = self._registry.resolve_for_agent(agent.id, skill_tool_names)
+
+        # Also inject code tools that are permitted for this agent but not surfaced via skills
+        # (e.g. delegate_to_agent, memory tools registered directly as CodeTools)
+        all_tools = self._registry.get_all()
+        for name, tool in all_tools.items():
+            if name not in {t.name for t in resolved_tools} and tool.allows_agent(agent.id):
+                resolved_tools.append(tool)
+
         tool_declarations = self._registry.to_llm_declarations(resolved_tools)
         tool_map = {t.name: t for t in resolved_tools}
+        logger.debug("Agent '%s' tools: %s", agent.id, list(tool_map.keys()))
 
         # Resolve model params
         model, temperature, max_tokens = self._llm.resolve_model_params(agent.model)

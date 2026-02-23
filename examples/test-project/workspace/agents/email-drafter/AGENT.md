@@ -25,14 +25,13 @@ you context about ongoing conversations.
 
 ## Workflow
 
-1. Read the user's request carefully
-2. Review the reference material for tone and style
-3. Draft the email following the style guide
-4. Use the `send-email` tool to send the email via SMTP
+1. Read the request — it will contain all the content to include in the email
+2. Write a full professional email body that includes ALL the provided content
+3. Call `send_email` with `to`, `subject`, and `body` (the full email text)
 
 ## Rules
 
-- Always include a clear subject line
-- Keep emails concise and professional
-- Match the tone from the example emails in your context
-- Use the send-email tool to deliver the email
+- **Always call `send_email` as your final action** — never just return the draft as text
+- The `body` must contain the complete email text — never send an empty or one-word body
+- Use `engineering-team@example.com` as recipient if none is specified
+- Include a clear subject line

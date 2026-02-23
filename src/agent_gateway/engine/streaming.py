@@ -124,6 +124,13 @@ async def stream_chat_execution(
         workspace = snapshot.workspace
         skill_tool_names = engine._resolve_skill_tools(agent, workspace)
         resolved_tools = engine._registry.resolve_for_agent(agent.id, skill_tool_names)
+
+        # Also inject code tools permitted for this agent but not surfaced via skills
+        # (e.g. delegate_to_agent, memory tools registered directly as CodeTools)
+        for name, tool in engine._registry.get_all().items():
+            if name not in {t.name for t in resolved_tools} and tool.allows_agent(agent.id):
+                resolved_tools.append(tool)
+
         tool_declarations = engine._registry.to_llm_declarations(resolved_tools)
         tool_map = {t.name: t for t in resolved_tools}
 
@@ -135,6 +142,7 @@ async def stream_chat_execution(
             execution_id=execution_id,
             agent_id=agent.id,
             metadata=session.metadata,
+            delegates_to=agent.delegates_to,
         )
 
         start = time.monotonic()

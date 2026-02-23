@@ -43,6 +43,11 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      JAVA_OPTS_APPEND: "-Xms512m -Xmx1024m"
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
     ports:
       - "8080:8080"
     volumes:

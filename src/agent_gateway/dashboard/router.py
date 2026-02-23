@@ -532,10 +532,6 @@ def register_dashboard(
             else None
         )
 
-        session = None
-        if session_id:
-            session = gw._session_store.get_session(session_id)
-
         # 4. Trigger new execution async
         exec_options = ExecutionOptions()
         new_exec_id = str(uuid.uuid4())
