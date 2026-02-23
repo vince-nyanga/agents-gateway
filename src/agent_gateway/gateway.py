@@ -28,6 +28,7 @@ from agent_gateway.config import (
     GatewayConfig,
     NotificationsConfig,
     PersistenceConfig,
+    RateLimitConfig,
 )
 from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.context.registry import RetrieverRegistry
@@ -143,6 +144,7 @@ class Gateway(FastAPI):
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_cors_config: CorsConfig | None = None  # fluent API
+        self._pending_rate_limit_config: RateLimitConfig | None = None  # fluent API
         self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
         self._oauth2_issuer: str | None = None  # for OpenAPI security scheme
         self._extraction_cooldowns: dict[str, float] = {}
@@ -620,6 +622,27 @@ class Gateway(FastAPI):
                 self.middleware_stack = CORSMiddleware(app=self.middleware_stack, **cors_kwargs)
             else:
                 self.add_middleware(CORSMiddleware, **cors_kwargs)
+
+        # 10c. Wire rate limiting middleware if enabled
+        if self._pending_rate_limit_config is not None:
+            self._config.rate_limit = self._pending_rate_limit_config
+        if self._config.rate_limit.enabled:
+            if self._config.server.workers > 1 and not self._config.rate_limit.storage_uri:
+                logger.warning(
+                    "Rate limiting is enabled with multiple workers but no storage_uri "
+                    "configured. Limits are per-process and will not be enforced across "
+                    "workers. Set rate_limit.storage_uri to a Redis URL for shared rate "
+                    "limiting."
+                )
+            from agent_gateway.ratelimit import setup_rate_limiting
+
+            result = setup_rate_limiting(self, self._config.rate_limit)
+            if result is not None:
+                _, middleware_class = result
+                if self.middleware_stack is not None:
+                    self.middleware_stack = middleware_class(self.middleware_stack)
+                else:
+                    self.add_middleware(middleware_class)  # type: ignore[arg-type]
 
         # 11. Wire auth middleware if enabled
         auth_provider = self._resolve_auth_provider()
@@ -1172,6 +1195,32 @@ class Gateway(FastAPI):
         if allow_headers is not None:
             kwargs["allow_headers"] = allow_headers
         self._pending_cors_config = CorsConfig(**kwargs)
+        return self
+
+    # --- Rate limiting configuration (fluent API) ---
+
+    def use_rate_limit(
+        self,
+        *,
+        default_limit: str = "100/minute",
+        storage_uri: str | None = None,
+        trust_forwarded_for: bool = False,
+    ) -> Gateway:
+        """Enable rate limiting with the given settings.
+
+        Example::
+
+            gw = Gateway(workspace="workspace/")
+            gw.use_rate_limit(default_limit="50/minute")
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure rate limiting after gateway has started")
+        self._pending_rate_limit_config = RateLimitConfig(
+            enabled=True,
+            default_limit=default_limit,
+            storage_uri=storage_uri,
+            trust_forwarded_for=trust_forwarded_for,
+        )
         return self
 
     # --- Dashboard configuration (fluent API) ---

@@ -76,6 +76,7 @@ nav:
       - Context Retrieval: guides/context-retrieval.md
       - Structured Output: guides/structured-output.md
       - CORS: guides/cors.md
+      - Rate Limiting: guides/rate-limiting.md
   - API Reference:
       - Gateway: api-reference/gateway.md
       - Configuration: api-reference/configuration.md

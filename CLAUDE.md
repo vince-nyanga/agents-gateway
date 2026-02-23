@@ -59,14 +59,18 @@ After every feature or fix, the documentation in `docs/` MUST be updated to refl
 
 ## Agent Workflow
 
-Use the project's specialized agents to handle tasks:
+Use the project's specialized agents to handle tasks. **Every step below is mandatory — never skip any agent.**
 
-- **implementation-planner**: Use for planning features, fixes, or refactors before writing code. Produces a structured implementation plan.
-- **backend-implementer**: Use after planning to implement backend code. Takes a plan and writes production-quality code using `/workflows:work`.
-- **frontend-builder**: Use for building or modifying UI components, pages, layouts, and client-side functionality.
-- **code-reviewer**: Use before merging any PR. Runs `/workflows:review` for multi-agent code review.
+- **implementation-planner**: ALWAYS run first for any feature, fix, or refactor. Produces a structured implementation plan.
+- **plan-reviewer**: ALWAYS run after planning, before writing any code. Validates the plan for architectural soundness, gaps, and best-practice violations. Do not proceed to implementation if the plan is rejected.
+- **backend-implementer**: ALWAYS run after the plan is approved to implement backend code. Uses `/workflows:work`.
+- **frontend-builder**: Run for any UI/frontend changes (in addition to or instead of backend-implementer).
+- **code-reviewer**: ALWAYS run after implementation, before considering the task done. Runs `/workflows:review`. Do not mark a task complete or check it off without running this agent.
 
-**Typical flow**: `implementation-planner` → `backend-implementer` and/or `frontend-builder` → `code-reviewer`
+**Mandatory flow** (no steps may be skipped):
+```
+implementation-planner → plan-reviewer → backend-implementer and/or frontend-builder → code-reviewer
+```
 
 ## Pre-PR Checklist
 

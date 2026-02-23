@@ -63,6 +63,7 @@ oauth2 = ["PyJWT[crypto]>=2.8"]
 slack = ["slack-bolt>=1.18"]
 redis = ["redis>=5.0"]
 rabbitmq = ["aio-pika>=9.0"]
+rate-limiting = ["slowapi>=0.1.9"]
 webhooks = ["jinja2>=3.1"]
 dashboard = [
     "jinja2>=3.1",
@@ -90,11 +91,12 @@ dev = [
     "slack-bolt>=1.18",
     "python-multipart>=0.0.9",
     "itsdangerous>=2.2",
+    "slowapi>=0.1.9",
 ]
 docs = [
     "mkdocs-material>=9.5",
 ]
-all = ["agents-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq,dashboard]"]
+all = ["agents-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq,dashboard,rate-limiting]"]
 
 [project.scripts]
 agents-gateway = "agent_gateway.cli.main:app"
@@ -197,4 +199,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "apscheduler.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "slowapi.*"
 ignore_missing_imports = true

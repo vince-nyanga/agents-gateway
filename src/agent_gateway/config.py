@@ -261,6 +261,13 @@ class DashboardConfig(BaseModel):
     theme: DashboardThemeConfig = DashboardThemeConfig()
 
 
+class RateLimitConfig(BaseModel):
+    enabled: bool = False
+    default_limit: str = "100/minute"
+    storage_uri: str | None = None
+    trust_forwarded_for: bool = False
+
+
 class CorsConfig(BaseModel):
     enabled: bool = False
     allow_origins: list[str] = Field(default_factory=lambda: ["*"])
@@ -302,6 +309,7 @@ class GatewayConfig(BaseSettings):
     memory: MemoryConfig = MemoryConfig()
     context: dict[str, Any] = Field(default_factory=dict)
     cors: CorsConfig = CorsConfig()
+    rate_limit: RateLimitConfig = RateLimitConfig()
     dashboard: DashboardConfig = DashboardConfig()
 
     @classmethod

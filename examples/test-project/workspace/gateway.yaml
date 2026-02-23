@@ -17,6 +17,12 @@ cors:
   enabled: true
   # allow_origins: ["https://your-app.com"]  # restrict in production
 
+rate_limit:
+  enabled: true
+  default_limit: "200/minute"
+  # storage_uri: "redis://localhost:6379"  # for multi-worker deployments
+  # trust_forwarded_for: false  # set true when behind a reverse proxy
+
 telemetry:
   enabled: true
   exporter: console

@@ -278,6 +278,19 @@ Env prefix: `AGENT_GATEWAY_CORS__`
 
 ---
 
+## RateLimitConfig
+
+Env prefix: `AGENT_GATEWAY_RATE_LIMIT__`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `bool` | `False` | Enable rate limiting middleware. Requires `slowapi`. |
+| `default_limit` | `str` | `"100/minute"` | Default rate limit applied to all endpoints. Uses slowapi rate string format (e.g. `"10/second"`, `"100/minute"`, `"1000/hour"`). |
+| `storage_uri` | `str \| None` | `None` | URI for shared rate limit storage (e.g. `"redis://localhost:6379"`). Required for consistent limits across multiple workers. |
+| `trust_forwarded_for` | `bool` | `False` | Use the `X-Forwarded-For` header to identify clients. Enable when behind a reverse proxy. |
+
+---
+
 ## DashboardConfig
 
 Env prefix: `AGENT_GATEWAY_DASHBOARD__`

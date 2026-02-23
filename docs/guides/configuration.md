@@ -191,6 +191,24 @@ cors:
 
 `allow_credentials: true` cannot be combined with `allow_origins: ["*"]` — specify explicit origins instead.
 
+### rate_limit
+
+Rate limiting for API endpoints (requires `slowapi`):
+
+```yaml
+rate_limit:
+  enabled: false
+  default_limit: "100/minute"       # Default rate limit for all endpoints
+  storage_uri: "redis://localhost:6379"  # Shared storage for multi-worker deployments
+  trust_forwarded_for: false         # Use X-Forwarded-For header for client IP
+```
+
+Install the optional dependency: `pip install agents-gateway[rate-limiting]`
+
+When running with multiple workers, set `storage_uri` to a Redis URL so rate limits are enforced across all processes. Without it, each worker maintains its own counter.
+
+See the [Rate Limiting guide](rate-limiting.md) for details.
+
 ### dashboard
 
 The built-in monitoring dashboard (opt-in):
