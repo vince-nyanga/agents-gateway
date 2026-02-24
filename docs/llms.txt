@@ -235,7 +235,21 @@ dashboard:
 
 queue:
   backend: none  # none | memory | redis | rabbitmq
+
+scheduler:
+  enabled: true
+  misfire_grace_seconds: 60
+  max_instances: 1
+  coalesce: true
+  distributed_lock:
+    enabled: false  # set true for multi-instance deployments
+    backend: auto   # auto | redis | postgres | none
+    redis_url: null # defaults to queue.redis_url
+    key_prefix: "ag:sched-lock:"
+    lock_ttl_seconds: 300
 ```
+
+Distributed scheduler locking: when `scheduler.distributed_lock.enabled: true`, only one gateway instance fires each scheduled job. The `backend: auto` setting selects Redis (via `SET NX EX`) when a Redis queue is configured, or PostgreSQL (`pg_try_advisory_lock`) when a PostgreSQL persistence backend is in use. The lock expires after `lock_ttl_seconds` so a crashed instance cannot permanently block a schedule. Manual triggers via the API are not affected by the lock.
 
 Environment variable overrides use prefix `AGENT_GATEWAY_` with `__` nesting:
 `AGENT_GATEWAY_SERVER__PORT=9000`

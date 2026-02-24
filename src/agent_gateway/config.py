@@ -164,11 +164,20 @@ class QueueConfig(BaseModel):
     default_execution_mode: str = "sync"  # sync | async
 
 
+class DistributedLockConfig(BaseModel):
+    enabled: bool = False
+    backend: str = "auto"  # auto | redis | postgres | none
+    redis_url: str = ""  # empty = reuse queue.redis_url
+    key_prefix: str = "ag:sched-lock:"
+    lock_ttl_seconds: int = 300
+
+
 class SchedulerConfig(BaseModel):
     enabled: bool = True
     misfire_grace_seconds: int = 60
     max_instances: int = 1
     coalesce: bool = True
+    distributed_lock: DistributedLockConfig = DistributedLockConfig()
 
 
 class ContextRetrievalConfig(BaseModel):

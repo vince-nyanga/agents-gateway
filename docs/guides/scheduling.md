@@ -103,6 +103,82 @@ agents-gateway schedules
 
 Output shows each schedule's ID, cron expression, timezone, enabled state, and next fire time.
 
+## Multi-Instance Deployment
+
+When running multiple gateway instances behind a load balancer (e.g. with `server.workers > 1` or multiple containers), every instance runs its own embedded scheduler. Without coordination, the same schedule will fire on all instances simultaneously, causing duplicate agent executions.
+
+Enable distributed locking to ensure only one instance fires each scheduled job:
+
+```yaml
+scheduler:
+  enabled: true
+  distributed_lock:
+    enabled: true
+    backend: auto   # auto | redis | postgres | none
+```
+
+### How it works
+
+Before each scheduled job fires, the instance attempts to acquire an exclusive distributed lock for that schedule ID. The instance that wins the lock proceeds with execution; all others skip the firing. The lock expires automatically after `lock_ttl_seconds` (default 300 seconds), so a crashed instance can never hold the lock permanently.
+
+### Backend selection
+
+| Backend | Mechanism | When to use |
+|---------|-----------|-------------|
+| `auto` | Detects Redis queue → Redis lock; PostgreSQL persistence → PostgreSQL advisory lock | Recommended default |
+| `redis` | Redis `SET NX EX` | Explicit Redis lock when queue backend is not Redis |
+| `postgres` | `pg_try_advisory_lock` | Explicit PostgreSQL lock without a Redis queue |
+| `none` | No-op (same as disabling) | Testing or intentional duplicate-execution tolerance |
+
+With `backend: auto`, the gateway inspects the configured queue and persistence backends at startup:
+
+- Queue backend is Redis → use Redis distributed lock (same connection)
+- Persistence backend is PostgreSQL → use PostgreSQL advisory lock
+- Neither → fall back to no-op (logs a warning when `enabled: true`)
+
+### Redis backend
+
+```yaml
+scheduler:
+  distributed_lock:
+    enabled: true
+    backend: redis
+    redis_url: "${REDIS_URL}"   # Defaults to queue.redis_url when omitted
+    key_prefix: "ag:sched-lock:"
+    lock_ttl_seconds: 300
+```
+
+The Redis URL falls back to `queue.redis_url` when not explicitly set, so most Redis-queue deployments need no extra configuration.
+
+### PostgreSQL backend
+
+```yaml
+scheduler:
+  distributed_lock:
+    enabled: true
+    backend: postgres
+    key_prefix: "ag:sched-lock:"
+    lock_ttl_seconds: 300
+```
+
+The PostgreSQL backend uses `pg_try_advisory_lock` with a hash of the schedule ID as the lock key. It reuses the existing persistence connection pool — no separate connection string is needed.
+
+### Configuration reference
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `false` | Enable distributed locking. Set to `true` for multi-instance deployments |
+| `backend` | `"auto"` | Lock backend: `auto`, `redis`, `postgres`, or `none` |
+| `redis_url` | *(from queue)* | Redis connection URL. Defaults to `queue.redis_url` when using the Redis backend |
+| `key_prefix` | `"ag:sched-lock:"` | Prefix applied to all lock keys in Redis |
+| `lock_ttl_seconds` | `300` | Lock expiry in seconds. Must exceed the maximum expected job duration |
+
+!!! warning
+    Set `lock_ttl_seconds` to a value comfortably greater than the longest expected agent execution time. If the lock expires before the job completes, another instance may fire the same schedule.
+
+!!! note
+    Distributed locking applies only to **scheduled** job firings. Manual triggers via `POST /v1/schedules/{id}/trigger` always execute regardless of the lock state.
+
 ## Per-User Schedules
 
 In addition to global schedules defined in `AGENT.md`, users can create personal schedules from the dashboard. These schedules:

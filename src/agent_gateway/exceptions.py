@@ -70,5 +70,9 @@ class AuthError(AgentGatewayError):
         super().__init__(message)
 
 
+class SchedulerLockError(AgentGatewayError):
+    """Failed to acquire or release a distributed scheduler lock."""
+
+
 class AgentMemoryError(AgentGatewayError):
     """Base for memory-related errors."""

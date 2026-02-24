@@ -1,6 +1,6 @@
 ---
 title: "Distributed Scheduler Locking"
-status: pending
+status: completed
 priority: P2
 category: Infrastructure
 date: 2026-02-22

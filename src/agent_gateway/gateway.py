@@ -587,6 +587,53 @@ class Gateway(FastAPI):
                     self._background_tasks.add(t)
                     t.add_done_callback(self._background_tasks.discard)
 
+                # Build distributed lock if enabled
+                from agent_gateway.scheduler.lock import DistributedLock as _DL
+
+                distributed_lock: _DL | None = None
+                lock_config = self._config.scheduler.distributed_lock
+                if lock_config.enabled:
+                    from agent_gateway.scheduler.lock import (
+                        PostgresDistributedLock,
+                        RedisDistributedLock,
+                    )
+
+                    lock_backend = lock_config.backend
+                    if lock_backend == "auto":
+                        from agent_gateway.queue.backends.redis import (
+                            RedisQueue as _RQ,
+                        )
+
+                        if isinstance(self._queue, _RQ):
+                            lock_backend = "redis"
+                        elif hasattr(self._persistence_backend, "_engine"):
+                            lock_backend = "postgres"
+                        else:
+                            logger.warning(
+                                "distributed_lock enabled but no Redis queue or "
+                                "Postgres persistence configured; "
+                                "falling back to no-op lock"
+                            )
+
+                    if lock_backend == "redis":
+                        redis_url = lock_config.redis_url or self._config.queue.redis_url
+                        distributed_lock = RedisDistributedLock(
+                            url=redis_url,
+                            key_prefix=lock_config.key_prefix,
+                        )
+                    elif lock_backend == "postgres":
+                        if self._persistence_backend is not None and hasattr(
+                            self._persistence_backend, "_engine"
+                        ):
+                            distributed_lock = PostgresDistributedLock(
+                                engine=self._persistence_backend._engine
+                            )
+                        else:
+                            logger.warning(
+                                "distributed_lock backend=postgres but no "
+                                "Postgres persistence configured"
+                            )
+
                 self._scheduler = SchedulerEngine(
                     config=self._config.scheduler,
                     schedule_repo=self._schedule_repo,
@@ -595,6 +642,7 @@ class Gateway(FastAPI):
                     invoke_fn=self.invoke,
                     track_task=_track_task,
                     timezone=self._config.timezone,
+                    distributed_lock=distributed_lock,
                 )
                 await self._scheduler.start(
                     agents=workspace.agents,

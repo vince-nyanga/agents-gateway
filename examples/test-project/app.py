@@ -44,6 +44,9 @@ if use_keycloak_api:
 gw = Gateway(**gw_kwargs)
 
 # --- Pluggable backends (fluent API) ---
+# Distributed scheduler locking: enabled in gateway.yaml (scheduler.distributed_lock)
+# Auto-detects backend from configured Redis queue or Postgres persistence.
+# Prevents duplicate fires when running multiple gateway instances.
 
 gw.use_postgres(
     url=os.environ.get(

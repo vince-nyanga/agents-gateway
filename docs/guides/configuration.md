@@ -141,7 +141,17 @@ scheduler:
   misfire_grace_seconds: 60  # How late a job can start before being skipped (default: 60)
   max_instances: 1           # Max concurrent instances of the same job (default: 1)
   coalesce: true             # Merge missed firings into one (default: true)
+  distributed_lock:
+    enabled: false           # Enable to prevent duplicate firings across multiple instances
+    backend: auto            # auto | redis | postgres | none
+    redis_url: null          # Redis URL (defaults to queue.redis_url when omitted)
+    key_prefix: "ag:sched-lock:"
+    lock_ttl_seconds: 300
 ```
+
+When running multiple gateway instances or worker processes, set `distributed_lock.enabled: true` so only one instance fires each scheduled job. The `backend: auto` setting detects the right backend automatically — Redis when a Redis queue is configured, PostgreSQL when a PostgreSQL persistence backend is in use.
+
+See the [Scheduling guide](scheduling.md#multi-instance-deployment) for a full walkthrough of distributed locking options.
 
 ### context_retrieval
 

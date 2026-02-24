@@ -57,6 +57,7 @@ def _make_engine(
     schedule_repo: NullScheduleRepository | None = None,
     config: SchedulerConfig | None = None,
     timezone: str = "UTC",
+    distributed_lock: Any | None = None,
 ) -> SchedulerEngine:
     """Build a SchedulerEngine with sensible test defaults."""
     return SchedulerEngine(
@@ -67,6 +68,7 @@ def _make_engine(
         invoke_fn=invoke_fn or AsyncMock(),
         track_task=lambda t: None,
         timezone=timezone,
+        distributed_lock=distributed_lock,
     )
 
 
@@ -497,3 +499,115 @@ class TestSchedulerEngineStop:
 
         await engine.stop()
         assert engine._scheduler is None
+
+
+class TestSchedulerEngineDistributedLock:
+    async def test_dispatch_skips_when_lock_not_acquired(self) -> None:
+        """When distributed lock returns False, dispatch should skip."""
+        execution_repo = AsyncMock()
+        mock_lock = AsyncMock()
+        mock_lock.acquire.return_value = False
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo, distributed_lock=mock_lock)
+        await engine.start(agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            input={"source": "scheduled"},
+        )
+
+        execution_repo.create.assert_not_called()
+        assert "reporter:daily-report" not in engine._active_scheduled
+
+        await engine.stop()
+
+    async def test_dispatch_acquires_and_releases_lock(self) -> None:
+        """Lock should be acquired before dispatch and released after."""
+        execution_repo = AsyncMock()
+        mock_lock = AsyncMock()
+        mock_lock.acquire.return_value = True
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo, distributed_lock=mock_lock)
+        await engine.start(agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            input={"source": "scheduled"},
+        )
+
+        mock_lock.acquire.assert_called_once()
+        mock_lock.release.assert_called_once()
+
+        await engine.stop()
+
+    async def test_dispatch_releases_lock_on_exception(self) -> None:
+        """Lock should be released even when dispatch raises."""
+        execution_repo = AsyncMock()
+        execution_repo.create.side_effect = RuntimeError("db error")
+        mock_lock = AsyncMock()
+        mock_lock.acquire.return_value = True
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo, distributed_lock=mock_lock)
+        await engine.start(agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            input={"source": "scheduled"},
+        )
+
+        mock_lock.release.assert_called_once()
+
+        await engine.stop()
+
+    async def test_null_lock_default_when_not_provided(self) -> None:
+        """Engine with no lock arg should use NullDistributedLock."""
+        from agent_gateway.scheduler.lock import NullDistributedLock
+
+        execution_repo = AsyncMock()
+        sched = _make_schedule()
+        agent = _make_agent(schedules=[sched])
+
+        engine = _make_engine(execution_repo=execution_repo)
+        assert isinstance(engine._distributed_lock, NullDistributedLock)
+
+        await engine.start(agents={"reporter": agent})
+
+        await engine.dispatch_scheduled_execution(
+            schedule_id="reporter:daily-report",
+            agent_id="reporter",
+            message="Generate report",
+            input={"source": "scheduled"},
+        )
+
+        # Should have proceeded normally (NullLock always acquires)
+        execution_repo.create.assert_called_once()
+
+        await engine.stop()
+
+    async def test_lock_initialized_on_start(self) -> None:
+        """Distributed lock initialize() should be called during start."""
+        mock_lock = AsyncMock()
+        engine = _make_engine(distributed_lock=mock_lock)
+        await engine.start(agents={})
+        mock_lock.initialize.assert_called_once()
+        await engine.stop()
+
+    async def test_lock_disposed_on_stop(self) -> None:
+        """Distributed lock dispose() should be called during stop."""
+        mock_lock = AsyncMock()
+        engine = _make_engine(distributed_lock=mock_lock)
+        await engine.start(agents={})
+        await engine.stop()
+        mock_lock.dispose.assert_called_once()

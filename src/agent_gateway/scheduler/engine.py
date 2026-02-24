@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from agent_gateway.config import SchedulerConfig
     from agent_gateway.persistence.protocols import ExecutionRepository, ScheduleRepository
     from agent_gateway.queue.protocol import ExecutionQueue
+    from agent_gateway.scheduler.lock import DistributedLock
     from agent_gateway.workspace.agent import AgentDefinition, ScheduleConfig
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class SchedulerEngine:
         invoke_fn: Callable[..., Coroutine[Any, Any, Any]],
         track_task: Callable[[asyncio.Task[None]], None],
         timezone: str = "UTC",
+        distributed_lock: DistributedLock | None = None,
     ) -> None:
         self._config = config
         self._schedule_repo = schedule_repo
@@ -51,6 +53,11 @@ class SchedulerEngine:
         self._invoke_fn = invoke_fn
         self._track_task = track_task
         self._timezone = timezone
+
+        # Distributed lock for multi-instance duplicate prevention
+        from agent_gateway.scheduler.lock import NullDistributedLock
+
+        self._distributed_lock: DistributedLock = distributed_lock or NullDistributedLock()
 
         # APScheduler instance, created in start()
         self._scheduler: AsyncIOScheduler | None = None
@@ -68,6 +75,8 @@ class SchedulerEngine:
         agents: dict[str, AgentDefinition],
     ) -> None:
         """Register schedules and start the APScheduler background loop."""
+        await self._distributed_lock.initialize()
+
         # Build schedule_id -> config mapping
         for agent in agents.values():
             for sched in agent.schedules:
@@ -109,6 +118,7 @@ class SchedulerEngine:
             self._scheduler.shutdown(wait=False)
             self._scheduler = None
 
+        await self._distributed_lock.dispose()
         set_scheduler_engine(None)
         logger.info("Scheduler stopped")
 
@@ -223,6 +233,23 @@ class SchedulerEngine:
                 )
             self._active_scheduled[schedule_id] = time.monotonic()
 
+        # Distributed lock: prevent duplicate fires across instances.
+        # Round to 60s boundary so all instances derive the same key
+        # even with seconds of wall-clock jitter between them.
+        fire_time_key = str(int(time.time()) // 60 * 60)
+        lock_name = f"schedule:{schedule_id}:{fire_time_key}"
+        lock_ttl = self._config.distributed_lock.lock_ttl_seconds
+
+        acquired = await self._distributed_lock.acquire(lock_name, lock_ttl)
+        if not acquired:
+            logger.info(
+                "Schedule '%s' lock held by another instance, skipping",
+                schedule_id,
+            )
+            async with self._active_lock:
+                self._active_scheduled.pop(schedule_id, None)
+            return
+
         try:
             await self._do_dispatch(schedule_id, agent_id, message, input)
         except Exception:
@@ -231,6 +258,8 @@ class SchedulerEngine:
                 self._active_scheduled.pop(schedule_id, None)
             # Update last_run_at even on failure
             await self._update_after_run(schedule_id)
+        finally:
+            await self._distributed_lock.release(lock_name)
 
     async def _do_dispatch(
         self,

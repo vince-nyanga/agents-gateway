@@ -29,6 +29,13 @@ security:
   # strict_transport_security: "max-age=31536000; includeSubDomains"
   # content_security_policy: "default-src 'self'"
 
+scheduler:
+  enabled: true
+  distributed_lock:
+    enabled: true
+    backend: auto  # auto-detects Redis or Postgres
+    lock_ttl_seconds: 300
+
 telemetry:
   enabled: true
   exporter: console

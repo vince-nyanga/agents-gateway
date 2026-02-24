@@ -217,6 +217,21 @@ Env prefix: `AGENT_GATEWAY_SCHEDULER__`
 | `misfire_grace_seconds` | `int` | `60` | Seconds past the scheduled time within which a missed fire is still executed. |
 | `max_instances` | `int` | `1` | Maximum concurrent instances of the same schedule. |
 | `coalesce` | `bool` | `True` | Collapse multiple missed fires into a single execution. |
+| `distributed_lock` | `DistributedLockConfig` | — | Distributed lock settings for multi-instance deployments. |
+
+### DistributedLockConfig
+
+Prevents duplicate scheduled job firings when multiple gateway instances run concurrently. The instance that acquires the lock fires the job; all others skip that firing.
+
+Env prefix: `AGENT_GATEWAY_SCHEDULER__DISTRIBUTED_LOCK__`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `bool` | `False` | Enable distributed locking. Set to `True` for multi-instance or multi-worker deployments. |
+| `backend` | `str` | `"auto"` | Lock backend: `"auto"`, `"redis"`, `"postgres"`, or `"none"`. `"auto"` selects Redis when a Redis queue is configured, PostgreSQL when a PostgreSQL persistence backend is in use, and no-op otherwise. |
+| `redis_url` | `str \| None` | `None` | Redis connection URL. When `None`, falls back to `queue.redis_url`. Only used by the `redis` backend. |
+| `key_prefix` | `str` | `"ag:sched-lock:"` | Prefix applied to all lock keys in Redis. Has no effect with the `postgres` backend. |
+| `lock_ttl_seconds` | `int` | `300` | Lock expiry in seconds. Set this to a value greater than the maximum expected job duration to prevent a crashed instance from permanently holding a lock. |
 
 ---
 
