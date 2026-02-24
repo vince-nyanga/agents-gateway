@@ -40,6 +40,31 @@ async def _rate_limit_exceeded_handler(request: Request, exc: Any) -> JSONRespon
     )
 
 
+class _StreamingSafeSlowAPIMiddleware:
+    """Wraps SlowAPIASGIMiddleware to fix a bug where it re-sends http.response.start
+    for every body chunk in streaming responses, violating the ASGI protocol."""
+
+    def __init__(self, app: Any) -> None:
+        self._inner = SlowAPIASGIMiddleware(app)
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self._inner(scope, receive, send)
+            return
+
+        started = False
+
+        async def deduped_send(message: Any) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                if started:
+                    return  # Drop duplicate — slowapi streaming bug workaround
+                started = True
+            await send(message)
+
+        await self._inner(scope, receive, deduped_send)
+
+
 def setup_rate_limiting(
     app: Any,
     config: RateLimitConfig,
@@ -70,4 +95,4 @@ def setup_rate_limiting(
 
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    return limiter, SlowAPIASGIMiddleware
+    return limiter, _StreamingSafeSlowAPIMiddleware
