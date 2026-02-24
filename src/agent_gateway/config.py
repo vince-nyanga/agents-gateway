@@ -280,7 +280,8 @@ class SecurityConfig(BaseModel):
     # Relaxed CSP for dashboard paths (needs CDN resources: Tailwind, HTMX, Google Fonts, avatars)
     dashboard_content_security_policy: str = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+        "https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' data: https://fonts.gstatic.com; "
         "img-src 'self' data: https://ui-avatars.com; "

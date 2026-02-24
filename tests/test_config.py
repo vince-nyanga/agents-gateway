@@ -12,7 +12,7 @@ class TestGatewayConfig:
     def test_default_config(self) -> None:
         config = GatewayConfig()
         assert config.server.port == 8000
-        assert config.model.default == "gpt-4o-mini"
+        assert config.model.default == "gemini/gemini-2.5-flash"
         assert config.guardrails.max_iterations == 10
         assert config.guardrails.max_tool_calls == 20
         assert config.guardrails.timeout_ms == 60_000
