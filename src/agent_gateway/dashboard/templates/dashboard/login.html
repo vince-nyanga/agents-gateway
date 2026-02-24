@@ -89,6 +89,7 @@
             id="username"
             name="username"
             class="input w-full h-10 px-3"
+            style="background-color:#161b26;color:#f8fafc"
             autocomplete="username"
             autofocus
             required
@@ -104,6 +105,7 @@
               id="password"
               name="password"
               class="input w-full h-10 px-3 pr-10"
+              style="background-color:#161b26;color:#f8fafc"
               autocomplete="current-password"
               placeholder="••••••••"
             />
@@ -136,5 +138,15 @@
   </div>
 </div>
 <script src="/dashboard/static/dashboard/app.js" defer></script>
+<style>
+  /* Override Tailwind forms plugin base reset which injects after linked CSS */
+  .input { background-color: var(--color-surface) !important; color: var(--color-text) !important; }
+  .input:-webkit-autofill,
+  .input:-webkit-autofill:hover,
+  .input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset !important;
+    -webkit-text-fill-color: var(--color-text) !important;
+  }
+</style>
 </body>
 </html>

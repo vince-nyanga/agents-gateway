@@ -539,8 +539,8 @@ tbody tr:hover {
   padding: 6px var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
   font-size: var(--text-sm);
   font-family: var(--font-sans);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -550,6 +550,14 @@ tbody tr:hover {
 .input:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px var(--color-accent-muted);
+}
+
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset !important;
+  -webkit-text-fill-color: var(--color-text) !important;
+  caret-color: var(--color-text);
 }
 
 .form-label {
