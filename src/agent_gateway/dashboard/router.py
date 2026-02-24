@@ -824,9 +824,8 @@ def register_dashboard(
             try:
                 snapshot = gw._snapshot
                 if snapshot is None or snapshot.workspace is None:
-                    yield (
-                        f"event: error\ndata: {json.dumps({'message': 'Workspace not loaded'})}\n\n"
-                    )
+                    msg = json.dumps({"message": "Workspace not loaded"})
+                    yield f"event: error\ndata: {msg}\n\n"
                     return
 
                 agent = snapshot.workspace.agents.get(agent_id)
