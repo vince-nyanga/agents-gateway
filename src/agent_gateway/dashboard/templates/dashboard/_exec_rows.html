@@ -89,7 +89,7 @@
     <div class="flex items-center gap-1.5">
       {% if page > 1 %}
       <button
-        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page - 1 }}"
+        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ page - 1 }}"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
         class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
@@ -105,7 +105,7 @@
         <span class="px-3 py-1.5 border border-primary/50 rounded-lg text-xs font-bold text-primary bg-primary/10">{{ p }}</span>
         {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
         <button
-          hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ p }}"
+          hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ p }}"
           hx-target="#exec-table-wrap"
           hx-swap="outerHTML"
           class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
@@ -118,7 +118,7 @@
 
       {% if page < total_pages %}
       <button
-        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page + 1 }}"
+        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ page + 1 }}"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
         class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"

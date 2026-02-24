@@ -486,27 +486,63 @@ def register_dashboard(
         status: str | None = None,
         session_id: str | None = None,
         page: int = 1,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        min_cost: str | None = None,
+        max_cost: str | None = None,
         current_user: DashboardUser = Depends(get_dashboard_user),
     ) -> HTMLResponse:
+        from datetime import UTC, datetime, timedelta
+
         gw = request.app
         repo = gw._execution_repo
         offset = (page - 1) * _PAGE_SIZE
 
         search: str | None = request.query_params.get("search") or None
 
+        # Parse date filters
+        import contextlib
+
+        since_dt: datetime | None = None
+        until_dt: datetime | None = None
+        if date_from:
+            with contextlib.suppress(ValueError):
+                since_dt = datetime.fromisoformat(date_from).replace(tzinfo=UTC)
+        if date_to:
+            with contextlib.suppress(ValueError):
+                until_dt = datetime.fromisoformat(date_to).replace(tzinfo=UTC) + timedelta(days=1)
+
+        # Parse cost filters (accept empty string as None)
+        min_cost_f: float | None = None
+        max_cost_f: float | None = None
+        with contextlib.suppress(TypeError, ValueError):
+            if min_cost:
+                min_cost_f = float(min_cost)
+        with contextlib.suppress(TypeError, ValueError):
+            if max_cost:
+                max_cost_f = float(max_cost)
+
         records = await repo.list_all(
             limit=_PAGE_SIZE,
             offset=offset,
             agent_id=agent_id or None,
             status=status or None,
+            since=since_dt,
+            until=until_dt,
             session_id=session_id or None,
             search=search,
+            min_cost=min_cost_f,
+            max_cost=max_cost_f,
         )
         total = await repo.count_all(
             agent_id=agent_id or None,
             status=status or None,
+            since=since_dt,
+            until=until_dt,
             session_id=session_id or None,
             search=search,
+            min_cost=min_cost_f,
+            max_cost=max_cost_f,
         )
         rows = [ExecutionRow.from_record(r) for r in records]
 
@@ -530,6 +566,10 @@ def register_dashboard(
                 "agent_id_filter": agent_id or "",
                 "status_filter": status or "",
                 "search": search or "",
+                "date_from": date_from or "",
+                "date_to": date_to or "",
+                "min_cost": min_cost,
+                "max_cost": max_cost,
                 "page": page,
                 "total_pages": total_pages,
                 "total": total,

@@ -143,8 +143,11 @@ class ExecutionRepository:
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        until: datetime | None = None,
         session_id: str | None = None,
         search: str | None = None,
+        min_cost: float | None = None,
+        max_cost: float | None = None,
     ) -> list[ExecutionRecord]:
         """List executions across all agents, most recent first."""
         async with self._session_factory() as session:
@@ -163,6 +166,10 @@ class ExecutionRepository:
                 stmt = stmt.where(
                     ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
                 )
+            if until is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.created_at <= until  # type: ignore[operator,arg-type]
+                )
             if session_id is not None:
                 stmt = stmt.where(
                     ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
@@ -173,7 +180,18 @@ class ExecutionRepository:
                     (ExecutionRecord.message.ilike(like_pattern))  # type: ignore[attr-defined]
                     | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined]
                     | (ExecutionRecord.session_id.like(like_pattern))  # type: ignore[union-attr]
+                    | (ExecutionRecord.error.ilike(like_pattern))  # type: ignore[union-attr]
                 )
+            if min_cost is not None or max_cost is not None:
+                cost_expr = _json_field("usage", "cost_usd", is_postgres=self._pg)
+                if min_cost is not None:
+                    stmt = stmt.where(
+                        text(f"{cost_expr} >= :min_cost").bindparams(min_cost=min_cost)
+                    )
+                if max_cost is not None:
+                    stmt = stmt.where(
+                        text(f"{cost_expr} <= :max_cost").bindparams(max_cost=max_cost)
+                    )
             stmt = stmt.limit(limit).offset(offset)
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -183,8 +201,11 @@ class ExecutionRepository:
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        until: datetime | None = None,
         session_id: str | None = None,
         search: str | None = None,
+        min_cost: float | None = None,
+        max_cost: float | None = None,
     ) -> int:
         """Count executions with optional filters."""
         async with self._session_factory() as session:
@@ -201,6 +222,10 @@ class ExecutionRepository:
                 stmt = stmt.where(
                     ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
                 )
+            if until is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.created_at <= until  # type: ignore[operator,arg-type]
+                )
             if session_id is not None:
                 stmt = stmt.where(
                     ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
@@ -211,7 +236,18 @@ class ExecutionRepository:
                     (ExecutionRecord.message.ilike(like_pattern))  # type: ignore[attr-defined]
                     | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined]
                     | (ExecutionRecord.session_id.like(like_pattern))  # type: ignore[union-attr]
+                    | (ExecutionRecord.error.ilike(like_pattern))  # type: ignore[union-attr]
                 )
+            if min_cost is not None or max_cost is not None:
+                cost_expr = _json_field("usage", "cost_usd", is_postgres=self._pg)
+                if min_cost is not None:
+                    stmt = stmt.where(
+                        text(f"{cost_expr} >= :min_cost").bindparams(min_cost=min_cost)
+                    )
+                if max_cost is not None:
+                    stmt = stmt.where(
+                        text(f"{cost_expr} <= :max_cost").bindparams(max_cost=max_cost)
+                    )
             result = await session.execute(stmt)
             return result.scalar_one()
 

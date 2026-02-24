@@ -32,7 +32,7 @@ After a thorough review of the entire codebase, here are all items that need add
 
 ### P2 — Should Fix Before GA
 
-- [ ] **#16** [Dashboard filtering & real-time updates](publish/16-dashboard-filtering.md) — UX
+- [x] **#16** [Dashboard filtering & real-time updates](publish/16-dashboard-filtering.md) — UX
 - [ ] **#17** [Distributed scheduler locking](publish/17-distributed-scheduler-locking.md) — Infrastructure
 - [ ] **#18** [CLI output formats](publish/18-cli-output-formats.md) — DX
 - [ ] **#19** [Streaming engine tests](publish/19-streaming-tests.md) — Testing

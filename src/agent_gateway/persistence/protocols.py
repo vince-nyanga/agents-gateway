@@ -50,8 +50,11 @@ class ExecutionRepository(Protocol):
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        until: datetime | None = None,
         session_id: str | None = None,
         search: str | None = None,
+        min_cost: float | None = None,
+        max_cost: float | None = None,
     ) -> list[ExecutionRecord]: ...
 
     async def count_all(
@@ -59,8 +62,11 @@ class ExecutionRepository(Protocol):
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        until: datetime | None = None,
         session_id: str | None = None,
         search: str | None = None,
+        min_cost: float | None = None,
+        max_cost: float | None = None,
     ) -> int: ...
 
     async def list_conversations_summary(

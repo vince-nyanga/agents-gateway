@@ -547,6 +547,29 @@ tbody tr:hover {
   outline: none;
 }
 
+input[type="date"].input {
+  color-scheme: dark;
+  display: inline-block;
+  width: auto;
+}
+
+input[type="number"].input {
+  color-scheme: dark;
+  display: inline-block;
+  width: 6rem;
+}
+
+input[type="text"].input,
+select.input {
+  display: inline-block;
+  width: auto;
+  appearance: auto;
+}
+
+input[type="text"].input {
+  width: 14rem;
+}
+
 .input:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px var(--color-accent-muted);

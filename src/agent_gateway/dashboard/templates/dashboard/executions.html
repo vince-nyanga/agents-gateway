@@ -55,11 +55,12 @@
           name="search"
           placeholder="Search executions..."
           value="{{ search or '' }}"
-          class="pl-9 pr-4 py-2 h-9 rounded-lg bg-surface border border-border-dark text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/50 w-56 placeholder:text-slate-600 font-medium transition-all outline-none"
+          class="input pl-9 pr-4 w-56 font-medium"
           hx-get="/dashboard/executions"
           hx-target="#exec-table-wrap"
+          hx-swap="outerHTML"
           hx-trigger="keyup changed delay:400ms"
-          hx-include="[name='status'],[name='agent_id'],[name='search']"
+          hx-include="[name='status'],[name='agent_id'],[name='search'],[name='date_from'],[name='date_to'],[name='min_cost'],[name='max_cost']"
         />
       </div>
 
@@ -81,7 +82,7 @@
       <!-- Agent Filter -->
       {% if agent_names %}
       <select
-        class="bg-surface border border-border-dark rounded-lg px-3 py-2 text-sm text-slate-300 h-9 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none"
+        class="input"
         hx-get="/dashboard/executions?status={{ status_filter }}&page=1"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
@@ -95,6 +96,44 @@
         {% endfor %}
       </select>
       {% endif %}
+
+      <!-- Date Range -->
+      <input type="date" name="date_from" value="{{ date_from or '' }}"
+        class="input"
+        hx-get="/dashboard/executions"
+        hx-target="#exec-table-wrap"
+        hx-swap="outerHTML"
+        hx-trigger="change"
+        hx-include="[name='status'],[name='agent_id'],[name='search'],[name='date_from'],[name='date_to'],[name='min_cost'],[name='max_cost']"
+        title="From date"
+      />
+      <input type="date" name="date_to" value="{{ date_to or '' }}"
+        class="input"
+        hx-get="/dashboard/executions"
+        hx-target="#exec-table-wrap"
+        hx-swap="outerHTML"
+        hx-trigger="change"
+        hx-include="[name='status'],[name='agent_id'],[name='search'],[name='date_from'],[name='date_to'],[name='min_cost'],[name='max_cost']"
+        title="To date"
+      />
+
+      <!-- Cost Range -->
+      <input type="number" name="min_cost" step="0.0001" placeholder="Min $" value="{{ min_cost or '' }}"
+        class="input"
+        hx-get="/dashboard/executions"
+        hx-target="#exec-table-wrap"
+        hx-swap="outerHTML"
+        hx-trigger="change"
+        hx-include="[name='status'],[name='agent_id'],[name='search'],[name='date_from'],[name='date_to'],[name='min_cost'],[name='max_cost']"
+      />
+      <input type="number" name="max_cost" step="0.0001" placeholder="Max $" value="{{ max_cost or '' }}"
+        class="input"
+        hx-get="/dashboard/executions"
+        hx-target="#exec-table-wrap"
+        hx-swap="outerHTML"
+        hx-trigger="change"
+        hx-include="[name='status'],[name='agent_id'],[name='search'],[name='date_from'],[name='date_to'],[name='min_cost'],[name='max_cost']"
+      />
     </div>
 
     <div class="flex items-center gap-2">
@@ -113,9 +152,10 @@
   <!-- Table Area -->
   <div id="exec-table-wrap"
     {% if has_running %}
-    hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page }}"
-    hx-trigger="every 10s"
+    hx-get="/dashboard/executions"
+    hx-trigger="every 5s"
     hx-swap="outerHTML"
+    hx-include="[name='status'],[name='agent_id'],[name='search'],[name='date_from'],[name='date_to'],[name='min_cost'],[name='max_cost']"
     {% endif %}
   >
     {% include "dashboard/_exec_rows.html" %}
