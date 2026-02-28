@@ -1950,18 +1950,31 @@ def register_dashboard(
         for t in tools:
             safe_name = escape(t.namespaced_name)
             safe_desc = escape(t.description[:120])
+            div_cls = (
+                "flex items-start gap-3 px-3 py-2"
+                " bg-surface-2 rounded-lg border border-border-dark/30"
+            )
+            icon_cls = (
+                "material-symbols-outlined text-sm"
+                " text-primary flex-shrink-0 mt-0.5"
+            )
             html_parts.append(
-                f'<div class="flex items-start gap-3 px-3 py-2 bg-surface-2 rounded-lg border border-border-dark/30">'
-                f'<span class="material-symbols-outlined text-sm text-primary flex-shrink-0 mt-0.5">build</span>'
+                f'<div class="{div_cls}">'
+                f'<span class="{icon_cls}">build</span>'
                 f"<div>"
-                f'<span class="text-xs font-mono font-semibold text-slate-300">{safe_name}</span>'
-                f'<p class="text-xs text-slate-500 mt-0.5">{safe_desc}</p>'
+                f'<span class="text-xs font-mono font-semibold'
+                f' text-slate-300">{safe_name}</span>'
+                f'<p class="text-xs text-slate-500'
+                f' mt-0.5">{safe_desc}</p>'
                 f"</div></div>"
             )
         return HTMLResponse(
             "\n".join(html_parts)
             if html_parts
-            else "<p class='text-xs text-slate-500 px-3 py-2'>No tools discovered for this server.</p>"
+            else (
+                "<p class='text-xs text-slate-500 px-3 py-2'>"
+                "No tools discovered for this server.</p>"
+            )
         )
 
     app.include_router(public)
