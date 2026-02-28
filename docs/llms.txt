@@ -206,6 +206,7 @@ All endpoints include OpenAPI summaries, descriptions, and error response docume
 | GET | /v1/admin/mcp-servers/{id} | Admin | Get MCP server details |
 | PUT | /v1/admin/mcp-servers/{id} | Admin | Update MCP server config |
 | DELETE | /v1/admin/mcp-servers/{id} | Admin | Delete MCP server |
+| POST | /v1/admin/mcp-servers/{id}/test | Admin | Test connection (ephemeral connect/list/disconnect) |
 | POST | /v1/admin/mcp-servers/{id}/refresh | Admin | Reconnect and rediscover tools |
 | GET | /v1/admin/mcp-servers/{id}/tools | Admin | List discovered MCP tools |
 | POST | /v1/agents/{id}/memory/compact | Admin | Compact agent memory |

@@ -1834,6 +1834,34 @@ def register_dashboard(
             await gw._mcp_repo.delete(server_id)
         return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
 
+    @protected.post("/mcp-servers/{server_id}/test", response_class=HTMLResponse)
+    async def mcp_servers_test(
+        request: Request,
+        server_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        gw = request.app
+        config = await gw._mcp_repo.get_by_id(server_id)
+        if config is None or gw._mcp_manager is None:
+            return HTMLResponse('<span class="text-xs text-rose-400">Server not found</span>')
+        try:
+            result = await gw._mcp_manager.test_connection(config)
+            tool_count = result["tool_count"]
+            return HTMLResponse(
+                f'<span class="inline-flex items-center gap-1 text-xs text-emerald-400">'
+                f'<span class="material-symbols-outlined text-sm">check_circle</span>'
+                f"Connected &mdash; {tool_count} tool{'s' if tool_count != 1 else ''} found"
+                f"</span>"
+            )
+        except Exception as exc:
+            safe_msg = escape(str(exc)[:120])
+            return HTMLResponse(
+                f'<span class="inline-flex items-center gap-1 text-xs text-rose-400">'
+                f'<span class="material-symbols-outlined text-sm">error</span>'
+                f"Failed: {safe_msg}"
+                f"</span>"
+            )
+
     @protected.post("/mcp-servers/{server_id}/refresh")
     async def mcp_servers_refresh(
         request: Request,

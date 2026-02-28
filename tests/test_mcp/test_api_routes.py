@@ -207,6 +207,77 @@ class TestMcpServerRoutes:
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
+    async def test_test_mcp_server_success(self, workspace: Path) -> None:
+        gw = Gateway(workspace=str(workspace), auth=False)
+        async with gw:
+            config = _make_config()
+            mock_repo = AsyncMock()
+            mock_repo.get_by_id.return_value = config
+            gw._mcp_repo = mock_repo
+            mock_manager = AsyncMock()
+            mock_manager.test_connection.return_value = {
+                "success": True,
+                "tool_count": 2,
+                "tools": [
+                    {"name": "t1", "description": "Tool 1"},
+                    {"name": "t2", "description": "Tool 2"},
+                ],
+            }
+            gw._mcp_manager = mock_manager
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw),
+                base_url="http://test",
+            ) as ac:
+                resp = await ac.post("/v1/admin/mcp-servers/srv-1/test")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["tool_count"] == 2
+        assert len(body["tools"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_test_mcp_server_failure(self, workspace: Path) -> None:
+        gw = Gateway(workspace=str(workspace), auth=False)
+        async with gw:
+            config = _make_config()
+            mock_repo = AsyncMock()
+            mock_repo.get_by_id.return_value = config
+            gw._mcp_repo = mock_repo
+            mock_manager = AsyncMock()
+            mock_manager.test_connection.side_effect = Exception("Connection refused")
+            gw._mcp_manager = mock_manager
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw),
+                base_url="http://test",
+            ) as ac:
+                resp = await ac.post("/v1/admin/mcp-servers/srv-1/test")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is False
+        assert body["error"] == "Connection refused"
+        assert body["error_code"] == "connection_error"
+
+    @pytest.mark.asyncio
+    async def test_test_mcp_server_not_found(self, workspace: Path) -> None:
+        gw = Gateway(workspace=str(workspace), auth=False)
+        async with gw:
+            mock_repo = AsyncMock()
+            mock_repo.get_by_id.return_value = None
+            gw._mcp_repo = mock_repo
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw),
+                base_url="http://test",
+            ) as ac:
+                resp = await ac.post("/v1/admin/mcp-servers/nonexistent/test")
+
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
     async def test_update_mcp_server(self, workspace: Path) -> None:
         gw = Gateway(workspace=str(workspace), auth=False)
         async with gw:

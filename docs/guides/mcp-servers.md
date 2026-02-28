@@ -169,6 +169,7 @@ The MCP Servers page (admin only) lets you:
 
 - View all configured servers with connection status
 - Add new servers (stdio or streamable_http)
+- **Test connection** -- verify connectivity without affecting the live connection
 - Refresh (reconnect and rediscover tools)
 - Delete servers
 - Browse discovered tools per server
@@ -182,8 +183,38 @@ The MCP Servers page (admin only) lets you:
 | `GET` | `/v1/admin/mcp-servers/{id}` | Get server details |
 | `PUT` | `/v1/admin/mcp-servers/{id}` | Update server config |
 | `DELETE` | `/v1/admin/mcp-servers/{id}` | Delete server |
+| `POST` | `/v1/admin/mcp-servers/{id}/test` | Test connection (ephemeral) |
 | `POST` | `/v1/admin/mcp-servers/{id}/refresh` | Reconnect and rediscover |
 | `GET` | `/v1/admin/mcp-servers/{id}/tools` | List discovered tools |
+
+## Testing Connections
+
+You can test connectivity to an MCP server without affecting the live connection. The test performs an ephemeral connect, lists available tools, and disconnects.
+
+**API:**
+
+```bash
+curl -X POST http://localhost:8000/v1/admin/mcp-servers/{id}/test \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response (always HTTP 200):
+
+```json
+{
+  "success": true,
+  "tool_count": 3,
+  "tools": [
+    {"name": "my_tool", "description": "Does something"}
+  ],
+  "error": null,
+  "error_code": null
+}
+```
+
+On failure, `success` is `false` and `error_code` is one of: `connection_error`, `timeout`, `auth_error`, or `config_error`.
+
+**Dashboard:** Click the network check icon in the actions column of any server row. The result appears inline below the server name.
 
 ## Tool Priority
 

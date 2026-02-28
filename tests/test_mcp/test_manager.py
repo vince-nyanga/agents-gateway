@@ -243,6 +243,110 @@ class TestMcpConnectionManager:
         await mgr.disconnect_one("nonexistent")
 
 
+class TestTestConnection:
+    @pytest.mark.asyncio
+    async def test_test_connection_success(self) -> None:
+        mgr = McpConnectionManager(connection_timeout_ms=5000)
+
+        config = _make_config(transport="stdio")
+
+        # We'll patch _connect_one-style internals by mocking the entire flow.
+        # Instead, we mock at the transport level.
+        @dataclass
+        class FakeTool:
+            name: str
+            description: str
+            inputSchema: dict[str, Any]
+
+        @dataclass
+        class FakeListResult:
+            tools: list[Any]
+
+        fake_session = AsyncMock()
+        fake_session.initialize = AsyncMock()
+        fake_session.list_tools = AsyncMock(
+            return_value=FakeListResult(
+                tools=[FakeTool(name="my_tool", description="A tool", inputSchema={})]
+            )
+        )
+
+        # Patch to simulate a successful connection
+        async def _fake_run(
+            original_run: Any,
+            session_holder: list[Any],
+            ready_event: asyncio.Event,
+            shutdown_event: asyncio.Event,
+        ) -> None:
+            session_holder.append(fake_session)
+            ready_event.set()
+            await shutdown_event.wait()
+
+        with (
+            patch("agent_gateway.mcp.manager.decrypt_json_blob", return_value={}),
+            patch("agent_gateway.mcp.manager.stdio_client") as mock_stdio,
+        ):
+            # Set up the context manager mock
+            mock_read = AsyncMock()
+            mock_write = AsyncMock()
+            cm = MagicMock()
+            cm.__aenter__ = AsyncMock(return_value=(mock_read, mock_write))
+            cm.__aexit__ = AsyncMock(return_value=False)
+            mock_stdio.return_value = cm
+
+            with patch("agent_gateway.mcp.manager.ClientSession") as mock_session_cls:
+                session_cm = MagicMock()
+                session_cm.__aenter__ = AsyncMock(return_value=fake_session)
+                session_cm.__aexit__ = AsyncMock(return_value=False)
+                mock_session_cls.return_value = session_cm
+
+                result = await mgr.test_connection(config)
+
+        assert result["success"] is True
+        assert result["tool_count"] == 1
+        assert result["tools"][0]["name"] == "my_tool"
+        # Verify no leak into _connections
+        assert config.name not in mgr._connections
+
+    @pytest.mark.asyncio
+    async def test_test_connection_timeout(self) -> None:
+        mgr = McpConnectionManager(connection_timeout_ms=100)
+        config = _make_config(transport="stdio")
+
+        with (
+            patch("agent_gateway.mcp.manager.decrypt_json_blob", return_value={}),
+            patch("agent_gateway.mcp.manager.stdio_client") as mock_stdio,
+        ):
+            # Simulate a transport that never becomes ready
+            async def _hang(*a: Any, **kw: Any) -> tuple[Any, Any]:
+                await asyncio.sleep(100)
+                return (MagicMock(), MagicMock())
+
+            cm = MagicMock()
+            cm.__aenter__ = _hang
+            cm.__aexit__ = AsyncMock(return_value=False)
+            mock_stdio.return_value = cm
+
+            from agent_gateway.exceptions import McpConnectionError
+
+            with pytest.raises(McpConnectionError, match="timed out"):
+                await mgr.test_connection(config)
+
+        assert config.name not in mgr._connections
+
+    @pytest.mark.asyncio
+    async def test_test_connection_invalid_transport(self) -> None:
+        mgr = McpConnectionManager(connection_timeout_ms=1000)
+        config = _make_config(transport="grpc")  # type: ignore[arg-type]
+
+        with (
+            patch("agent_gateway.mcp.manager.decrypt_json_blob", return_value={}),
+            pytest.raises(ValueError, match="unsupported transport"),
+        ):
+            await mgr.test_connection(config)
+
+        assert config.name not in mgr._connections
+
+
 class TestFormatMcpResult:
     def test_text_content(self) -> None:
         @dataclass

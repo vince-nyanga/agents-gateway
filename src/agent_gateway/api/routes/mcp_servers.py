@@ -123,6 +123,19 @@ class McpServerResponse(BaseModel):
     updated_at: str | None = None
 
 
+class McpTestToolResponse(BaseModel):
+    name: str
+    description: str
+
+
+class McpTestResponse(BaseModel):
+    success: bool
+    tool_count: int
+    tools: list[McpTestToolResponse]
+    error: str | None = None
+    error_code: str | None = None
+
+
 class McpToolResponse(BaseModel):
     name: str  # namespaced: "server__tool"
     original_name: str  # MCP-native name
@@ -314,6 +327,56 @@ async def refresh_mcp_server(request: Request, server_id: str = Path(...)) -> An
     _reregister_mcp_tools(gw, server_name=config.name)
 
     return _to_response(config, gw._mcp_manager)
+
+
+@router.post(
+    "/admin/mcp-servers/{server_id}/test",
+    response_model=McpTestResponse,
+    summary="Test MCP server connection",
+    tags=["Admin"],
+    dependencies=[Depends(RequireScope("admin:*"))],
+)
+async def test_mcp_server(request: Request, server_id: str = Path(...)) -> Any:
+    """Temporarily connect to an MCP server, list tools, and disconnect."""
+    gw = request.app
+    config = await gw._mcp_repo.get_by_id(server_id)
+    if config is None:
+        return not_found("mcp_server", server_id)
+
+    if gw._mcp_manager is None:
+        return McpTestResponse(
+            success=False,
+            tool_count=0,
+            tools=[],
+            error="MCP manager not initialized",
+            error_code="config_error",
+        )
+
+    try:
+        result = await gw._mcp_manager.test_connection(config)
+        return McpTestResponse(
+            success=True,
+            tool_count=result["tool_count"],
+            tools=[McpTestToolResponse(**t) for t in result["tools"]],
+        )
+    except Exception as exc:
+        from agent_gateway.exceptions import McpAuthError, McpConnectionError
+
+        error_code = "connection_error"
+        if isinstance(exc, McpAuthError):
+            error_code = "auth_error"
+        elif isinstance(exc, McpConnectionError) and "timed out" in str(exc):
+            error_code = "timeout"
+        elif isinstance(exc, (ValueError, TypeError)):
+            error_code = "config_error"
+
+        return McpTestResponse(
+            success=False,
+            tool_count=0,
+            tools=[],
+            error=str(exc),
+            error_code=error_code,
+        )
 
 
 @router.get(

@@ -235,6 +235,126 @@ class McpConnectionManager:
         )
         self._connections[config.name] = conn
 
+    async def test_connection(
+        self,
+        config: McpServerConfig,
+        token_provider: McpTokenProvider | None = None,
+    ) -> dict[str, Any]:
+        """Test connectivity to an MCP server without storing the connection.
+
+        Performs an ephemeral connect -> list_tools -> disconnect cycle.
+        Returns {"success": True, "tools": [...], "tool_count": N}.
+        Raises McpConnectionError on failure.
+        """
+        # Decrypt credentials and env
+        credentials = decrypt_json_blob(config.encrypted_credentials)
+        env_vars = decrypt_json_blob(config.encrypted_env)
+
+        shutdown_event = asyncio.Event()
+        ready_event = asyncio.Event()
+        session_holder: list[ClientSession] = []
+        error_holder: list[Exception] = []
+
+        async def _run_connection() -> None:
+            try:
+                if config.transport == "stdio":
+                    if config.command is None:
+                        raise ValueError(
+                            f"MCP server '{config.name}': stdio transport requires 'command'"
+                        )
+                    merged_env = dict(env_vars) if env_vars else None
+                    server_params = StdioServerParameters(
+                        command=config.command,
+                        args=config.args or [],
+                        env=merged_env,
+                    )
+                    async with (
+                        stdio_client(server_params) as (read, write),
+                        ClientSession(read, write) as session,
+                    ):
+                        await session.initialize()
+                        session_holder.append(session)
+                        ready_event.set()
+                        await shutdown_event.wait()
+
+                elif config.transport == "streamable_http":
+                    if config.url is None:
+                        raise ValueError(
+                            f"MCP server '{config.name}': streamable_http transport requires 'url'"
+                        )
+                    auth: httpx.Auth | None = None
+                    if token_provider is not None:
+                        auth = McpHttpAuth(token_provider)
+                    elif credentials:
+                        auth = build_auth_from_credentials(credentials, server_name=config.name)
+                    headers = dict(config.headers or {})
+                    if auth is None and credentials:
+                        if "bearer_token" in credentials:
+                            headers["Authorization"] = f"Bearer {credentials['bearer_token']}"
+                        if "api_key" in credentials and "api_key_header" in credentials:
+                            headers[credentials["api_key_header"]] = credentials["api_key"]
+                    http_client = httpx.AsyncClient(auth=auth, headers=headers)
+                    async with (
+                        http_client,
+                        streamable_http_client(config.url, http_client=http_client) as (
+                            read,
+                            write,
+                            _get_session_id,
+                        ),
+                        ClientSession(read, write) as session,
+                    ):
+                        await session.initialize()
+                        session_holder.append(session)
+                        ready_event.set()
+                        await shutdown_event.wait()
+                else:
+                    raise ValueError(
+                        f"MCP server '{config.name}': unsupported transport '{config.transport}'"
+                    )
+            except Exception as exc:
+                error_holder.append(exc)
+                ready_event.set()
+
+        task = asyncio.create_task(_run_connection(), name=f"mcp-test-{config.name}")
+
+        try:
+            try:
+                await asyncio.wait_for(ready_event.wait(), timeout=self._connection_timeout_s)
+            except TimeoutError:
+                raise McpConnectionError(
+                    f"MCP server '{config.name}' test connection timed out "
+                    f"after {self._connection_timeout_s}s",
+                    server_name=config.name,
+                ) from None
+
+            if error_holder:
+                raise error_holder[0]
+
+            if not session_holder:
+                raise RuntimeError(f"MCP server '{config.name}': session not established")
+
+            session = session_holder[0]
+            tools_result = await session.list_tools()
+            tools: list[dict[str, Any]] = []
+            for t in tools_result.tools:
+                tools.append(
+                    {
+                        "name": t.name,
+                        "description": t.description or "",
+                    }
+                )
+
+            return {
+                "success": True,
+                "tools": tools,
+                "tool_count": len(tools),
+            }
+        finally:
+            shutdown_event.set()
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.wait_for(task, timeout=5.0)
+
     async def disconnect_all(self) -> None:
         """Gracefully close all connections. Called during gateway shutdown."""
         for name, conn in self._connections.items():
