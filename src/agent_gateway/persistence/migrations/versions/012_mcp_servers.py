@@ -28,7 +28,7 @@ def upgrade() -> None:
         sa.Column("url", sa.String, nullable=True),
         sa.Column("headers", sa.JSON, nullable=True),
         sa.Column("encrypted_credentials", sa.Text, nullable=True),
-        sa.Column("enabled", sa.Boolean, nullable=False, server_default=sa.text("1")),
+        sa.Column("enabled", sa.Boolean, nullable=False, server_default=sa.text("true")),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

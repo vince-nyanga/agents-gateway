@@ -15,6 +15,8 @@ workspace/
 │   ├── assistant/                  # General-purpose assistant agent (sync)
 │   │   ├── AGENT.md                # Agent prompt + tool/skill bindings
 │   │   └── BEHAVIOR.md              # Behavioral guardrails
+│   ├── data-analyst/               # BigQuery data analyst (MCP + public datasets)
+│   │   └── AGENT.md
 │   ├── data-processor/             # Long-running data processor (async + notifications)
 │   │   └── AGENT.md                # execution_mode: async, notifications on all events
 │   ├── scheduled-reporter/         # Agent with cron schedules + per-schedule instructions
@@ -163,6 +165,102 @@ KEYCLOAK_DASHBOARD=1 KEYCLOAK_API=1 make dev
 | `SLACK_BOT_TOKEN` | _(unset)_ | Slack bot token for notifications |
 | `SLACK_DEFAULT_CHANNEL` | `#agent-alerts` | Default Slack channel |
 | `WEBHOOK_URL` | _(unset)_ | Webhook URL for notifications |
+
+## Data Analyst Agent (BigQuery MCP)
+
+The **Data Analyst** agent queries Google BigQuery public datasets via the MCP protocol. It requires a Google Cloud project with a service account.
+
+### Setup
+
+#### 1. Install the Google Cloud CLI
+
+```bash
+brew install google-cloud-sdk
+```
+
+#### 2. Login and set your project
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+#### 3. Enable the BigQuery API
+
+```bash
+gcloud services enable bigquery.googleapis.com
+```
+
+#### 4. Create a service account
+
+```bash
+gcloud iam service-accounts create bigquery-agent \
+  --display-name="BigQuery Agent"
+```
+
+#### 5. Grant BigQuery access
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="serviceAccount:bigquery-agent@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/bigquery.user"
+```
+
+#### 6. Download the key file
+
+```bash
+gcloud iam service-accounts keys create examples/test-project/creds/bigquery-sa-key.json \
+  --iam-account=bigquery-agent@YOUR_PROJECT_ID.iam.gserviceaccount.com
+```
+
+> **Important:** Never commit this file. The `creds/` directory is gitignored.
+
+#### 7. Add environment variables
+
+Add the following to `examples/test-project/.env`:
+
+```bash
+BIGQUERY_PROJECT=YOUR_PROJECT_ID
+AGENT_GATEWAY_SECRET_KEY=any-string-at-least-32-characters-long
+```
+
+#### 8. Start the server
+
+```bash
+make dev
+```
+
+### Usage
+
+Open the dashboard at `http://localhost:8000/dashboard`, log in as `admin`/`adminpass`, and select the **Data Analyst** agent. Example questions:
+
+- "What were the top 10 most popular baby names in 2020?"
+- "Which names had the biggest rise in popularity from the 1950s to the 2010s?"
+- "What programming languages on GitHub share names with American babies?"
+
+The agent has access to these public datasets:
+
+| Dataset | Description |
+|---------|-------------|
+| `bigquery-public-data.usa_names.usa_1910_current` | US baby names by year, state, gender |
+| `bigquery-public-data.samples.shakespeare` | Complete works of Shakespeare |
+| `bigquery-public-data.github_repos.languages` | GitHub repository languages |
+| `bigquery-public-data.stackoverflow.posts_questions` | Stack Overflow questions |
+
+### Cost
+
+- First 1 TB/month of queries is free
+- Public dataset storage is free
+- You only pay for data scanned by your queries
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BIGQUERY_PROJECT` | _(unset)_ | GCP project ID (enables BigQuery MCP) |
+| `BIGQUERY_LOCATION` | `us` | BigQuery processing location |
+| `GOOGLE_APPLICATION_CREDENTIALS` | `creds/bigquery-sa-key.json` | Path to service account key file |
+| `AGENT_GATEWAY_SECRET_KEY` | _(required for MCP)_ | Encryption key for MCP server credentials |
 
 ## CLI Output Formats
 

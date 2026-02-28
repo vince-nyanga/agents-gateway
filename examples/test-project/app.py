@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
@@ -176,6 +177,29 @@ gw.add_mcp_server(
     args=["mcp_test_server.py"],
 )
 
+# --- BigQuery MCP server (stdio transport) ---
+# Requires: pip install mcp-server-bigquery
+# Set BIGQUERY_PROJECT to your GCP project ID to enable.
+bigquery_project = os.environ.get("BIGQUERY_PROJECT")
+if bigquery_project:
+    gw.add_mcp_server(
+        name="bigquery",
+        transport="stdio",
+        command="uvx",
+        args=[
+            "mcp-server-bigquery",
+            "--project",
+            bigquery_project,
+            "--location",
+            os.environ.get("BIGQUERY_LOCATION", "us"),
+            "--key-file",
+            os.environ.get(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                str(Path(__file__).parent / "creds" / "bigquery-sa-key.json"),
+            ),
+        ],
+    )
+
 # --- MCP server with OAuth2 client_credentials auth ---
 # Set MCP_OAUTH2_TOKEN_URL, MCP_OAUTH2_CLIENT_ID, MCP_OAUTH2_CLIENT_SECRET,
 # and MCP_OAUTH2_SERVER_URL to enable.
@@ -236,6 +260,191 @@ if gcp_mcp_url:
 # --- Context retrievers ---
 
 gw.use_retriever("email-history", EmailHistoryRetriever())
+
+# --- Chart tools ---
+
+
+_chart_store: dict[str, bytes] = {}
+
+
+def _fig_to_url(fig: "Figure") -> str:
+    """Render a matplotlib figure to PNG bytes, store in memory, return a URL path."""
+    import uuid
+    from io import BytesIO
+
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    buf.seek(0)
+    png_bytes = buf.read()
+    buf.close()
+    chart_id = uuid.uuid4().hex[:12]
+    _chart_store[chart_id] = png_bytes
+    return f"/api/charts/{chart_id}.png"
+
+
+@gw.get("/api/charts/{chart_id}.png", tags=["Demo"])
+async def serve_chart(chart_id: str):
+    """Serve a generated chart image from memory."""
+    from starlette.responses import Response
+
+    png = _chart_store.get(chart_id)
+    if png is None:
+        return Response(status_code=404, content="Chart not found")
+    return Response(content=png, media_type="image/png")
+
+
+@gw.tool(name="bar-chart")
+async def bar_chart(
+    title: str,
+    labels: list[str],
+    values: list[float],
+    xlabel: str = "",
+    ylabel: str = "",
+) -> dict:
+    """Generate a bar chart. Use for comparing categories (e.g., top names, counts)."""
+    import ast
+    import json
+
+    def _parse(val: object) -> object:
+        if not isinstance(val, str):
+            return val
+        try:
+            return json.loads(val)
+        except json.JSONDecodeError:
+            return ast.literal_eval(val)
+
+    labels = _parse(labels)  # type: ignore[assignment]
+    values = _parse(values)  # type: ignore[assignment]
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    sns.set_theme(style="whitegrid", palette="muted")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    palette = sns.color_palette("muted", len(labels))
+    bars = ax.bar(range(len(labels)), values, color=palette)
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    for bar, val in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{val:,.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+    plt.tight_layout()
+    uri = _fig_to_url(fig)
+    plt.close(fig)
+    return f"![{title}]({uri})"
+
+
+@gw.tool(name="line-chart")
+async def line_chart(
+    title: str,
+    x_values: list[str],
+    y_series: dict[str, list[float]],
+    xlabel: str = "",
+    ylabel: str = "",
+) -> dict:
+    """Generate a line chart with one or more series. Use for trends over time."""
+    import ast
+    import json
+
+    # LLMs sometimes pass JSON strings (or Python-style dicts with single quotes)
+    def _parse(val: object) -> object:
+        if not isinstance(val, str):
+            return val
+        try:
+            return json.loads(val)
+        except json.JSONDecodeError:
+            return ast.literal_eval(val)
+
+    x_values = _parse(x_values)  # type: ignore[assignment]
+    y_series = _parse(y_series)  # type: ignore[assignment]
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    sns.set_theme(style="whitegrid", palette="muted")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    palette = sns.color_palette("muted", len(y_series))
+    for i, (name, values) in enumerate(y_series.items()):
+        ax.plot(
+            x_values[: len(values)], values,
+            marker="o", label=name, color=palette[i], linewidth=2,
+        )
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    if len(y_series) > 1:
+        ax.legend()
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    uri = _fig_to_url(fig)
+    plt.close(fig)
+    return f"![{title}]({uri})"
+
+
+@gw.tool(name="pie-chart")
+async def pie_chart(
+    title: str,
+    labels: list[str],
+    values: list[float],
+) -> dict:
+    """Generate a pie chart. Use for showing proportions or market share."""
+    import ast
+    import json
+
+    def _parse(val: object) -> object:
+        if not isinstance(val, str):
+            return val
+        try:
+            return json.loads(val)
+        except json.JSONDecodeError:
+            return ast.literal_eval(val)
+
+    labels = _parse(labels)  # type: ignore[assignment]
+    values = _parse(values)  # type: ignore[assignment]
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    sns.set_theme(style="whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    palette = sns.color_palette("muted", len(labels))
+    wedges, texts, autotexts = ax.pie(
+        values,
+        labels=labels,
+        autopct="%1.1f%%",
+        colors=palette,
+        startangle=90,
+    )
+    for text in autotexts:
+        text.set_fontsize(9)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    uri = _fig_to_url(fig)
+    plt.close(fig)
+    return f"![{title}]({uri})"
+
 
 # --- Code tools ---
 

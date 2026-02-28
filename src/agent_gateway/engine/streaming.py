@@ -143,6 +143,7 @@ async def stream_chat_execution(
             agent_id=agent.id,
             metadata=session.metadata,
             delegates_to=agent.delegates_to,
+            mcp_manager=engine._mcp_manager,
         )
 
         start = time.monotonic()

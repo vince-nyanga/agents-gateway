@@ -1,6 +1,7 @@
 .PHONY: dev test test-e2e lint check typecheck
 
 dev:  ## Run the test project
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	uv run --directory examples/test-project python app.py
 
 test:  ## Run library tests (excludes e2e)

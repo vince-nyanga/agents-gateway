@@ -25,6 +25,9 @@ uv.lock
 .env
 !.env.example
 
+# Credentials
+creds/
+
 # Database
 *.db
 
