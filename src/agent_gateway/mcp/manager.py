@@ -1,0 +1,312 @@
+"""MCP connection manager — manages client connections to MCP servers."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+from dataclasses import dataclass, field
+from typing import Any
+
+from mcp import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.streamable_http import streamablehttp_client
+
+from agent_gateway.exceptions import McpConnectionError, McpToolExecutionError
+from agent_gateway.mcp.domain import McpToolInfo
+from agent_gateway.persistence.domain import McpServerConfig
+from agent_gateway.secrets import decrypt_json_blob
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class McpConnection:
+    """A live connection to a single MCP server."""
+
+    config: McpServerConfig
+    session: ClientSession
+    tools: list[McpToolInfo] = field(default_factory=list)
+    # Lifecycle handles
+    _shutdown_event: asyncio.Event = field(default_factory=asyncio.Event)
+    _background_task: asyncio.Task[None] | None = None
+
+
+class McpConnectionManager:
+    """Manages MCP client connections to configured servers.
+
+    Owned by Gateway (stored as Gateway._mcp_manager). Passed to
+    ExecutionEngine and injected into ToolContext so the tool runner
+    can call MCP tools without singletons.
+    """
+
+    def __init__(
+        self,
+        connection_timeout_ms: int = 10_000,
+        tool_call_timeout_ms: int = 30_000,
+    ) -> None:
+        self._connections: dict[str, McpConnection] = {}  # keyed by server name
+        self._connection_timeout_s = connection_timeout_ms / 1000.0
+        self._tool_call_timeout_s = tool_call_timeout_ms / 1000.0
+
+    async def connect_all(self, configs: list[McpServerConfig]) -> None:
+        """Connect to all enabled MCP servers. Called during gateway startup.
+
+        Failures are logged and skipped -- never blocks startup.
+        """
+        for config in configs:
+            if not config.enabled:
+                continue
+            try:
+                await self._connect_one(config)
+                logger.info(
+                    "Connected to MCP server '%s' (%s), discovered %d tools",
+                    config.name,
+                    config.transport,
+                    len(self._connections[config.name].tools),
+                )
+            except Exception:
+                logger.error(
+                    "Failed to connect to MCP server '%s'",
+                    config.name,
+                    exc_info=True,
+                )
+
+    async def _connect_one(self, config: McpServerConfig) -> None:
+        """Establish connection to a single MCP server.
+
+        Spawns a background task that enters the transport and session
+        context managers and blocks on a shutdown event. The session
+        is made available immediately via a ready_event.
+        """
+        # Decrypt credentials and env
+        credentials = decrypt_json_blob(config.encrypted_credentials)
+        env_vars = decrypt_json_blob(config.encrypted_env)
+
+        shutdown_event = asyncio.Event()
+        ready_event = asyncio.Event()
+        session_holder: list[ClientSession] = []  # mutable container for the session
+        error_holder: list[Exception] = []
+
+        async def _run_connection() -> None:
+            """Background task: enter transport CM + session CM, block until shutdown."""
+            try:
+                if config.transport == "stdio":
+                    if config.command is None:
+                        raise ValueError(
+                            f"MCP server '{config.name}': stdio transport requires 'command'"
+                        )
+                    # Merge decrypted env vars into subprocess environment
+                    merged_env = dict(env_vars) if env_vars else None
+                    server_params = StdioServerParameters(
+                        command=config.command,
+                        args=config.args or [],
+                        env=merged_env,
+                    )
+                    async with (
+                        stdio_client(server_params) as (read, write),
+                        ClientSession(read, write) as session,
+                    ):
+                        await session.initialize()
+                        session_holder.append(session)
+                        ready_event.set()
+                        # Block here until shutdown is requested
+                        await shutdown_event.wait()
+
+                elif config.transport == "streamable_http":
+                    if config.url is None:
+                        raise ValueError(
+                            f"MCP server '{config.name}': streamable_http transport requires 'url'"
+                        )
+                    # Build headers with auth
+                    headers = dict(config.headers or {})
+                    if credentials:
+                        if "bearer_token" in credentials:
+                            headers["Authorization"] = f"Bearer {credentials['bearer_token']}"
+                        if "api_key" in credentials and "api_key_header" in credentials:
+                            headers[credentials["api_key_header"]] = credentials["api_key"]
+
+                    async with (
+                        streamablehttp_client(config.url, headers=headers) as (
+                            read,
+                            write,
+                            _get_session_id,
+                        ),
+                        ClientSession(read, write) as session,
+                    ):
+                        await session.initialize()
+                        session_holder.append(session)
+                        ready_event.set()
+                        await shutdown_event.wait()
+
+                else:
+                    raise ValueError(
+                        f"MCP server '{config.name}': unsupported transport '{config.transport}'"
+                    )
+            except Exception as exc:
+                error_holder.append(exc)
+                ready_event.set()  # unblock the caller even on failure
+
+        # Spawn background task
+        task = asyncio.create_task(_run_connection(), name=f"mcp-{config.name}")
+
+        # Wait for the session to be ready, with timeout
+        try:
+            await asyncio.wait_for(ready_event.wait(), timeout=self._connection_timeout_s)
+        except TimeoutError:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            raise McpConnectionError(
+                f"MCP server '{config.name}' connection timed out "
+                f"after {self._connection_timeout_s}s",
+                server_name=config.name,
+            ) from None
+
+        if error_holder:
+            # Task failed during setup -- cancel it and re-raise
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            raise error_holder[0]
+
+        if not session_holder:
+            task.cancel()
+            raise RuntimeError(f"MCP server '{config.name}': session not established")
+
+        session = session_holder[0]
+
+        # Discover tools
+        tools_result = await session.list_tools()
+        discovered: list[McpToolInfo] = []
+        for t in tools_result.tools:
+            if not hasattr(t, "inputSchema"):
+                logger.debug(
+                    "MCP tool '%s' on server '%s' has no inputSchema, using empty schema",
+                    t.name,
+                    config.name,
+                )
+            discovered.append(
+                McpToolInfo(
+                    server_name=config.name,
+                    name=t.name,
+                    description=t.description or "",
+                    input_schema=t.inputSchema if hasattr(t, "inputSchema") else {},
+                )
+            )
+
+        conn = McpConnection(
+            config=config,
+            session=session,
+            tools=discovered,
+            _shutdown_event=shutdown_event,
+            _background_task=task,
+        )
+        self._connections[config.name] = conn
+
+    async def disconnect_all(self) -> None:
+        """Gracefully close all connections. Called during gateway shutdown."""
+        for name, conn in self._connections.items():
+            try:
+                conn._shutdown_event.set()  # signal the background task to exit
+                if conn._background_task is not None:
+                    await asyncio.wait_for(conn._background_task, timeout=5.0)
+            except Exception:
+                logger.warning("Error disconnecting MCP server '%s'", name, exc_info=True)
+        self._connections.clear()
+
+    async def disconnect_one(self, name: str) -> None:
+        """Disconnect a single server."""
+        conn = self._connections.pop(name, None)
+        if conn is None:
+            return
+        conn._shutdown_event.set()
+        if conn._background_task is not None:
+            try:
+                await asyncio.wait_for(conn._background_task, timeout=5.0)
+            except Exception:
+                logger.warning("Error disconnecting MCP server '%s'", name, exc_info=True)
+
+    async def refresh_server(self, name: str, config: McpServerConfig) -> None:
+        """Reconnect a single server (after config change)."""
+        await self.disconnect_one(name)
+        await self._connect_one(config)
+
+    def get_tools(self, server_name: str) -> list[McpToolInfo]:
+        """Get discovered tools for a server. Returns empty list if not connected."""
+        conn = self._connections.get(server_name)
+        if conn is None:
+            return []
+        return list(conn.tools)
+
+    def get_all_tools(self) -> dict[str, list[McpToolInfo]]:
+        """Get all discovered tools grouped by server name."""
+        return {name: list(c.tools) for name, c in self._connections.items()}
+
+    def is_connected(self, server_name: str) -> bool:
+        """Check if a server has an active connection."""
+        conn = self._connections.get(server_name)
+        if conn is None:
+            return False
+        task = conn._background_task
+        return task is not None and not task.done()
+
+    async def call_tool(self, server_name: str, tool_name: str, arguments: dict[str, Any]) -> Any:
+        """Proxy a tool call to the appropriate MCP server."""
+        conn = self._connections.get(server_name)
+        if conn is None:
+            raise McpToolExecutionError(
+                f"MCP server '{server_name}' is not connected",
+                server_name=server_name,
+                tool_name=tool_name,
+            )
+
+        # Check background task is still alive
+        if conn._background_task is None or conn._background_task.done():
+            raise McpToolExecutionError(
+                f"MCP server '{server_name}' connection has been lost",
+                server_name=server_name,
+                tool_name=tool_name,
+            )
+
+        try:
+            result = await asyncio.wait_for(
+                conn.session.call_tool(tool_name, arguments=arguments),
+                timeout=self._tool_call_timeout_s,
+            )
+        except TimeoutError:
+            raise McpToolExecutionError(
+                f"MCP tool '{tool_name}' on server '{server_name}' timed out "
+                f"after {self._tool_call_timeout_s}s",
+                server_name=server_name,
+                tool_name=tool_name,
+            ) from None
+        return _format_mcp_result(result)
+
+
+def _format_mcp_result(result: Any) -> str:
+    """Format MCP CallToolResult content into a string for the LLM."""
+    parts: list[str] = []
+    for item in result.content:
+        if hasattr(item, "text"):
+            parts.append(item.text)
+        elif hasattr(item, "data"):
+            mime = getattr(item, "mimeType", None) or "unknown"
+            parts.append(f"[binary content: {mime}]")
+        else:
+            parts.append(str(item))
+    return "\n".join(parts)
+
+
+def compute_server_to_agents(
+    workspace: Any,
+) -> dict[str, list[str]]:
+    """Scan all agents' mcp_servers lists and build a reverse mapping.
+
+    Returns: {server_name: [agent_id, ...]}
+    """
+    result: dict[str, list[str]] = {}
+    for agent in workspace.agents.values():
+        for server_name in agent.mcp_servers:
+            result.setdefault(server_name, []).append(agent.id)
+    return result

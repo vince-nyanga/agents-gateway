@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import os
 from typing import Any
 
@@ -49,6 +50,18 @@ def decrypt_value(ciphertext: str, key: str | None = None) -> str:
         return f.decrypt(ciphertext.encode()).decode()
     except InvalidToken as e:
         raise ValueError("Failed to decrypt secret: invalid key or corrupted data") from e
+
+
+def decrypt_json_blob(encrypted: str | None, key: str | None = None) -> dict[str, str]:
+    """Decrypt a Fernet-encrypted JSON blob, returning empty dict on None/empty.
+
+    Used for MCP server credentials and env vars.
+    """
+    if not encrypted:
+        return {}
+    plaintext = decrypt_value(encrypted, key)
+    result: dict[str, str] = json.loads(plaintext)
+    return result
 
 
 def get_sensitive_fields(setup_schema: dict[str, Any]) -> set[str]:

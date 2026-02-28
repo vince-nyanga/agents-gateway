@@ -6,6 +6,7 @@ import contextlib
 import importlib.resources
 import json
 import logging
+from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 import anyio
@@ -14,6 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, PackageLoader, select_autoescape
+from markupsafe import escape
 from starlette.responses import StreamingResponse
 
 from agent_gateway.dashboard.auth import (
@@ -1723,6 +1725,159 @@ def register_dashboard(
         )
 
         return RedirectResponse(url="/dashboard/notifications", status_code=303)
+
+    # ── MCP Servers (admin-only) ─────────────────────────────────────────
+    @protected.get(
+        "/mcp-servers",
+        response_class=HTMLResponse,
+    )
+    async def mcp_servers_page(
+        request: Request,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        gw = request.app
+        servers: list[dict[str, Any]] = []
+        try:
+            configs = await gw._mcp_repo.list_all()
+            for c in configs:
+                tool_count = 0
+                connected = False
+                if gw._mcp_manager is not None:
+                    tool_count = len(gw._mcp_manager.get_tools(c.name))
+                    connected = gw._mcp_manager.is_connected(c.name)
+                servers.append(
+                    {
+                        "id": c.id,
+                        "name": c.name,
+                        "transport": c.transport,
+                        "tool_count": tool_count,
+                        "connected": connected,
+                        "enabled": c.enabled,
+                    }
+                )
+        except Exception:
+            logger.warning("Failed to load MCP servers for dashboard", exc_info=True)
+
+        return templates.TemplateResponse(
+            "dashboard/mcp_servers.html",
+            {
+                "request": request,
+                "active_page": "mcp_servers",
+                "current_user": current_user,
+                "servers": servers,
+            },
+        )
+
+    @protected.post("/mcp-servers")
+    async def mcp_servers_create(
+        request: Request,
+        current_user: DashboardUser = Depends(require_admin),
+        name: str = Form(...),
+        transport: str = Form(...),
+        command: str = Form(""),
+        args: str = Form(""),
+        url: str = Form(""),
+        credentials: str = Form(""),
+        env: str = Form(""),
+    ) -> RedirectResponse:
+        import uuid as _uuid
+        from datetime import datetime as _dt
+
+        from agent_gateway.persistence.domain import McpServerConfig
+        from agent_gateway.secrets import encrypt_value
+
+        # Parse and encrypt credentials JSON
+        encrypted_creds = None
+        if credentials.strip():
+            try:
+                parsed_creds = json.loads(credentials)
+                encrypted_creds = encrypt_value(json.dumps(parsed_creds))
+            except json.JSONDecodeError:
+                logger.warning("Invalid credentials JSON in dashboard MCP form")
+
+        # Parse and encrypt env JSON
+        encrypted_env = None
+        if env.strip():
+            try:
+                parsed_env = json.loads(env)
+                encrypted_env = encrypt_value(json.dumps(parsed_env))
+            except json.JSONDecodeError:
+                logger.warning("Invalid env JSON in dashboard MCP form")
+
+        config = McpServerConfig(
+            id=str(_uuid.uuid4()),
+            name=name,
+            transport=transport,
+            command=command or None,
+            args=[a.strip() for a in args.split(",") if a.strip()] or None,
+            url=url or None,
+            encrypted_credentials=encrypted_creds,
+            encrypted_env=encrypted_env,
+            enabled=True,
+            created_at=_dt.now(UTC),
+        )
+        gw = request.app
+        await gw._mcp_repo.upsert(config)
+        return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
+
+    @protected.post("/mcp-servers/{server_id}/delete")
+    async def mcp_servers_delete(
+        request: Request,
+        server_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> RedirectResponse:
+        gw = request.app
+        existing = await gw._mcp_repo.get_by_id(server_id)
+        if existing is not None:
+            if gw._mcp_manager is not None:
+                await gw._mcp_manager.disconnect_one(existing.name)
+            await gw._mcp_repo.delete(server_id)
+        return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
+
+    @protected.post("/mcp-servers/{server_id}/refresh")
+    async def mcp_servers_refresh(
+        request: Request,
+        server_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> RedirectResponse:
+        gw = request.app
+        config = await gw._mcp_repo.get_by_id(server_id)
+        if config is not None and gw._mcp_manager is not None:
+            try:
+                await gw._mcp_manager.refresh_server(config.name, config)
+            except Exception:
+                logger.warning("Failed to refresh MCP server '%s'", config.name, exc_info=True)
+        return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
+
+    @protected.get("/mcp-servers/{server_id}/tools", response_class=HTMLResponse)
+    async def mcp_server_tools_fragment(
+        request: Request,
+        server_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        gw = request.app
+        config = await gw._mcp_repo.get_by_id(server_id)
+        if config is None or gw._mcp_manager is None:
+            return HTMLResponse("<p class='text-xs text-slate-400'>Not available</p>")
+
+        tools = gw._mcp_manager.get_tools(config.name)
+        html_parts = []
+        for t in tools:
+            safe_name = escape(t.namespaced_name)
+            safe_desc = escape(t.description[:120])
+            html_parts.append(
+                f'<div class="flex items-start gap-3 px-3 py-2 bg-surface-2 rounded-lg border border-border-dark/30">'
+                f'<span class="material-symbols-outlined text-sm text-primary flex-shrink-0 mt-0.5">build</span>'
+                f'<div>'
+                f'<span class="text-xs font-mono font-semibold text-slate-300">{safe_name}</span>'
+                f'<p class="text-xs text-slate-500 mt-0.5">{safe_desc}</p>'
+                f"</div></div>"
+            )
+        return HTMLResponse(
+            "\n".join(html_parts)
+            if html_parts
+            else "<p class='text-xs text-slate-500 px-3 py-2'>No tools discovered for this server.</p>"
+        )
 
     app.include_router(public)
     app.include_router(protected)

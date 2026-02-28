@@ -6,6 +6,8 @@ version: "1.0.0"
 skills:
   - math-workflow
   - general-tools
+mcp_servers:
+  - test-tools
 memory:
   enabled: true
   auto_extract: true

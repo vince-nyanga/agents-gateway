@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
+    from agent_gateway.mcp.manager import McpConnectionManager
+
 
 class StopReason(StrEnum):
     """Why an execution stopped."""
@@ -150,6 +152,8 @@ class ToolContext:
     root_execution_id: str | None = None
     delegation_depth: int = 0
     delegates_to: list[str] = field(default_factory=list)
+    # MCP
+    mcp_manager: McpConnectionManager | None = None
 
 
 class ExecutionHandle:

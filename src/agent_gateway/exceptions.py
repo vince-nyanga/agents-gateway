@@ -84,3 +84,24 @@ class ScheduleValidationError(AgentGatewayError):
 
 class AgentMemoryError(AgentGatewayError):
     """Base for memory-related errors."""
+
+
+class McpError(AgentGatewayError):
+    """Base for MCP-related errors."""
+
+
+class McpConnectionError(McpError):
+    """Failed to connect to an MCP server."""
+
+    def __init__(self, message: str, server_name: str) -> None:
+        self.server_name = server_name
+        super().__init__(message)
+
+
+class McpToolExecutionError(McpError):
+    """Failed to execute a tool on an MCP server."""
+
+    def __init__(self, message: str, server_name: str, tool_name: str) -> None:
+        self.server_name = server_name
+        self.tool_name = tool_name
+        super().__init__(message)

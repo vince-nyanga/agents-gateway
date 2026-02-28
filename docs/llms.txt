@@ -127,6 +127,21 @@ def add(a: float, b: float) -> float:
     return a + b
 ```
 
+### MCP Servers
+
+Connect to external MCP (Model Context Protocol) servers to discover and use their tools:
+
+```python
+gw.add_mcp_server(
+    name="my-tools",
+    transport="stdio",
+    command="python",
+    args=["-m", "my_server"],
+)
+```
+
+Supports `stdio` (subprocess) and `streamable_http` (remote) transports. Tools are namespaced as `{server}__{tool}`. Assign servers to agents via `mcp_servers` in AGENT.md frontmatter. Admin CRUD API at `/v1/admin/mcp-servers`. Credentials/env are encrypted at rest.
+
 ### Skills (workspace/skills/<id>/SKILL.md)
 
 Composable workflow units grouping tools with optional sequential/parallel steps.

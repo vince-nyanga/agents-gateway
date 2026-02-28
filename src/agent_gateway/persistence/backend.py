@@ -8,6 +8,7 @@ from agent_gateway.persistence.protocols import (
     AuditRepository,
     ConversationRepository,
     ExecutionRepository,
+    McpServerRepository,
     NotificationRepository,
     ScheduleRepository,
     UserAgentConfigRepository,
@@ -55,3 +56,6 @@ class PersistenceBackend(Protocol):
 
     @property
     def notification_repo(self) -> NotificationRepository: ...
+
+    @property
+    def mcp_server_repo(self) -> McpServerRepository: ...

@@ -1,0 +1,272 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}MCP Servers — {{ dashboard_title }}{% endblock %}
+{% block page_heading %}MCP Servers{% endblock %}
+
+{% block content %}
+<div class="px-8 py-6">
+
+  <!-- Page Header -->
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white tracking-tight">MCP Servers</h1>
+      <p class="text-slate-400 text-sm mt-1">Manage external MCP server connections and discover tools.</p>
+    </div>
+    <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+      class="px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
+      <span class="material-symbols-outlined text-base">add</span>
+      Add Server
+    </button>
+  </div>
+
+  {% if create_error %}
+  <div class="p-4 mb-5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex gap-3">
+    <span class="material-symbols-outlined text-rose-500 flex-shrink-0">error</span>
+    <span class="text-sm">{{ create_error }}</span>
+  </div>
+  {% endif %}
+
+  {% if servers %}
+  <!-- Stats Bar -->
+  <div class="stats-bar mb-6">
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Total Servers</div>
+      <div class="stats-bar-value">{{ servers | length }}</div>
+    </div>
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Connected</div>
+      <div class="stats-bar-value text-emerald-400">{{ servers | selectattr('connected') | list | length }}</div>
+    </div>
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Total Tools</div>
+      <div class="stats-bar-value">{{ servers | sum(attribute='tool_count') }}</div>
+    </div>
+    <div class="stats-bar-card">
+      <div class="stats-bar-label">Disabled</div>
+      <div class="stats-bar-value text-slate-500">{{ servers | rejectattr('enabled') | list | length }}</div>
+    </div>
+  </div>
+
+  <div class="bg-surface rounded-xl border border-border-dark shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-surface-2 border-b border-border-dark text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+            <th class="px-5 py-3.5">Server</th>
+            <th class="px-5 py-3.5">Transport</th>
+            <th class="px-5 py-3.5 text-center">Status</th>
+            <th class="px-5 py-3.5 text-center">Tools</th>
+            <th class="px-5 py-3.5 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border-dark/50">
+          {% for s in servers %}
+          <tr class="group hover:bg-surface-2 transition-colors">
+            <td class="px-5 py-4 whitespace-nowrap">
+              <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0
+                  {% if s.connected %}bg-emerald-500/10 text-emerald-400
+                  {% elif not s.enabled %}bg-slate-500/10 text-slate-500
+                  {% else %}bg-rose-500/10 text-rose-400{% endif %}">
+                  <span class="material-symbols-outlined text-lg">
+                    {% if s.connected %}cloud_done{% elif not s.enabled %}cloud_off{% else %}cloud_off{% endif %}
+                  </span>
+                </div>
+                <div>
+                  <p class="text-sm font-semibold text-white">{{ s.name }}</p>
+                  {% if not s.enabled %}
+                  <p class="text-[10px] text-amber-500 font-semibold uppercase">Disabled</p>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td class="px-5 py-4 whitespace-nowrap">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary uppercase">
+                {{ s.transport }}
+              </span>
+            </td>
+            <td class="px-5 py-4 whitespace-nowrap text-center">
+              {% if s.connected %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Connected
+              </span>
+              {% elif not s.enabled %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-500/10 border border-slate-500/20 text-slate-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                Disabled
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                Disconnected
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-4 whitespace-nowrap text-center">
+              {% if s.tool_count > 0 %}
+              <button
+                onclick="toggleTools('{{ s.id }}')"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                title="Show tools">
+                <span class="material-symbols-outlined text-sm">build</span>
+                {{ s.tool_count }}
+              </button>
+              {% else %}
+              <span class="text-xs text-slate-600">—</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-4 whitespace-nowrap text-right">
+              <div class="flex items-center justify-end gap-1">
+                <form method="post" action="/dashboard/mcp-servers/{{ s.id }}/refresh" class="inline">
+                  <button type="submit"
+                    class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
+                    title="Refresh connection">
+                    <span class="material-symbols-outlined text-base">refresh</span>
+                  </button>
+                </form>
+                <form method="post" action="/dashboard/mcp-servers/{{ s.id }}/delete" class="inline"
+                      onsubmit="return confirm('Delete MCP server {{ s.name }}?')">
+                  <button type="submit"
+                    class="p-1.5 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10"
+                    title="Delete server">
+                    <span class="material-symbols-outlined text-base">delete</span>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <!-- Tools drawer row -->
+          <tr id="tools-row-{{ s.id }}" class="hidden">
+            <td colspan="5" class="px-5 pb-4">
+              <div class="rounded-lg border border-border-dark/50 bg-surface-2/50 overflow-hidden">
+                <div class="px-4 py-2 border-b border-border-dark/30 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-sm text-slate-500">build</span>
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Discovered Tools</span>
+                </div>
+                <div id="tools-{{ s.id }}"
+                     class="p-3 space-y-1"
+                     hx-get="/dashboard/mcp-servers/{{ s.id }}/tools"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                  <p class="text-xs text-slate-500">Loading tools...</p>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="px-5 py-3 border-t border-border-dark/50 bg-surface-2/30">
+      <p class="text-[10px] text-slate-600">MCP servers can be added here or declared in workspace configuration files.</p>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Empty State -->
+  <div class="py-20 flex flex-col items-center justify-center text-center bg-surface rounded-xl border border-border-dark">
+    <div class="w-16 h-16 bg-surface-2 border border-border-dark rounded-full flex items-center justify-center text-slate-500 mb-4">
+      <span class="material-symbols-outlined text-3xl">dns</span>
+    </div>
+    <h3 class="text-base font-bold text-white mb-1">No MCP servers configured</h3>
+    <p class="text-sm text-slate-500 max-w-sm">Add an MCP server to extend your agents with external tools and capabilities.</p>
+    <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+      class="mt-5 px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
+      <span class="material-symbols-outlined text-base">add</span>
+      Add Server
+    </button>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Add Server Modal -->
+<div id="add-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface border border-border-dark rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-border-dark">
+      <h2 class="text-lg font-bold text-white">Add MCP Server</h2>
+      <button onclick="document.getElementById('add-modal').classList.add('hidden')"
+        class="p-1 text-slate-500 hover:text-white transition-colors rounded-lg">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <form method="post" action="/dashboard/mcp-servers" class="p-5 space-y-4">
+      <div>
+        <label for="add-name" class="block text-sm font-medium text-slate-300 mb-1">Name</label>
+        <input type="text" id="add-name" name="name" required pattern="[a-z0-9][a-z0-9_-]*" maxlength="64"
+               placeholder="my-server" class="input w-full" style="font-family: var(--font-mono, monospace);">
+        <p class="text-[10px] text-slate-500 mt-1">Lowercase letters, digits, dashes, and underscores only.</p>
+      </div>
+      <div>
+        <label for="add-transport" class="block text-sm font-medium text-slate-300 mb-1">Transport</label>
+        <select id="add-transport" name="transport" onchange="toggleTransportFields()"
+                class="input w-full">
+          <option value="stdio">stdio</option>
+          <option value="streamable_http">streamable_http</option>
+        </select>
+      </div>
+      <div id="stdio-fields">
+        <div class="mb-3">
+          <label class="block text-sm font-medium text-slate-300 mb-1">Command</label>
+          <input type="text" name="command" placeholder="python"
+                 class="input w-full" style="font-family: var(--font-mono, monospace);">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">Args <span class="text-slate-500 font-normal">(comma-separated)</span></label>
+          <input type="text" name="args" placeholder="-m,my_server"
+                 class="input w-full" style="font-family: var(--font-mono, monospace);">
+        </div>
+      </div>
+      <div id="http-fields" class="hidden">
+        <label class="block text-sm font-medium text-slate-300 mb-1">URL</label>
+        <input type="url" name="url" placeholder="http://localhost:8080/mcp"
+               class="input w-full" style="font-family: var(--font-mono, monospace);">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-1">Credentials <span class="text-slate-500 font-normal">(JSON, optional)</span></label>
+        <textarea name="credentials" rows="2" placeholder='{"bearer_token": "sk-..."}'
+                  class="input w-full" style="font-family: var(--font-mono, monospace);"></textarea>
+        <p class="text-[10px] text-slate-500 mt-0.5">Encrypted at rest.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-1">Environment Variables <span class="text-slate-500 font-normal">(JSON, optional)</span></label>
+        <textarea name="env" rows="2" placeholder='{"API_KEY": "value"}'
+                  class="input w-full" style="font-family: var(--font-mono, monospace);"></textarea>
+        <p class="text-[10px] text-slate-500 mt-0.5">Passed to stdio subprocess. Encrypted at rest.</p>
+      </div>
+      <div class="pt-2 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+          class="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">Cancel</button>
+        <button type="submit"
+          class="px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
+          Add Server
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleTransportFields() {
+  const transport = document.getElementById('add-transport').value;
+  document.getElementById('stdio-fields').classList.toggle('hidden', transport !== 'stdio');
+  document.getElementById('http-fields').classList.toggle('hidden', transport !== 'streamable_http');
+}
+
+function toggleTools(serverId) {
+  const row = document.getElementById('tools-row-' + serverId);
+  if (row) {
+    row.classList.toggle('hidden');
+    // Trigger HTMX load on first reveal
+    if (!row.classList.contains('hidden')) {
+      const container = document.getElementById('tools-' + serverId);
+      if (container && container.getAttribute('hx-trigger') === 'revealed') {
+        htmx.trigger(container, 'revealed');
+        container.removeAttribute('hx-trigger');
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

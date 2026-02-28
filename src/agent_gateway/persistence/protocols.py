@@ -11,6 +11,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    McpServerConfig,
     NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
@@ -283,3 +284,20 @@ class UserScheduleRepository(Protocol):
     ) -> None: ...
 
     async def delete(self, schedule_id: str) -> bool: ...
+
+
+@runtime_checkable
+class McpServerRepository(Protocol):
+    """Repository for MCP server configurations."""
+
+    async def list_all(self) -> list[McpServerConfig]: ...
+
+    async def get_by_name(self, name: str) -> McpServerConfig | None: ...
+
+    async def get_by_id(self, server_id: str) -> McpServerConfig | None: ...
+
+    async def upsert(self, config: McpServerConfig) -> McpServerConfig: ...
+
+    async def delete(self, server_id: str) -> bool: ...
+
+    async def list_enabled(self) -> list[McpServerConfig]: ...

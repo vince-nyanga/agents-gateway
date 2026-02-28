@@ -83,6 +83,9 @@ class AgentDefinition:
     # Memory
     memory_config: AgentMemoryConfig = field(default_factory=AgentMemoryConfig)
 
+    # MCP servers this agent can use
+    mcp_servers: list[str] = field(default_factory=list)
+
     # Runtime control
     enabled: bool = True
 
@@ -201,6 +204,14 @@ class AgentDefinition:
 
         setup_schema = _parse_setup_schema(agent_meta.get("setup_schema"), agent_dir)
 
+        mcp_servers = agent_meta.get("mcp_servers", [])
+        if not isinstance(mcp_servers, list) or not all(isinstance(s, str) for s in mcp_servers):
+            logger.warning(
+                "Agent '%s': 'mcp_servers' must be a list of strings, ignoring",
+                agent_id,
+            )
+            mcp_servers = []
+
         enabled = agent_meta.get("enabled", True)
         if not isinstance(enabled, bool):
             logger.warning("Agent '%s': 'enabled' must be a bool, defaulting to True", agent_id)
@@ -224,6 +235,7 @@ class AgentDefinition:
             context_content=context_content,
             retrievers=retrievers,
             memory_config=memory_config,
+            mcp_servers=mcp_servers,
             delegates_to=delegates_to,
             scope=scope,
             setup_schema=setup_schema,

@@ -15,6 +15,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    McpServerConfig,
     NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
@@ -1048,3 +1049,74 @@ class NotificationRepository:
         if execution_id is not None:
             stmt = stmt.where(NotificationDeliveryRecord.execution_id == execution_id)
         return stmt
+
+
+class McpServerRepository:
+    """CRUD operations for MCP server configurations."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def list_all(self) -> list[McpServerConfig]:
+        """List all MCP server configurations."""
+        async with self._session_factory() as session:
+            stmt = select(McpServerConfig).order_by(
+                McpServerConfig.created_at  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def get_by_name(self, name: str) -> McpServerConfig | None:
+        """Fetch an MCP server config by unique name."""
+        async with self._session_factory() as session:
+            stmt = select(McpServerConfig).where(
+                McpServerConfig.name == name  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+
+    async def get_by_id(self, server_id: str) -> McpServerConfig | None:
+        """Fetch an MCP server config by ID."""
+        async with self._session_factory() as session:
+            return await session.get(McpServerConfig, server_id)
+
+    async def upsert(self, config: McpServerConfig) -> McpServerConfig:
+        """Insert or update an MCP server config."""
+        async with self._session_factory() as session:
+            existing = await session.get(McpServerConfig, config.id)
+            if existing is None:
+                session.add(config)
+            else:
+                existing.name = config.name
+                existing.transport = config.transport
+                existing.command = config.command
+                existing.args = config.args
+                existing.encrypted_env = config.encrypted_env
+                existing.url = config.url
+                existing.headers = config.headers
+                existing.encrypted_credentials = config.encrypted_credentials
+                existing.enabled = config.enabled
+                existing.updated_at = config.updated_at
+            await session.commit()
+            return config
+
+    async def delete(self, server_id: str) -> bool:
+        """Delete an MCP server config by ID."""
+        async with self._session_factory() as session:
+            existing = await session.get(McpServerConfig, server_id)
+            if existing is None:
+                return False
+            await session.delete(existing)
+            await session.commit()
+            return True
+
+    async def list_enabled(self) -> list[McpServerConfig]:
+        """List all enabled MCP server configurations."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(McpServerConfig)
+                .where(McpServerConfig.enabled == True)  # noqa: E712  # type: ignore[arg-type]
+                .order_by(McpServerConfig.created_at)  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())

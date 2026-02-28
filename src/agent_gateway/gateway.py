@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import time
 import uuid
@@ -56,6 +57,7 @@ from agent_gateway.persistence.null import (
     NullAuditRepository,
     NullConversationRepository,
     NullExecutionRepository,
+    NullMcpServerRepository,
     NullNotificationRepository,
     NullScheduleRepository,
     NullUserAgentConfigRepository,
@@ -66,6 +68,7 @@ from agent_gateway.persistence.protocols import (
     AuditRepository,
     ConversationRepository,
     ExecutionRepository,
+    McpServerRepository,
     NotificationRepository,
     ScheduleRepository,
     UserAgentConfigRepository,
@@ -164,6 +167,9 @@ class Gateway(FastAPI):
         self._user_agent_config_repo: UserAgentConfigRepository = NullUserAgentConfigRepository()
         self._user_schedule_repo: UserScheduleRepository = NullUserScheduleRepository()
         self._notification_repo: NotificationRepository = NullNotificationRepository()
+        self._pending_mcp_servers: list[dict[str, Any]] = []  # raw dicts, encrypted at startup
+        self._mcp_repo: McpServerRepository = NullMcpServerRepository()
+        self._mcp_manager: Any | None = None  # McpConnectionManager, set during startup
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_cors_config: CorsConfig | None = None  # fluent API
@@ -371,6 +377,7 @@ class Gateway(FastAPI):
                 self._user_agent_config_repo = backend.user_agent_config_repo
                 self._user_schedule_repo = backend.user_schedule_repo
                 self._notification_repo = backend.notification_repo
+                self._mcp_repo = backend.mcp_server_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -431,6 +438,86 @@ class Gateway(FastAPI):
             logger.warning("Failed to initialize retrievers", exc_info=True)
         self._retriever_registry = retriever_registry
 
+        # 6.8: MCP server connections
+        try:
+            from agent_gateway.mcp.manager import (
+                McpConnectionManager,
+                compute_server_to_agents,
+            )
+            from agent_gateway.persistence.domain import McpServerConfig as _McpCfg
+            from agent_gateway.secrets import encrypt_value as _encrypt
+
+            # Load from DB + pending list
+            db_mcp_configs = await self._mcp_repo.list_enabled()
+            pending_mcp_configs: list[_McpCfg] = []
+            for raw in self._pending_mcp_servers:
+                pending_mcp_configs.append(
+                    _McpCfg(
+                        id=str(uuid.uuid4()),
+                        name=raw["name"],
+                        transport=raw["transport"],
+                        command=raw.get("command"),
+                        args=raw.get("args"),
+                        encrypted_env=(
+                            _encrypt(json.dumps(raw["env"])) if raw.get("env") else None
+                        ),
+                        url=raw.get("url"),
+                        headers=raw.get("headers"),
+                        encrypted_credentials=(
+                            _encrypt(json.dumps(raw["credentials"]))
+                            if raw.get("credentials")
+                            else None
+                        ),
+                        enabled=raw.get("enabled", True),
+                    )
+                )
+
+            # Merge: pending takes precedence over DB if names collide
+            configs_by_name: dict[str, _McpCfg] = {}
+            for c in db_mcp_configs:
+                configs_by_name[c.name] = c
+            for c in pending_mcp_configs:
+                configs_by_name[c.name] = c  # overrides DB config with same name
+
+            all_mcp_configs = list(configs_by_name.values())
+
+            # Validate agent references
+            known_server_names = {c.name for c in all_mcp_configs}
+            for agent in workspace.agents.values():
+                for server_name in agent.mcp_servers:
+                    if server_name not in known_server_names:
+                        logger.warning(
+                            "Agent '%s' references MCP server '%s' which does not exist. "
+                            "Tools from this server will not be available.",
+                            agent.id,
+                            server_name,
+                        )
+
+            # Connect
+            if all_mcp_configs:
+                self._mcp_manager = McpConnectionManager(
+                    connection_timeout_ms=self._config.mcp.connection_timeout_ms,
+                    tool_call_timeout_ms=self._config.mcp.tool_call_timeout_ms,
+                )
+                await self._mcp_manager.connect_all(all_mcp_configs)
+
+                # Compute allowed_agents per server
+                server_to_agents = compute_server_to_agents(workspace)
+
+                # Register MCP tools in ToolRegistry with allowed_agents
+                all_mcp_tools = self._mcp_manager.get_all_tools()
+                for server_name, tools in all_mcp_tools.items():
+                    allowed = server_to_agents.get(server_name)
+                    tool_registry.register_mcp_tools(tools, allowed_agents=allowed)
+
+                logger.info(
+                    "MCP setup complete: %d servers connected, %d total tools registered",
+                    len(self._mcp_manager._connections),
+                    sum(len(t) for t in all_mcp_tools.values()),
+                )
+        except Exception:
+            logger.warning("Failed to init MCP servers", exc_info=True)
+
         # 7. Build LLM client and execution engine
         engine: ExecutionEngine | None = None
         try:
@@ -442,6 +529,7 @@ class Gateway(FastAPI):
                 hooks=self._hooks,
                 retriever_registry=retriever_registry,
                 execution_repo=self._execution_repo,
+                mcp_manager=self._mcp_manager,
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
@@ -747,6 +835,14 @@ class Gateway(FastAPI):
 
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
+        # Disconnect MCP servers first
+        if self._mcp_manager is not None:
+            try:
+                await self._mcp_manager.disconnect_all()
+            except Exception:
+                logger.warning("Failed to disconnect MCP servers", exc_info=True)
+            self._mcp_manager = None
+
         await self._hooks.fire("gateway.shutdown")
 
         # Stop scheduler (prevents new cron fires; in-flight jobs finish via worker pool)
@@ -1177,6 +1273,50 @@ class Gateway(FastAPI):
         if name in self._pending_retrievers:
             raise ValueError(f"Retriever '{name}' is already registered")
         self._pending_retrievers[name] = retriever
+        return self
+
+    # --- MCP server configuration (fluent API) ---
+
+    def add_mcp_server(
+        self,
+        name: str,
+        transport: str,
+        *,
+        command: str | None = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        url: str | None = None,
+        headers: dict[str, str] | None = None,
+        credentials: dict[str, str] | None = None,
+        enabled: bool = True,
+    ) -> Gateway:
+        """Register an MCP server programmatically (fluent API).
+
+        Stores raw (unencrypted) values in the pending list. Encryption
+        happens during startup so that AGENT_GATEWAY_SECRET_KEY does not
+        need to be set at import time.
+
+        Raises:
+            ValueError: If transport is not 'stdio' or 'streamable_http'.
+        """
+        valid_transports = ("stdio", "streamable_http")
+        if transport not in valid_transports:
+            raise ValueError(
+                f"Invalid MCP transport '{transport}'. Must be one of: {valid_transports}"
+            )
+        self._pending_mcp_servers.append(
+            {
+                "name": name,
+                "transport": transport,
+                "command": command,
+                "args": args,
+                "env": env,
+                "url": url,
+                "headers": headers,
+                "credentials": credentials,
+                "enabled": enabled,
+            }
+        )
         return self
 
     # --- Memory configuration (fluent API) ---
@@ -1901,6 +2041,7 @@ class Gateway(FastAPI):
         from agent_gateway.api.routes.health import router as health_router
         from agent_gateway.api.routes.introspection import router as introspection_router
         from agent_gateway.api.routes.invoke import router as invoke_router
+        from agent_gateway.api.routes.mcp_servers import router as mcp_servers_router
         from agent_gateway.api.routes.notifications import router as notifications_router
         from agent_gateway.api.routes.schedules import router as schedules_router
         from agent_gateway.api.routes.user_config import router as user_config_router
@@ -1914,6 +2055,7 @@ class Gateway(FastAPI):
         v1.include_router(schedules_router)
         v1.include_router(user_config_router)
         v1.include_router(notifications_router)
+        v1.include_router(mcp_servers_router)
 
         self.include_router(v1)
 
@@ -1929,6 +2071,16 @@ class Gateway(FastAPI):
             for code_tool in self._pending_tools:
                 new_registry.register_code_tool(code_tool)
 
+            # Re-register MCP tools after reload
+            if self._mcp_manager is not None:
+                from agent_gateway.mcp.manager import compute_server_to_agents
+
+                server_to_agents = compute_server_to_agents(new_workspace)
+                all_mcp_tools = self._mcp_manager.get_all_tools()
+                for server_name, tools in all_mcp_tools.items():
+                    allowed = server_to_agents.get(server_name)
+                    new_registry.register_mcp_tools(tools, allowed_agents=allowed)
+
             new_engine: ExecutionEngine | None = None
             if self._llm_client and self._config:
                 new_engine = ExecutionEngine(
@@ -1938,6 +2090,7 @@ class Gateway(FastAPI):
                     hooks=self._hooks,
                     retriever_registry=self._retriever_registry,
                     execution_repo=self._execution_repo,
+                    mcp_manager=self._mcp_manager,
                 )
 
             # Re-register memory tools for agents that have memory enabled

@@ -35,6 +35,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    McpServerConfig,
     NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
         AuditRepository,
         ConversationRepository,
         ExecutionRepository,
+        McpServerRepository,
         NotificationRepository,
         ScheduleRepository,
         UserAgentConfigRepository,
@@ -281,6 +283,29 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Index(f"ix_{prefix}notification_log_status", "status"),
     )
 
+    mcp_servers = Table(
+        f"{prefix}mcp_servers",
+        metadata,
+        Column("id", String, primary_key=True),
+        Column("name", String, nullable=False),
+        Column("transport", String, nullable=False),  # "stdio" | "streamable_http"
+        Column("command", String, nullable=True),
+        Column("args", JSON, nullable=True),
+        Column("encrypted_env", Text, nullable=True),  # Fernet-encrypted JSON string
+        Column("url", String, nullable=True),
+        Column("headers", JSON, nullable=True),
+        Column("encrypted_credentials", Text, nullable=True),  # Fernet-encrypted JSON string
+        Column("enabled", Boolean, nullable=False, default=True),
+        Column(
+            "created_at",
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+        Column("updated_at", DateTime(timezone=True), nullable=True),
+        Index(f"ix_{prefix}mcp_servers_name", "name", unique=True),
+    )
+
     return {
         "executions": executions,
         "execution_steps": execution_steps,
@@ -293,6 +318,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         "user_agent_configs": user_agent_configs,
         "user_schedules": user_schedules,
         "notification_log": notification_log,
+        "mcp_servers": mcp_servers,
     }
 
 
@@ -362,6 +388,8 @@ def configure_mappers(mapper_registry: registry, tables: dict[str, Table]) -> No
 
     mapper_registry.map_imperatively(NotificationDeliveryRecord, tables["notification_log"])
 
+    mapper_registry.map_imperatively(McpServerConfig, tables["mcp_servers"])
+
 
 class SqlBackend:
     """Base class for SQL persistence backends.
@@ -427,6 +455,12 @@ class SqlBackend:
         self._user_schedule_repo: UserScheduleRepository = UserSchedRepo(self._session_factory)
         self._notification_repo: NotificationRepository = NotifRepo(self._session_factory)
 
+        from agent_gateway.persistence.backends.sql.repository import (
+            McpServerRepository as McpServerRepo,
+        )
+
+        self._mcp_server_repo: McpServerRepository = McpServerRepo(self._session_factory)
+
     async def initialize(self) -> None:
         """Apply database migrations. Falls back to create_all for prefixed tables."""
         if self._table_prefix or self._metadata.schema:
@@ -485,3 +519,7 @@ class SqlBackend:
     @property
     def notification_repo(self) -> NotificationRepository:
         return self._notification_repo
+
+    @property
+    def mcp_server_repo(self) -> McpServerRepository:
+        return self._mcp_server_repo

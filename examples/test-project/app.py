@@ -166,6 +166,16 @@ if webhook_url:
         secret=os.environ.get("WEBHOOK_SECRET", ""),
     )
 
+# --- MCP servers ---
+# Register an MCP server via the fluent API (stdio transport).
+# The server is started as a subprocess and tools are auto-discovered.
+gw.add_mcp_server(
+    name="test-tools",
+    transport="stdio",
+    command="python",
+    args=["mcp_test_server.py"],
+)
+
 # --- Context retrievers ---
 
 gw.use_retriever("email-history", EmailHistoryRetriever())

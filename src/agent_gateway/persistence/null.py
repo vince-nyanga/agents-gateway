@@ -14,6 +14,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    McpServerConfig,
     NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
@@ -375,3 +376,30 @@ class NullUserScheduleRepository:
 
     async def delete(self, schedule_id: str) -> bool:
         return False
+
+
+class NullMcpServerRepository:
+    """No-op MCP server repository when persistence is disabled.
+
+    Returns empty results for all queries. When persistence is disabled,
+    the _pending_mcp_servers list on Gateway is the ONLY source of MCP
+    server configs.
+    """
+
+    async def list_all(self) -> list[McpServerConfig]:
+        return []
+
+    async def get_by_name(self, name: str) -> McpServerConfig | None:
+        return None
+
+    async def get_by_id(self, server_id: str) -> McpServerConfig | None:
+        return None
+
+    async def upsert(self, config: McpServerConfig) -> McpServerConfig:
+        return config
+
+    async def delete(self, server_id: str) -> bool:
+        return False
+
+    async def list_enabled(self) -> list[McpServerConfig]:
+        return []

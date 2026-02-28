@@ -180,6 +180,11 @@ class SchedulerConfig(BaseModel):
     distributed_lock: DistributedLockConfig = DistributedLockConfig()
 
 
+class McpConfig(BaseModel):
+    tool_call_timeout_ms: int = 30_000
+    connection_timeout_ms: int = 10_000
+
+
 class ContextRetrievalConfig(BaseModel):
     retriever_timeout_seconds: float = 10.0
     max_retrieved_chars: int = 50_000
@@ -338,6 +343,7 @@ class GatewayConfig(BaseSettings):
     queue: QueueConfig = QueueConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
     context_retrieval: ContextRetrievalConfig = ContextRetrievalConfig()
+    mcp: McpConfig = McpConfig()
     memory: MemoryConfig = MemoryConfig()
     context: dict[str, Any] = Field(default_factory=dict)
     cors: CorsConfig = CorsConfig()

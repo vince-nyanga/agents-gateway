@@ -89,6 +89,7 @@ class ExecutionEngine:
         hooks: HookRegistry | None = None,
         retriever_registry: RetrieverRegistry | None = None,
         execution_repo: ExecutionRepository | None = None,
+        mcp_manager: Any | None = None,
     ) -> None:
         self._llm = llm_client
         self._registry = tool_registry
@@ -97,6 +98,7 @@ class ExecutionEngine:
         self._metrics = create_metrics()
         self._retriever_registry = retriever_registry
         self._execution_repo = execution_repo
+        self._mcp_manager = mcp_manager
 
     async def execute(
         self,
@@ -223,6 +225,7 @@ class ExecutionEngine:
             root_execution_id=root_execution_id or execution_id,
             delegation_depth=delegation_depth,
             delegates_to=delegates_to or [],
+            mcp_manager=self._mcp_manager,
         )
 
         exec_start = time.monotonic()

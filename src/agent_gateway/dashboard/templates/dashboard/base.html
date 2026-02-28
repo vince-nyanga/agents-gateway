@@ -131,6 +131,13 @@
       </a>
       {% endif %}
 
+      {% if current_user and current_user.is_admin %}
+      <a href="/dashboard/mcp-servers" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'mcp_servers' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+        <span class="material-symbols-outlined text-xl {% if active_page == 'mcp_servers' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">dns</span>
+        <span class="text-sm font-semibold">MCP Servers</span>
+      </a>
+      {% endif %}
+
       <a href="/dashboard/chat" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'chat' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'chat' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">chat_bubble</span>
         <span class="text-sm font-semibold">Chat</span>

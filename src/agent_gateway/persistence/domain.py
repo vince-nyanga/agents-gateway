@@ -172,3 +172,25 @@ class ConversationMessage:
     content: str
     metadata: dict[str, Any] | None = None
     created_at: datetime | None = None
+
+
+@dataclass
+class McpServerConfig:
+    """Configuration for an MCP server connection. Persisted in DB."""
+
+    id: str  # UUID
+    name: str  # unique, slug-like: "my-github-server"
+    transport: str  # "stdio" | "streamable_http"
+    # Stdio fields
+    command: str | None = None  # e.g. "python"
+    args: list[str] | None = None  # e.g. ["-m", "my_mcp_server"]
+    encrypted_env: str | None = None  # Fernet-encrypted JSON of env dict
+    # HTTP fields
+    url: str | None = None  # e.g. "http://localhost:8080/mcp"
+    headers: dict[str, str] | None = None  # non-sensitive headers only
+    # Auth (all sensitive values encrypted)
+    encrypted_credentials: str | None = None  # Fernet-encrypted JSON of credentials dict
+    # Metadata
+    enabled: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
