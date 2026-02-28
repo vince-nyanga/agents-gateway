@@ -1779,12 +1779,66 @@ def register_dashboard(
         url: str = Form(""),
         credentials: str = Form(""),
         env: str = Form(""),
-    ) -> RedirectResponse:
+    ) -> RedirectResponse | HTMLResponse:
+        import re
         import uuid as _uuid
         from datetime import datetime as _dt
 
         from agent_gateway.persistence.domain import McpServerConfig
         from agent_gateway.secrets import encrypt_value
+
+        gw = request.app
+
+        async def _render_with_error(error_msg: str) -> HTMLResponse:
+            """Re-render the MCP servers page with a create_error banner."""
+            servers: list[dict[str, Any]] = []
+            try:
+                configs = await gw._mcp_repo.list_all()
+                for c in configs:
+                    tool_count = 0
+                    connected = False
+                    if gw._mcp_manager is not None:
+                        tool_count = len(gw._mcp_manager.get_tools(c.name))
+                        connected = gw._mcp_manager.is_connected(c.name)
+                    servers.append(
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "transport": c.transport,
+                            "tool_count": tool_count,
+                            "connected": connected,
+                            "enabled": c.enabled,
+                        }
+                    )
+            except Exception:
+                logger.warning("Failed to load MCP servers for dashboard", exc_info=True)
+            return templates.TemplateResponse(
+                "dashboard/mcp_servers.html",
+                {
+                    "request": request,
+                    "active_page": "mcp_servers",
+                    "current_user": current_user,
+                    "servers": servers,
+                    "create_error": error_msg,
+                },
+                status_code=422,
+            )
+
+        # Validate name
+        _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+        if not name or len(name) > 64 or not _NAME_RE.match(name):
+            return await _render_with_error(
+                "Invalid server name. Must be 1-64 characters, lowercase "
+                "alphanumeric, hyphens, and underscores (must start with a letter or digit)."
+            )
+
+        # Validate transport
+        _VALID_TRANSPORTS = {"stdio", "streamable_http"}
+        if transport not in _VALID_TRANSPORTS:
+            return await _render_with_error(
+                f"Invalid transport '{transport}'. "
+                f"Must be one of: {', '.join(sorted(_VALID_TRANSPORTS))}."
+            )
 
         # Parse and encrypt credentials JSON
         encrypted_creds = None
@@ -1793,7 +1847,9 @@ def register_dashboard(
                 parsed_creds = json.loads(credentials)
                 encrypted_creds = encrypt_value(json.dumps(parsed_creds))
             except json.JSONDecodeError:
-                logger.warning("Invalid credentials JSON in dashboard MCP form")
+                return await _render_with_error(
+                    "Invalid credentials JSON. Please provide valid JSON."
+                )
 
         # Parse and encrypt env JSON
         encrypted_env = None
@@ -1802,7 +1858,9 @@ def register_dashboard(
                 parsed_env = json.loads(env)
                 encrypted_env = encrypt_value(json.dumps(parsed_env))
             except json.JSONDecodeError:
-                logger.warning("Invalid env JSON in dashboard MCP form")
+                return await _render_with_error(
+                    "Invalid environment variables JSON. Please provide valid JSON."
+                )
 
         config = McpServerConfig(
             id=str(_uuid.uuid4()),
@@ -1816,7 +1874,6 @@ def register_dashboard(
             enabled=True,
             created_at=_dt.now(UTC),
         )
-        gw = request.app
         await gw._mcp_repo.upsert(config)
         return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
 

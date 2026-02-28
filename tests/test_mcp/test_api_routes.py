@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from agent_gateway.exceptions import McpAuthError, McpConnectionError
 from agent_gateway.gateway import Gateway
 from agent_gateway.persistence.domain import McpServerConfig
 
@@ -260,6 +261,56 @@ class TestMcpServerRoutes:
         assert body["success"] is False
         assert body["error"] == "Connection refused"
         assert body["error_code"] == "connection_error"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("exc", "expected_code"),
+        [
+            pytest.param(
+                McpAuthError("bad token", server_name="s"),
+                "auth_error",
+                id="auth_error",
+            ),
+            pytest.param(
+                McpConnectionError("connection timed out after 10s", server_name="s"),
+                "timeout",
+                id="timeout",
+            ),
+            pytest.param(
+                ValueError("stdio transport requires 'command'"),
+                "config_error",
+                id="config_error",
+            ),
+            pytest.param(
+                RuntimeError("something broke"),
+                "connection_error",
+                id="generic_connection_error",
+            ),
+        ],
+    )
+    async def test_test_mcp_server_error_codes(
+        self, workspace: Path, exc: Exception, expected_code: str
+    ) -> None:
+        gw = Gateway(workspace=str(workspace), auth=False)
+        async with gw:
+            config = _make_config()
+            mock_repo = AsyncMock()
+            mock_repo.get_by_id.return_value = config
+            gw._mcp_repo = mock_repo
+            mock_manager = AsyncMock()
+            mock_manager.test_connection.side_effect = exc
+            gw._mcp_manager = mock_manager
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw),
+                base_url="http://test",
+            ) as ac:
+                resp = await ac.post("/v1/admin/mcp-servers/srv-1/test")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is False
+        assert body["error_code"] == expected_code
 
     @pytest.mark.asyncio
     async def test_test_mcp_server_not_found(self, workspace: Path) -> None:

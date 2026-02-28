@@ -334,7 +334,9 @@ class McpConnectionManager:
                 raise RuntimeError(f"MCP server '{config.name}': session not established")
 
             session = session_holder[0]
-            tools_result = await session.list_tools()
+            tools_result = await asyncio.wait_for(
+                session.list_tools(), timeout=self._tool_call_timeout_s
+            )
             tools: list[dict[str, Any]] = []
             for t in tools_result.tools:
                 tools.append(
@@ -352,7 +354,7 @@ class McpConnectionManager:
         finally:
             shutdown_event.set()
             task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError, TimeoutError, asyncio.TimeoutError):
                 await asyncio.wait_for(task, timeout=5.0)
 
     async def disconnect_all(self) -> None:
