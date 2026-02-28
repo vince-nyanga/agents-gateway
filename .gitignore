@@ -40,3 +40,6 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+
+# Docs build (deployed via GitHub Pages CI)
+site/
