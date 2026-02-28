@@ -7,7 +7,7 @@
 
 <!-- Breadcrumb -->
 <div class="flex items-center gap-2 mb-6 text-sm text-muted">
-  <a href="/dashboard/conversations" class="text-muted" style="text-decoration:none;">Conversations</a>
+  <a href="{{ base_path }}/dashboard/conversations" class="text-muted" style="text-decoration:none;">Conversations</a>
   <span style="color: var(--color-border);">/</span>
   <span class="text-mono">{{ conversation.session_id[:8] }}</span>
 </div>
@@ -81,7 +81,7 @@
           <div class="flex items-center justify-between" style="gap: var(--space-3); flex-wrap: wrap;">
             <div style="flex:1; min-width:0;">
               <div class="flex items-center gap-2">
-                <a href="/dashboard/executions/{{ row.id }}" class="table-link text-mono text-xs">{{ row.id_short }}</a>
+                <a href="{{ base_path }}/dashboard/executions/{{ row.id }}" class="table-link text-mono text-xs">{{ row.id_short }}</a>
                 {% if row.status == 'completed' %}
                   <span class="badge badge-green"><span class="status-dot"></span>Completed</span>
                 {% elif row.status == 'running' %}

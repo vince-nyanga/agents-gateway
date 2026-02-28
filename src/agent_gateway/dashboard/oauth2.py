@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode
 
@@ -54,17 +55,23 @@ class OIDCDiscoveryClient:
         await self._http.aclose()
 
 
-def _login_redirect(error: str) -> RedirectResponse:
-    return RedirectResponse(
-        url=f"/dashboard/login?error={error}",
-        status_code=303,
-    )
+def _make_login_redirect(mount_prefix: str = "") -> Callable[[str], RedirectResponse]:
+    def _login_redirect(error: str) -> RedirectResponse:
+        return RedirectResponse(
+            url=f"{mount_prefix}/dashboard/login?error={error}",
+            status_code=303,
+        )
+
+    return _login_redirect
 
 
 def make_authorize_handler(
     config: DashboardOAuth2Config,
     discovery: OIDCDiscoveryClient,
+    mount_prefix: str = "",
 ) -> Any:
+    _login_redirect = _make_login_redirect(mount_prefix)
+
     async def authorize(request: Request) -> RedirectResponse:
         try:
             doc = await discovery.discover()
@@ -98,7 +105,10 @@ def make_authorize_handler(
 def make_callback_handler(
     config: DashboardOAuth2Config,
     discovery: OIDCDiscoveryClient,
+    mount_prefix: str = "",
 ) -> Any:
+    _login_redirect = _make_login_redirect(mount_prefix)
+
     async def callback(request: Request) -> RedirectResponse:
         import jwt as pyjwt
         from jwt import PyJWK
@@ -241,6 +251,6 @@ def make_callback_handler(
         request.session["auth_method"] = "oauth2"
         request.session["csrf_token"] = secrets.token_hex(32)
 
-        return RedirectResponse(url="/dashboard/", status_code=303)
+        return RedirectResponse(url=f"{mount_prefix}/dashboard/", status_code=303)
 
     return callback

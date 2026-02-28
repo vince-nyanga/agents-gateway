@@ -100,7 +100,6 @@ if use_keycloak_dashboard:
     gw.use_dashboard(
         title="Acme AI Hub",
         subtitle="Intelligent Automation Platform",
-        icon_url="/static/icon.png",
         logo_url="/static/logo.png",
         favicon_url="/static/icon.png",
         oauth2_issuer=KEYCLOAK_ISSUER,
@@ -126,7 +125,6 @@ else:
     gw.use_dashboard(
         title="Acme AI Hub",
         subtitle="Intelligent Automation Platform",
-        icon_url="/static/icon.png",
         logo_url="/static/logo.png",
         favicon_url="/static/icon.png",
         auth_username="user",

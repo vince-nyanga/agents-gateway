@@ -13,10 +13,6 @@ class TestDashboardConfigDefaults:
         cfg = DashboardConfig()
         assert cfg.subtitle == "AI Control Plane"
 
-    def test_default_icon_url(self) -> None:
-        cfg = DashboardConfig()
-        assert cfg.icon_url == "/dashboard/static/dashboard/default-icon.png"
-
     def test_default_title(self) -> None:
         cfg = DashboardConfig()
         assert cfg.title == "Agent Gateway"
@@ -33,10 +29,6 @@ class TestDashboardConfigCustom:
         cfg = DashboardConfig(subtitle="My Platform")
         assert cfg.subtitle == "My Platform"
 
-    def test_custom_icon_url(self) -> None:
-        cfg = DashboardConfig(icon_url="/static/icon.png")
-        assert cfg.icon_url == "/static/icon.png"
-
     def test_custom_favicon_url(self) -> None:
         cfg = DashboardConfig(favicon_url="/static/fav.ico")
         assert cfg.favicon_url == "/static/fav.ico"
@@ -50,11 +42,6 @@ class TestUseDashboardOverrides:
         gw.use_dashboard(subtitle="Custom Sub")
         assert gw._pending_dashboard_overrides["subtitle"] == "Custom Sub"
 
-    def test_icon_url_override(self) -> None:
-        gw = Gateway(workspace="./workspace")
-        gw.use_dashboard(icon_url="/img/icon.png")
-        assert gw._pending_dashboard_overrides["icon_url"] == "/img/icon.png"
-
     def test_favicon_url_override(self) -> None:
         gw = Gateway(workspace="./workspace")
         gw.use_dashboard(favicon_url="/img/fav.ico")
@@ -64,7 +51,6 @@ class TestUseDashboardOverrides:
         gw = Gateway(workspace="./workspace")
         gw.use_dashboard()
         assert "subtitle" not in gw._pending_dashboard_overrides
-        assert "icon_url" not in gw._pending_dashboard_overrides
         assert "favicon_url" not in gw._pending_dashboard_overrides
 
 
@@ -77,18 +63,14 @@ class TestTemplateBranding:
         cfg = DashboardConfig()
         templates = _build_templates(cfg)
         assert templates.env.globals["dashboard_subtitle"] == "AI Control Plane"
-        assert (
-            templates.env.globals["dashboard_icon_url"]
-            == "/dashboard/static/dashboard/default-icon.png"
-        )
 
     def test_build_templates_custom_branding(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
 
-        cfg = DashboardConfig(subtitle="My Hub", icon_url="/icons/logo.png")
+        cfg = DashboardConfig(subtitle="My Hub", logo_url="/icons/logo.png")
         templates = _build_templates(cfg)
         assert templates.env.globals["dashboard_subtitle"] == "My Hub"
-        assert templates.env.globals["dashboard_icon_url"] == "/icons/logo.png"
+        assert templates.env.globals["dashboard_logo_url"] == "/icons/logo.png"
 
     def test_template_renders_custom_subtitle(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
@@ -99,78 +81,55 @@ class TestTemplateBranding:
         tmpl = templates.env.from_string("{{ dashboard_subtitle }}")
         assert tmpl.render() == "Custom Platform"
 
-    def test_template_renders_default_icon(self) -> None:
+    def test_template_renders_default_hub_icon(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
 
         cfg = DashboardConfig()
         templates = _build_templates(cfg)
         tmpl = templates.env.from_string(
-            "{% if dashboard_icon_url %}"
-            '<img src="{{ dashboard_icon_url }}">'
+            "{% if dashboard_logo_url %}"
+            '<img src="{{ dashboard_logo_url }}">'
             "{% else %}"
             '<span class="material-symbols-outlined">hub</span>'
             "{% endif %}"
         )
         result = tmpl.render()
-        assert '<img src="/dashboard/static/dashboard/default-icon.png">' in result
+        assert '<span class="material-symbols-outlined">hub</span>' in result
+        assert "<img" not in result
 
     def test_logo_replaces_icon_on_login(self) -> None:
-        """When logo_url is set, login page renders logo and NOT icon."""
+        """When logo_url is set, login page renders logo."""
         from agent_gateway.dashboard.router import _build_templates
 
-        cfg = DashboardConfig(logo_url="/static/logo.png", icon_url="/static/icon.png")
+        cfg = DashboardConfig(logo_url="/static/logo.png")
         templates = _build_templates(cfg)
         tmpl = templates.env.from_string(
             "{% if dashboard_logo_url %}"
             '<img src="{{ dashboard_logo_url }}" class="logo">'
-            "{% elif dashboard_icon_url %}"
-            '<img src="{{ dashboard_icon_url }}" class="icon">'
             "{% else %}"
             '<span class="material-symbols-outlined">hub</span>'
             "{% endif %}"
         )
         result = tmpl.render()
         assert '<img src="/static/logo.png" class="logo">' in result
-        assert "icon" not in result
         assert "hub" not in result
 
     def test_logo_replaces_icon_on_sidebar(self) -> None:
-        """When logo_url is set, sidebar renders logo and NOT icon."""
+        """When logo_url is set, sidebar renders logo."""
         from agent_gateway.dashboard.router import _build_templates
 
-        cfg = DashboardConfig(logo_url="/static/logo.png", icon_url="/static/icon.png")
+        cfg = DashboardConfig(logo_url="/static/logo.png")
         templates = _build_templates(cfg)
         tmpl = templates.env.from_string(
             "{% if dashboard_logo_url %}"
             '<img src="{{ dashboard_logo_url }}" class="sidebar-logo">'
-            "{% elif dashboard_icon_url %}"
-            '<img src="{{ dashboard_icon_url }}" class="sidebar-icon">'
             "{% else %}"
             '<span class="material-symbols-outlined">hub</span>'
             "{% endif %}"
         )
         result = tmpl.render()
         assert '<img src="/static/logo.png" class="sidebar-logo">' in result
-        assert "sidebar-icon" not in result
-
-    def test_icon_renders_when_no_logo(self) -> None:
-        """When only icon_url is set (no logo), icon renders normally."""
-        from agent_gateway.dashboard.router import _build_templates
-
-        cfg = DashboardConfig(icon_url="/static/icon.png")
-        templates = _build_templates(cfg)
-        tmpl = templates.env.from_string(
-            "{% if dashboard_logo_url %}"
-            '<img src="{{ dashboard_logo_url }}" class="logo">'
-            "{% elif dashboard_icon_url %}"
-            '<img src="{{ dashboard_icon_url }}" class="icon">'
-            "{% else %}"
-            '<span class="material-symbols-outlined">hub</span>'
-            "{% endif %}"
-        )
-        result = tmpl.render()
-        assert '<img src="/static/icon.png" class="icon">' in result
-        assert "logo" not in result
+        assert "hub" not in result
 
     def test_avatar_uses_display_name(self) -> None:
         """Avatar uses display_name when available."""
@@ -204,18 +163,18 @@ class TestTemplateBranding:
         result = tmpl.render(current_user=user)
         assert result == "jdoe"
 
-    def test_template_renders_custom_icon(self) -> None:
+    def test_template_renders_custom_logo(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
 
-        cfg = DashboardConfig(icon_url="/static/icon.png")
+        cfg = DashboardConfig(logo_url="/static/logo.png")
         templates = _build_templates(cfg)
         tmpl = templates.env.from_string(
-            "{% if dashboard_icon_url %}"
-            '<img src="{{ dashboard_icon_url }}">'
+            "{% if dashboard_logo_url %}"
+            '<img src="{{ dashboard_logo_url }}">'
             "{% else %}"
             '<span class="material-symbols-outlined">hub</span>'
             "{% endif %}"
         )
         result = tmpl.render()
-        assert '<img src="/static/icon.png">' in result
+        assert '<img src="/static/logo.png">' in result
         assert "hub" not in result

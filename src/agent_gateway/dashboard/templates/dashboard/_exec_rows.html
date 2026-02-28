@@ -50,7 +50,7 @@
         {% for row in rows %}
         <tr class="hover:bg-surface-2 transition-colors group">
           <td class="px-5 py-4 whitespace-nowrap">
-            <a href="/dashboard/executions/{{ row.id }}" class="text-primary font-bold hover:underline decoration-2 underline-offset-4 font-mono text-xs">#{{ row.id_short }}</a>
+            <a href="{{ base_path }}/dashboard/executions/{{ row.id }}" class="text-primary font-bold hover:underline decoration-2 underline-offset-4 font-mono text-xs">#{{ row.id_short }}</a>
           </td>
           <td class="px-5 py-4 whitespace-nowrap">
             <div class="flex items-center gap-2.5">
@@ -68,7 +68,7 @@
           </td>
           <td class="px-5 py-4 whitespace-nowrap font-mono text-xs text-slate-500">
             {% if row.session_id %}
-            <a href="/dashboard/conversations/{{ row.session_id }}" class="hover:text-primary transition-colors">{{ row.session_id[:8] }}</a>
+            <a href="{{ base_path }}/dashboard/conversations/{{ row.session_id }}" class="hover:text-primary transition-colors">{{ row.session_id[:8] }}</a>
             {% else %}
             <span class="opacity-40">—</span>
             {% endif %}
@@ -89,7 +89,7 @@
     <div class="flex items-center gap-1.5">
       {% if page > 1 %}
       <button
-        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ page - 1 }}"
+        hx-get="{{ base_path }}/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ page - 1 }}"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
         class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
@@ -105,7 +105,7 @@
         <span class="px-3 py-1.5 border border-primary/50 rounded-lg text-xs font-bold text-primary bg-primary/10">{{ p }}</span>
         {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
         <button
-          hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ p }}"
+          hx-get="{{ base_path }}/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ p }}"
           hx-target="#exec-table-wrap"
           hx-swap="outerHTML"
           class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"
@@ -118,7 +118,7 @@
 
       {% if page < total_pages %}
       <button
-        hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ page + 1 }}"
+        hx-get="{{ base_path }}/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&min_cost={{ min_cost or '' }}&max_cost={{ max_cost or '' }}&page={{ page + 1 }}"
         hx-target="#exec-table-wrap"
         hx-swap="outerHTML"
         class="px-3 py-1.5 border border-border-dark rounded-lg text-xs font-medium text-slate-400 bg-surface hover:bg-surface-2 transition-colors"

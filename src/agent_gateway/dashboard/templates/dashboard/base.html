@@ -44,9 +44,11 @@
     }
   </script>
 
+  <meta name="base-path" content="{{ base_path }}" />
+
   <!-- Design tokens + component styles -->
-  <link rel="stylesheet" href="/dashboard/static/dashboard/tokens.css" />
-  <link rel="stylesheet" href="/dashboard/static/dashboard/app.css" />
+  <link rel="stylesheet" href="{{ base_path }}/dashboard/static/dashboard/tokens.css" />
+  <link rel="stylesheet" href="{{ base_path }}/dashboard/static/dashboard/app.css" />
 
   <!-- HTMX -->
   <meta name="htmx-config" content='{"allowScriptTags":true}' />
@@ -79,8 +81,6 @@
     <div class="p-6 flex items-center gap-3 sidebar-branding">
       {% if dashboard_logo_url %}
       <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="w-10 h-10 rounded-xl object-contain">
-      {% elif dashboard_icon_url %}
-      <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-10 h-10 rounded-xl object-contain">
       {% else %}
       <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
         <span class="material-symbols-outlined text-2xl">hub</span>
@@ -93,59 +93,59 @@
     </div>
 
     <nav class="flex-1 px-4 space-y-1 sidebar-nav pt-4">
-      <a href="/dashboard/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'agents' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'agents' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'agents' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">smart_toy</span>
         <span class="text-sm font-semibold">Agents</span>
       </a>
 
       {% if current_user and current_user.is_admin %}
-      <a href="/dashboard/executions" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'executions' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/executions" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'executions' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'executions' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">terminal</span>
         <span class="text-sm font-semibold">Executions</span>
       </a>
       {% endif %}
 
       {% if current_user and current_user.is_admin %}
-      <a href="/dashboard/conversations" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'conversations' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/conversations" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'conversations' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'conversations' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">forum</span>
         <span class="text-sm font-semibold">Conversations</span>
       </a>
       {% endif %}
 
       {% if current_user and current_user.is_admin %}
-      <a href="/dashboard/schedules" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'schedules' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/schedules" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'schedules' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'schedules' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">calendar_month</span>
         <span class="text-sm font-semibold">Schedules</span>
       </a>
 
-      <a href="/dashboard/analytics" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'analytics' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/analytics" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'analytics' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'analytics' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">bar_chart</span>
         <span class="text-sm font-semibold">Analytics</span>
       </a>
       {% endif %}
 
       {% if current_user and current_user.is_admin %}
-      <a href="/dashboard/notifications" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'notifications' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/notifications" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'notifications' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'notifications' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">notifications</span>
         <span class="text-sm font-semibold">Notifications</span>
       </a>
       {% endif %}
 
       {% if current_user and current_user.is_admin %}
-      <a href="/dashboard/mcp-servers" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'mcp_servers' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/mcp-servers" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'mcp_servers' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'mcp_servers' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">dns</span>
         <span class="text-sm font-semibold">MCP Servers</span>
       </a>
       {% endif %}
 
-      <a href="/dashboard/chat" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'chat' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
+      <a href="{{ base_path }}/dashboard/chat" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'chat' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'chat' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">chat_bubble</span>
         <span class="text-sm font-semibold">Chat</span>
       </a>
     </nav>
 
     <div class="sidebar-footer p-4 border-t border-border-dark/30">
-      <form action="/dashboard/logout" method="post">
+      <form action="{{ base_path }}/dashboard/logout" method="post">
         <button type="submit" class="w-full h-12 flex items-center justify-center gap-2 bg-white/5 text-slate-300 rounded-xl py-3 text-sm font-bold transition-all hover:bg-white/10 hover:text-white border border-white/5">
           <span class="material-symbols-outlined text-lg">logout</span>
           Sign out
@@ -215,7 +215,7 @@
 </div>
 
 <!-- App JS -->
-<script src="/dashboard/static/dashboard/app.js" defer></script>
+<script src="{{ base_path }}/dashboard/static/dashboard/app.js" defer></script>
 {% block extra_scripts %}{% endblock %}
 </body>
 </html>

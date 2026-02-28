@@ -33,8 +33,9 @@ def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
+def make_get_dashboard_user(auth_config: DashboardAuthConfig, mount_prefix: str = ""):  # type: ignore[no-untyped-def]
     """Factory: returns a FastAPI dependency configured with the given auth config."""
+    login_url = f"{mount_prefix}/dashboard/login"
 
     async def get_dashboard_user(request: Request) -> DashboardUser:
         if not auth_config.enabled:
@@ -45,9 +46,9 @@ def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[n
             if hx:
                 raise HTTPException(
                     status_code=204,
-                    headers={"HX-Redirect": "/dashboard/login"},
+                    headers={"HX-Redirect": login_url},
                 )
-            raise HTTPException(status_code=302, headers={"Location": "/dashboard/login"})
+            raise HTTPException(status_code=302, headers={"Location": login_url})
 
         # Re-derive admin status from config on every request.
         # This ensures admin access is revoked immediately if credentials change.
@@ -65,9 +66,9 @@ def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[n
     return get_dashboard_user
 
 
-def make_require_admin(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
+def make_require_admin(auth_config: DashboardAuthConfig, mount_prefix: str = ""):  # type: ignore[no-untyped-def]
     """Factory: returns a dependency that enforces admin access."""
-    get_user = make_get_dashboard_user(auth_config)
+    get_user = make_get_dashboard_user(auth_config, mount_prefix=mount_prefix)
 
     async def require_admin(request: Request) -> DashboardUser:
         current_user: DashboardUser = await get_user(request)
@@ -85,7 +86,7 @@ def make_require_admin(auth_config: DashboardAuthConfig):  # type: ignore[no-unt
     return require_admin
 
 
-def make_login_handler(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
+def make_login_handler(auth_config: DashboardAuthConfig, mount_prefix: str = ""):  # type: ignore[no-untyped-def]
     """Factory: returns a login POST handler configured with the given auth config."""
     expected_hash = _hash_password(auth_config.password) if auth_config.password else None
     admin_hash = _hash_password(auth_config.admin_password) if auth_config.admin_password else None
@@ -116,6 +117,6 @@ def make_login_handler(auth_config: DashboardAuthConfig):  # type: ignore[no-unt
         request.session["display_name"] = username
         # Rotate CSRF token on login
         request.session["csrf_token"] = secrets.token_hex(32)
-        return RedirectResponse(url="/dashboard/", status_code=303)
+        return RedirectResponse(url=f"{mount_prefix}/dashboard/", status_code=303)
 
     return login_post

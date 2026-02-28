@@ -120,7 +120,7 @@
             <td class="px-5 py-4 whitespace-nowrap text-right">
               <div class="flex items-center justify-end gap-1">
                 <button
-                  hx-post="/dashboard/mcp-servers/{{ s.id }}/test"
+                  hx-post="{{ base_path }}/dashboard/mcp-servers/{{ s.id }}/test"
                   hx-target="#test-result-{{ s.id }}"
                   hx-swap="innerHTML"
                   hx-indicator="#test-spinner-{{ s.id }}"
@@ -129,14 +129,14 @@
                   <span class="material-symbols-outlined text-base">network_check</span>
                   <span id="test-spinner-{{ s.id }}" class="htmx-indicator material-symbols-outlined text-base animate-spin">progress_activity</span>
                 </button>
-                <form method="post" action="/dashboard/mcp-servers/{{ s.id }}/refresh" class="inline">
+                <form method="post" action="{{ base_path }}/dashboard/mcp-servers/{{ s.id }}/refresh" class="inline">
                   <button type="submit"
                     class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
                     title="Refresh connection">
                     <span class="material-symbols-outlined text-base">refresh</span>
                   </button>
                 </form>
-                <form method="post" action="/dashboard/mcp-servers/{{ s.id }}/delete" class="inline"
+                <form method="post" action="{{ base_path }}/dashboard/mcp-servers/{{ s.id }}/delete" class="inline"
                       onsubmit="return confirm('Delete MCP server {{ s.name }}?')">
                   <button type="submit"
                     class="p-1.5 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10"
@@ -157,7 +157,7 @@
                 </div>
                 <div id="tools-{{ s.id }}"
                      class="p-3 space-y-1"
-                     hx-get="/dashboard/mcp-servers/{{ s.id }}/tools"
+                     hx-get="{{ base_path }}/dashboard/mcp-servers/{{ s.id }}/tools"
                      hx-trigger="revealed"
                      hx-swap="innerHTML">
                   <p class="text-xs text-slate-500">Loading tools...</p>
@@ -202,7 +202,7 @@
         <span class="material-symbols-outlined">close</span>
       </button>
     </div>
-    <form method="post" action="/dashboard/mcp-servers" class="p-5 space-y-4">
+    <form method="post" action="{{ base_path }}/dashboard/mcp-servers" class="p-5 space-y-4">
       <div>
         <label for="add-name" class="block text-sm font-medium text-slate-300 mb-1">Name</label>
         <input type="text" id="add-name" name="name" required pattern="[a-z0-9][a-z0-9_-]*" maxlength="64"

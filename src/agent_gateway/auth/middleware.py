@@ -43,6 +43,9 @@ class AuthMiddleware:
             return
 
         path: str = scope.get("path", "")
+        root_path: str = scope.get("root_path", "")
+        if root_path and path.startswith(root_path):
+            path = path[len(root_path) :]
 
         # Custom routes and public paths bypass auth
         if not path.startswith("/v1/") or path in self.public_paths:

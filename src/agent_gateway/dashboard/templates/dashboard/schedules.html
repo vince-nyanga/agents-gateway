@@ -112,7 +112,7 @@
               {% if current_user and current_user.is_admin %}
               <label class="toggle-switch">
                 <input type="checkbox" {% if s.enabled %}checked{% endif %}
-                  hx-post="/dashboard/schedules/{{ s.id }}/toggle"
+                  hx-post="{{ base_path }}/dashboard/schedules/{{ s.id }}/toggle"
                   hx-swap="none"
                   onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
                 <span class="toggle-track"></span>
@@ -130,13 +130,13 @@
             <td class="px-5 py-4 whitespace-nowrap text-right">
               {% if current_user and current_user.is_admin %}
               <div class="flex items-center justify-end gap-1">
-                <a href="/dashboard/schedules/{{ s.id }}/detail"
+                <a href="{{ base_path }}/dashboard/schedules/{{ s.id }}/detail"
                    class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
                    title="Edit Schedule">
                   <span class="material-symbols-outlined text-base">edit</span>
                 </a>
                 {% if s.source == 'admin' %}
-                <form method="POST" action="/dashboard/schedules/{{ s.id }}/delete"
+                <form method="POST" action="{{ base_path }}/dashboard/schedules/{{ s.id }}/delete"
                       onsubmit="return confirm('Delete this schedule?')">
                   <button type="submit"
                     class="p-1.5 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10"
@@ -180,7 +180,7 @@
             <td class="px-5 py-4 whitespace-nowrap text-center">
               <label class="toggle-switch">
                 <input type="checkbox" {% if s.enabled %}checked{% endif %}
-                  hx-post="/dashboard/my-schedules/{{ s.id }}/toggle"
+                  hx-post="{{ base_path }}/dashboard/my-schedules/{{ s.id }}/toggle"
                   hx-swap="none"
                   onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
                 <span class="toggle-track"></span>
@@ -193,7 +193,7 @@
               </div>
             </td>
             <td class="px-5 py-4 whitespace-nowrap text-right">
-              <a href="/dashboard/my-schedules" class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10 inline-flex" title="Edit Schedule">
+              <a href="{{ base_path }}/dashboard/my-schedules" class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10 inline-flex" title="Edit Schedule">
                 <span class="material-symbols-outlined text-base">edit</span>
               </a>
             </td>
@@ -215,7 +215,7 @@
       <span class="material-symbols-outlined text-3xl">calendar_month</span>
     </div>
     <h3 class="text-base font-bold text-white mb-1">No schedules configured</h3>
-    <p class="text-sm text-slate-500 max-w-sm">Add <code class="text-slate-400">schedules:</code> to your agent's <code class="text-slate-400">AGENT.md</code>, <a href="/dashboard/my-schedules" class="text-primary font-bold">create a personal schedule</a>, or use the "New Schedule" button above.</p>
+    <p class="text-sm text-slate-500 max-w-sm">Add <code class="text-slate-400">schedules:</code> to your agent's <code class="text-slate-400">AGENT.md</code>, <a href="{{ base_path }}/dashboard/my-schedules" class="text-primary font-bold">create a personal schedule</a>, or use the "New Schedule" button above.</p>
   </div>
   {% endif %}
 
@@ -232,7 +232,7 @@
         <span class="material-symbols-outlined">close</span>
       </button>
     </div>
-    <form method="POST" action="/dashboard/schedules/create" class="p-5 space-y-4">
+    <form method="POST" action="{{ base_path }}/dashboard/schedules/create" class="p-5 space-y-4">
       <div>
         <label for="cs-agent" class="block text-sm font-medium text-slate-300 mb-1">Agent</label>
         <select id="cs-agent" name="agent_id" required

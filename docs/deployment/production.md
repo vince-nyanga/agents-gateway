@@ -255,3 +255,23 @@ Use `GET /v1/health` for load balancer and container health checks. It requires 
 - [ ] Notifications configured for error monitoring
 - [ ] Running with multiple workers or behind gunicorn
 - [ ] Health check at `GET /v1/health` wired to load balancer
+
+---
+
+## Sub-App Mounting
+
+If you are integrating Agent Gateway into an existing FastAPI application rather than running it standalone, use `mount_to()`:
+
+```python
+from fastapi import FastAPI
+from agent_gateway import Gateway
+
+app = FastAPI()
+gw = Gateway(workspace="./workspace")
+gw.use_dashboard(auth_password=os.environ["DASHBOARD_PASSWORD"])
+gw.mount_to(app, path="/ai")
+```
+
+All routes move under the mount prefix (`/ai/v1/health`, `/ai/dashboard/`, etc.). The health check endpoint becomes `{prefix}/v1/health`. All production recommendations above apply identically to mounted deployments.
+
+See the [Sub-App Mounting guide](../guides/mounting.md) for the full walkthrough.

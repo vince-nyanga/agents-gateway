@@ -22,7 +22,7 @@
     Download Trace
   </button>
   {% if current_user and current_user.is_admin %}
-  <form method="POST" action="/dashboard/executions/{{ detail.record.id }}/retry">
+  <form method="POST" action="{{ base_path }}/dashboard/executions/{{ detail.record.id }}/retry">
     <button type="submit" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
       <span class="material-symbols-outlined text-lg">refresh</span>
       Retry
@@ -124,7 +124,7 @@
         </div>
 
         {% if detail.record.status == 'running' %}
-        <div id="trace-steps" hx-get="/dashboard/executions/{{ detail.record.id }}" hx-trigger="every 3s" hx-swap="outerHTML" hx-target="#trace-steps">
+        <div id="trace-steps" hx-get="{{ base_path }}/dashboard/executions/{{ detail.record.id }}" hx-trigger="every 3s" hx-swap="outerHTML" hx-target="#trace-steps">
           {% include "dashboard/_trace_steps.html" %}
         </div>
         {% else %}
@@ -172,7 +172,7 @@
         <div class="glass-card rounded-3xl p-8 bg-gradient-to-br from-white/5 to-transparent">
           <div class="flex items-center justify-between mb-8">
             <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Session Stats</h4>
-            <a href="/dashboard/conversations/{{ conversation.session_id }}" class="flex items-center gap-1 text-[10px] font-bold text-primary hover:text-white transition-colors">
+            <a href="{{ base_path }}/dashboard/conversations/{{ conversation.session_id }}" class="flex items-center gap-1 text-[10px] font-bold text-primary hover:text-white transition-colors">
               VIEW HISTORY
               <span class="material-symbols-outlined text-sm">arrow_forward</span>
             </a>
@@ -213,7 +213,7 @@
           {% if parent_execution %}
           <div class="mb-4">
             <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Delegated By</p>
-            <a href="/dashboard/executions/{{ parent_execution.id }}" class="flex items-center gap-2 p-3 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-all">
+            <a href="{{ base_path }}/dashboard/executions/{{ parent_execution.id }}" class="flex items-center gap-2 p-3 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-all">
               <span class="material-symbols-outlined text-sm text-slate-400">arrow_upward</span>
               <span class="text-xs font-mono text-slate-300">{{ parent_execution.agent_id }}</span>
               <span class="text-[10px] text-slate-500 font-mono">#{{ parent_execution.id[:8] }}</span>
@@ -226,7 +226,7 @@
             <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Delegated To ({{ child_executions | length }})</p>
             <div class="space-y-2">
               {% for child in child_executions %}
-              <a href="/dashboard/executions/{{ child.id }}" class="flex items-center justify-between p-3 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-all">
+              <a href="{{ base_path }}/dashboard/executions/{{ child.id }}" class="flex items-center justify-between p-3 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-all">
                 <div class="flex items-center gap-2">
                   <span class="material-symbols-outlined text-sm text-slate-400">arrow_downward</span>
                   <span class="text-xs font-mono text-slate-300">{{ child.agent_id }}</span>

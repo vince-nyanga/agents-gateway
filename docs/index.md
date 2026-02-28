@@ -43,6 +43,7 @@ Your agent API is now running at `http://localhost:8000` with interactive docs a
 | [Structured Output](guides/structured-output.md) | Pydantic model or JSON Schema output validation |
 | [Context Retrieval](guides/context-retrieval.md) | RAG integration via pluggable retrievers |
 | [CORS](guides/cors.md) | CORS middleware for browser clients |
+| [Sub-App Mounting](guides/mounting.md) | Mount Gateway into an existing FastAPI app with full feature parity |
 | [Streaming](guides/agents.md) | SSE for real-time chat responses |
 | [CLI](guides/cli.md) | Project scaffolding, dev server, agent management, output formats |
 

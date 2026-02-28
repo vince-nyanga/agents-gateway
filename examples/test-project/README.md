@@ -93,6 +93,10 @@ agents-gateway db downgrade --workspace examples/test-project/workspace
 
 ## Run
 
+The test project can run in two modes: **standalone** (Gateway is the app) or **mounted** (Gateway is a sub-app inside an existing FastAPI app).
+
+### Standalone mode
+
 ```bash
 # From the repository root:
 make dev
@@ -102,16 +106,38 @@ uv run --directory examples/test-project python app.py
 ```
 
 The server starts at `http://localhost:8000`. OpenAPI docs are at `http://localhost:8000/docs`.
+Dashboard at `http://localhost:8000/dashboard/`.
+
+### Mounted mode (sub-app)
+
+```bash
+# From the repository root:
+make dev-mounted
+
+# Or directly:
+uv run --directory examples/test-project python app_mounted.py
+```
+
+The Gateway is mounted at `/ai` inside a parent FastAPI app. All features work identically:
+
+| Standalone | Mounted |
+|---|---|
+| `http://localhost:8000/v1/health` | `http://localhost:8000/ai/v1/health` |
+| `http://localhost:8000/dashboard/` | `http://localhost:8000/ai/dashboard/` |
+| `http://localhost:8000/docs` | `http://localhost:8000/ai/docs` |
+
+The parent app has its own routes at `/` and `/api/status`.
 
 ### Server Configurations
 
 The test project supports several configurations controlled by environment variables.
-Combine them as needed.
+Both `app.py` and `app_mounted.py` support these. Combine them as needed.
 
 #### Default (password auth + static API key)
 
 ```bash
-make dev
+make dev          # standalone
+make dev-mounted  # mounted
 ```
 
 Dashboard login: `admin`/`adminpass` (full access) or `user`/`userpass` (limited access).
@@ -120,7 +146,8 @@ API key: `dev-api-key-change-me` via `Authorization: Bearer` header.
 #### Keycloak OAuth2 for dashboard SSO
 
 ```bash
-KEYCLOAK_DASHBOARD=1 make dev
+KEYCLOAK_DASHBOARD=1 make dev           # standalone
+KEYCLOAK_DASHBOARD=1 make dev-mounted   # mounted
 ```
 
 The dashboard login page shows a "Sign in with Keycloak" SSO button.
@@ -132,7 +159,8 @@ Requires a running Keycloak instance (see `KEYCLOAK_URL`, `KEYCLOAK_REALM` env v
 #### Keycloak OAuth2 for API auth
 
 ```bash
-KEYCLOAK_API=1 make dev
+KEYCLOAK_API=1 make dev           # standalone
+KEYCLOAK_API=1 make dev-mounted   # mounted
 ```
 
 Replaces static API keys with OAuth2 JWT validation on all `/v1/` endpoints.
@@ -141,7 +169,8 @@ Swagger UI shows a login button for obtaining tokens.
 #### Both Keycloak OAuth2 (dashboard + API)
 
 ```bash
-KEYCLOAK_DASHBOARD=1 KEYCLOAK_API=1 make dev
+KEYCLOAK_DASHBOARD=1 KEYCLOAK_API=1 make dev           # standalone
+KEYCLOAK_DASHBOARD=1 KEYCLOAK_API=1 make dev-mounted   # mounted
 ```
 
 #### Environment variable reference
@@ -232,7 +261,7 @@ make dev
 
 ### Usage
 
-Open the dashboard at `http://localhost:8000/dashboard`, log in as `admin`/`adminpass`, and select the **Data Analyst** agent. Example questions:
+Open the dashboard at `http://localhost:8000/dashboard` (or `http://localhost:8000/ai/dashboard` in mounted mode), log in as `admin`/`adminpass`, and select the **Data Analyst** agent. Example questions:
 
 - "What were the top 10 most popular baby names in 2020?"
 - "Which names had the biggest rise in popularity from the 1950s to the 2010s?"

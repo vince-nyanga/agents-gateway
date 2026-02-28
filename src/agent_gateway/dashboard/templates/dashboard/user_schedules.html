@@ -57,12 +57,12 @@
           <td class="text-xs text-muted">{{ relative_time(s.last_run_at) }}</td>
           <td>
             <div style="display:flex; gap: var(--space-1);">
-              <form method="POST" action="/dashboard/my-schedules/{{ s.id }}/toggle" style="display:inline;">
+              <form method="POST" action="{{ base_path }}/dashboard/my-schedules/{{ s.id }}/toggle" style="display:inline;">
                 <button type="submit" class="btn btn-ghost btn-sm">
                   {% if s.enabled %}Pause{% else %}Resume{% endif %}
                 </button>
               </form>
-              <form method="POST" action="/dashboard/my-schedules/{{ s.id }}/delete" style="display:inline;"
+              <form method="POST" action="{{ base_path }}/dashboard/my-schedules/{{ s.id }}/delete" style="display:inline;"
                     onsubmit="return confirm('Delete this schedule?')">
                 <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--color-danger-text);">Delete</button>
               </form>
@@ -89,7 +89,7 @@
 {% if available_agents %}
 <div style="max-width: 40rem; margin-top: var(--space-4);">
   <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: var(--space-3);">Add Schedule</h3>
-  <form method="POST" action="/dashboard/my-schedules" id="schedule-form">
+  <form method="POST" action="{{ base_path }}/dashboard/my-schedules" id="schedule-form">
     <div class="form-group" style="margin-bottom: var(--space-3);">
       <label for="sched-agent" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Agent</label>
       <select name="agent_id" id="sched-agent" class="input" style="width:100%;" required>

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="/dashboard/static/dashboard/charts.js"></script>
+  <script src="{{ base_path }}/dashboard/static/dashboard/charts.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -27,11 +27,11 @@
         {% for d, label in [(7, '7d'), (30, '30d')] %}
         <a
           class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer {% if days == d %}bg-primary text-white shadow-lg shadow-primary/20{% else %}text-slate-500 hover:text-white hover:bg-white/5{% endif %}"
-          href="/dashboard/analytics?days={{ d }}"
+          href="{{ base_path }}/dashboard/analytics?days={{ d }}"
         >{{ label }}</a>
         {% endfor %}
       </div>
-      <a href="/dashboard/chat" class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+      <a href="{{ base_path }}/dashboard/chat" class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
         Launch Chat
       </a>
     </div>

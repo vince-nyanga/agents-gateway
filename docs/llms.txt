@@ -260,8 +260,7 @@ dashboard:
   enabled: true
   title: My Agent Service
   subtitle: "Powered by ACME Corp"
-  icon_url: /static/icon.png      # replaces Material hub icon in sidebar + login page
-  logo_url: /static/logo.png      # wordmark on login page
+  logo_url: /static/logo.png      # branding image for sidebar + login page
   favicon_url: /static/favicon.ico
   auth:
     username: user
@@ -295,7 +294,7 @@ Notification delivery tracking: when persistence is configured, Agent Gateway au
 
 Admin-created dynamic schedules: admins can create and delete system-level schedules for any agent at runtime without modifying `AGENT.md` or redeploying. Create via `POST /v1/schedules` (requires `schedules:manage` scope) or `gw.create_admin_schedule()`. Delete via `DELETE /v1/schedules/{id}` or `gw.delete_admin_schedule()`. Every schedule record includes a `source` field: `"workspace"` for schedules defined in `AGENT.md` frontmatter, and `"admin"` for runtime-created schedules. Admin schedules are persisted in the database with IDs in the format `admin:{agent_id}:{name}`, survive workspace reloads and gateway restarts, and are re-registered with APScheduler on startup. Workspace schedules (`source="workspace"`) cannot be deleted via the API — the delete endpoint returns `400` for those. `ScheduleConflictError` is raised (HTTP 409) if a schedule with the same name already exists for the agent; `ScheduleValidationError` is raised (HTTP 400) for invalid cron expressions or unknown agent IDs. The dashboard shows Workspace/Admin badges on the schedules page and provides a New Schedule form and delete button for admin schedules (admin users only).
 
-Dashboard branding: `DashboardConfig` accepts `title` (browser tab title and sidebar heading), `subtitle` (tagline beneath the title, default `"AI Control Plane"`), `icon_url` (replaces the default Material hub icon in the sidebar header and login page — square images recommended, falls back to built-in icon when omitted), `logo_url` (wordmark image that takes precedence over `icon_url` on both the login page and sidebar — when set, the logo replaces the icon entirely; precedence order: `logo_url` > `icon_url` > default Material hub icon), and `favicon_url` (browser tab icon). All four are also available as keyword arguments on `gw.use_dashboard()`. Fluent API values take precedence over `gateway.yaml`. The topbar user avatar uses `display_name` for initials when available, falling back to `username`.
+Dashboard branding: `DashboardConfig` accepts `title` (browser tab title and sidebar heading), `subtitle` (tagline beneath the title, default `"AI Control Plane"`), `logo_url` (branding image for both the sidebar header and login page — when not set, the default Material hub icon is shown), and `favicon_url` (browser tab icon). All three are also available as keyword arguments on `gw.use_dashboard()`. Fluent API values take precedence over `gateway.yaml`. The topbar user avatar uses `display_name` for initials when available, falling back to `username`.
 
 Environment variable overrides use prefix `AGENT_GATEWAY_` with `__` nesting:
 `AGENT_GATEWAY_SERVER__PORT=9000`
@@ -324,6 +323,24 @@ async with Gateway(workspace="./workspace") as gw:
         options=ExecutionOptions(output_schema=Answer),
     )
 ```
+
+## Sub-App Mounting
+
+Mount Gateway into an existing FastAPI app:
+
+```python
+from fastapi import FastAPI
+from agent_gateway import Gateway
+
+app = FastAPI()
+gw = Gateway(workspace="./workspace")
+gw.use_dashboard(auth_password="secret", admin_username="admin", admin_password="admin")
+gw.mount_to(app, path="/ai")
+
+# API at /ai/v1/..., dashboard at /ai/dashboard/
+```
+
+All features work identically when mounted: dashboard, auth, OAuth2, static assets, HTMX, scheduling, MCP, and chat streaming.
 
 ## CLI Commands
 

@@ -1,8 +1,12 @@
 .PHONY: dev test test-e2e lint check typecheck
 
-dev:  ## Run the test project
+dev:  ## Run the test project (standalone)
 	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	uv run --directory examples/test-project python app.py
+
+dev-mounted:  ## Run the test project (mounted sub-app at /ai)
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	uv run --directory examples/test-project python app_mounted.py
 
 test:  ## Run library tests (excludes e2e)
 	uv run pytest -m "not e2e"

@@ -44,6 +44,9 @@ class SecurityHeadersMiddleware:
             return
 
         path: str = scope.get("path", "")
+        root_path: str = scope.get("root_path", "")
+        if root_path and path.startswith(root_path):
+            path = path[len(root_path) :]
         is_dashboard = path.startswith("/dashboard")
 
         async def send_with_headers(message: MutableMapping[str, Any]) -> None:

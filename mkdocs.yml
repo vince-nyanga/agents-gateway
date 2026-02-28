@@ -82,6 +82,7 @@ nav:
       - Rate Limiting: guides/rate-limiting.md
       - Security Headers: guides/security-headers.md
       - OpenAPI Documentation: guides/openapi.md
+      - Sub-App Mounting: guides/mounting.md
       - CLI: guides/cli.md
   - API Reference:
       - Gateway: api-reference/gateway.md

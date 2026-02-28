@@ -122,6 +122,37 @@ Return a status dictionary. Programmatic equivalent of `GET /v1/health`.
 }
 ```
 
+### `mount_to`
+
+```python
+def mount_to(parent: FastAPI, path: str = "/gateway") -> FastAPI
+```
+
+Mount this gateway as a sub-application of an existing FastAPI app. Wires the gateway's startup/shutdown into the parent app's lifespan and mounts all routes (API, dashboard, static assets) under the given path prefix.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `parent` | `FastAPI` | required | The parent FastAPI application |
+| `path` | `str` | `"/gateway"` | Mount path prefix (must not be empty or `/`) |
+
+**Returns:** The parent `FastAPI` app.
+
+**Raises:** `ConfigError` if the gateway has already started or if `path` is empty or `"/"`.
+
+```python
+from fastapi import FastAPI
+from agent_gateway import Gateway
+
+app = FastAPI()
+gw = Gateway(workspace="./workspace")
+gw.use_dashboard(auth_password="secret", admin_username="admin", admin_password="admin")
+gw.mount_to(app, path="/ai")
+
+# API at /ai/v1/..., dashboard at /ai/dashboard/
+```
+
+See [Sub-App Mounting Guide](../guides/mounting.md) for full details.
+
 ---
 
 ## Invocation
@@ -717,7 +748,6 @@ def use_dashboard(
     *,
     title: str | None = None,
     subtitle: str | None = None,
-    icon_url: str | None = None,
     logo_url: str | None = None,
     favicon_url: str | None = None,
     auth_username: str | None = None,
@@ -751,8 +781,7 @@ Optionally configure a separate admin account with `admin_username`/`admin_passw
 |-----------|------|-------------|
 | `title` | `str \| None` | Browser tab title and sidebar heading. |
 | `subtitle` | `str \| None` | Tagline beneath the title in the sidebar and login page. Defaults to `"AI Control Plane"`. |
-| `icon_url` | `str \| None` | URL of an icon image replacing the default Material hub icon in the sidebar and login page. Square images are recommended. |
-| `logo_url` | `str \| None` | URL of a wordmark/logo image on the login page. Distinct from `icon_url`. |
+| `logo_url` | `str \| None` | URL of a branding image for the sidebar and login page. When not set, the default Material hub icon is shown. |
 | `favicon_url` | `str \| None` | URL of a custom browser tab favicon. |
 
 ```python
@@ -760,7 +789,6 @@ gw.use_dashboard(
     auth_password="secret",
     title="My Agents",
     subtitle="Powered by ACME Corp",
-    icon_url="/static/icon.png",
     logo_url="/static/logo.png",
     favicon_url="/static/favicon.ico",
 )

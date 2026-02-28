@@ -181,6 +181,7 @@ class Gateway(FastAPI):
         _EXTRACTION_DEBOUNCE_SECONDS = 30.0
         self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
         self._rehydration_tasks: dict[str, asyncio.Task[ChatSession | None]] = {}
+        self._mount_prefix: str = ""  # set by mount_to(); empty for standalone
 
         # Merge default OpenAPI tags with any caller-supplied tags (de-duplicate by name)
         caller_tags = fastapi_kwargs.pop("openapi_tags", None) or []
@@ -298,6 +299,65 @@ class Gateway(FastAPI):
     async def __aexit__(self, *exc: object) -> None:
         await self._shutdown()
 
+    def mount_to(
+        self,
+        parent: FastAPI,
+        path: str = "/gateway",
+    ) -> FastAPI:
+        """Mount this gateway as a sub-application of an existing FastAPI app.
+
+        Wires the gateway's startup/shutdown into the parent app's lifespan
+        and mounts the gateway at the given path prefix. All features work
+        including the dashboard, auth, OAuth2, and static assets.
+
+        Usage::
+
+            from fastapi import FastAPI
+            from agent_gateway import Gateway
+
+            app = FastAPI()
+            gw = Gateway(workspace="./workspace")
+            gw.use_dashboard(
+                auth_password="secret",
+                admin_username="admin",
+                admin_password="admin",
+            )
+            gw.mount_to(app, path="/gateway")
+
+            # Dashboard at /gateway/dashboard/
+            # API at /gateway/v1/...
+        """
+        from agent_gateway.exceptions import ConfigError
+
+        if self._started:
+            raise ConfigError("Cannot mount_to() after gateway has already started")
+
+        # Normalize: strip trailing slash, ensure leading slash
+        stripped = path.strip("/")
+        if not stripped:
+            raise ConfigError("mount_to() requires a non-empty path prefix, e.g. '/gateway'")
+        path = f"/{stripped}"
+        self._mount_prefix = path
+
+        # Wrap the parent app's lifespan to include gateway startup/shutdown
+        original_lifespan = parent.router.lifespan_context
+
+        @asynccontextmanager
+        async def combined_lifespan(app: FastAPI) -> AsyncIterator[None]:
+            async with self.managed():
+                if original_lifespan is not None:
+                    async with original_lifespan(app):
+                        yield
+                else:
+                    yield
+
+        parent.router.lifespan_context = combined_lifespan
+
+        # Mount the gateway as a sub-application
+        parent.mount(path, self)
+
+        return parent
+
     def _setup_logging(self) -> None:
         """Configure centralized logging with structured format."""
         log_level = logging.INFO
@@ -315,6 +375,10 @@ class Gateway(FastAPI):
 
     async def _startup(self) -> None:
         """Initialize all gateway components on startup."""
+        if self._started:
+            logger.warning("Gateway already started, skipping duplicate _startup()")
+            return
+
         ws_path = Path(self._workspace_path)
 
         # 1. Load config (never crashes)
@@ -840,6 +904,9 @@ class Gateway(FastAPI):
 
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
+        if not self._started:
+            logger.debug("Gateway already shut down, skipping duplicate _shutdown()")
+            return
         # Disconnect MCP servers first
         if self._mcp_manager is not None:
             try:
@@ -1482,7 +1549,6 @@ class Gateway(FastAPI):
         title: str | None = None,
         subtitle: str | None = None,
         logo_url: str | None = None,
-        icon_url: str | None = None,
         favicon_url: str | None = None,
         auth_username: str | None = None,
         auth_password: str | None = None,
@@ -1511,7 +1577,6 @@ class Gateway(FastAPI):
             title: Dashboard page title (default: "Agent Gateway").
             subtitle: Dashboard subtitle shown below the title (default: "AI Control Plane").
             logo_url: URL of a logo image to display in the sidebar.
-            icon_url: URL of an icon image for the sidebar brand mark.
             favicon_url: URL of a favicon image for the browser tab.
             auth_username: Dashboard login username (default: "admin").
             auth_password: Dashboard login password. Empty = no password.
@@ -1535,8 +1600,6 @@ class Gateway(FastAPI):
             self._pending_dashboard_overrides["subtitle"] = subtitle
         if logo_url is not None:
             self._pending_dashboard_overrides["logo_url"] = logo_url
-        if icon_url is not None:
-            self._pending_dashboard_overrides["icon_url"] = icon_url
         if favicon_url is not None:
             self._pending_dashboard_overrides["favicon_url"] = favicon_url
         if auth_username is not None:
@@ -2044,7 +2107,11 @@ class Gateway(FastAPI):
             from agent_gateway.dashboard.router import register_dashboard
 
             register_dashboard(
-                self, dash_config, oauth2_config=oauth2_config, discovery_client=discovery_client
+                self,
+                dash_config,
+                oauth2_config=oauth2_config,
+                discovery_client=discovery_client,
+                mount_prefix=self._mount_prefix,
             )
             if oauth2_config:
                 logger.info("Dashboard enabled at /dashboard (OAuth2/SSO)")

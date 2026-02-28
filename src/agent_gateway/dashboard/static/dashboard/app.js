@@ -1,3 +1,9 @@
+// --- Base path for mounted sub-app support ---
+function getBasePath() {
+  const meta = document.querySelector('meta[name="base-path"]');
+  return meta ? meta.content : '';
+}
+
 // --- Theme Management ---
 const THEME_KEY = 'agw-dashboard-theme';
 
@@ -113,7 +119,7 @@ async function sendChatMessage(form) {
   let fullText = '';
 
   try {
-    const response = await fetch('/dashboard/chat/stream', {
+    const response = await fetch(getBasePath() + '/dashboard/chat/stream', {
       method: 'POST',
       body: formData,
     });

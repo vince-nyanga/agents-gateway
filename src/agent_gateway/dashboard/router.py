@@ -50,12 +50,13 @@ logger = logging.getLogger(__name__)
 _PAGE_SIZE = 20
 
 
-def _build_templates(dash_config: DashboardConfig) -> Jinja2Templates:
+def _build_templates(dash_config: DashboardConfig, mount_prefix: str = "") -> Jinja2Templates:
     env = Environment(
         loader=PackageLoader("agent_gateway.dashboard"),
         autoescape=select_autoescape(["html"]),
     )
     # Global helpers available in all templates
+    env.globals["base_path"] = mount_prefix
     env.globals["format_cost"] = format_cost
     env.globals["format_datetime"] = format_datetime
     env.globals["format_duration"] = format_duration
@@ -63,9 +64,17 @@ def _build_templates(dash_config: DashboardConfig) -> Jinja2Templates:
     env.globals["json_dumps"] = json.dumps
     env.globals["dashboard_title"] = dash_config.title
     env.globals["dashboard_subtitle"] = dash_config.subtitle
-    env.globals["dashboard_logo_url"] = dash_config.logo_url
-    env.globals["dashboard_icon_url"] = dash_config.icon_url
-    env.globals["dashboard_favicon_url"] = dash_config.favicon_url
+
+    def _prefix_url(url: str) -> str:
+        """Prefix internal dashboard URLs with mount prefix."""
+        if mount_prefix and url.startswith("/dashboard/"):
+            return f"{mount_prefix}{url}"
+        return url
+
+    env.globals["dashboard_logo_url"] = (
+        _prefix_url(dash_config.logo_url) if dash_config.logo_url else ""
+    )
+    env.globals["dashboard_favicon_url"] = _prefix_url(dash_config.favicon_url)
     colors = dash_config.theme.resolved_colors()
     env.globals["dashboard_colors"] = colors
     # Legacy compat
@@ -86,10 +95,16 @@ def register_dashboard(
     dash_config: DashboardConfig,
     oauth2_config: DashboardOAuth2Config | None = None,
     discovery_client: OIDCDiscoveryClient | None = None,
+    mount_prefix: str = "",
 ) -> None:
     """Mount dashboard routes and static files onto the FastAPI app."""
+
+    def _url(path: str) -> str:
+        """Prepend mount prefix to a dashboard path."""
+        return f"{mount_prefix}{path}"
+
     auth_method = "oauth2" if oauth2_config else "password"
-    templates = _build_templates(dash_config)
+    templates = _build_templates(dash_config, mount_prefix=mount_prefix)
     templates.env.globals["auth_method"] = auth_method
     templates.env.globals["login_button_text"] = dash_config.auth.login_button_text
     templates.env.globals["show_admin_login"] = (
@@ -97,9 +112,9 @@ def register_dashboard(
         and dash_config.auth.admin_username is not None
         and dash_config.auth.admin_password is not None
     )
-    get_dashboard_user = make_get_dashboard_user(dash_config.auth)
-    require_admin = make_require_admin(dash_config.auth)
-    login_handler = make_login_handler(dash_config.auth)
+    get_dashboard_user = make_get_dashboard_user(dash_config.auth, mount_prefix=mount_prefix)
+    require_admin = make_require_admin(dash_config.auth, mount_prefix=mount_prefix)
+    login_handler = make_login_handler(dash_config.auth, mount_prefix=mount_prefix)
 
     # Static files
     try:
@@ -117,7 +132,7 @@ def register_dashboard(
     async def _handle_admin_required(
         request: Request, exc: AdminRequiredError
     ) -> RedirectResponse:
-        return RedirectResponse(url="/dashboard/agents", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/agents"), status_code=303)
 
     # Warn if admin credentials are partially configured
     auth_config = dash_config.auth
@@ -161,7 +176,7 @@ def register_dashboard(
     @public.post("/logout")
     async def logout(request: Request) -> RedirectResponse:
         request.session.clear()
-        return RedirectResponse(url="/dashboard/login", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/login"), status_code=303)
 
     # --- OAuth2 routes (if configured) ---
     if oauth2_config and discovery_client:
@@ -170,8 +185,12 @@ def register_dashboard(
             make_callback_handler,
         )
 
-        authorize_handler = make_authorize_handler(oauth2_config, discovery_client)
-        callback_handler = make_callback_handler(oauth2_config, discovery_client)
+        authorize_handler = make_authorize_handler(
+            oauth2_config, discovery_client, mount_prefix=mount_prefix
+        )
+        callback_handler = make_callback_handler(
+            oauth2_config, discovery_client, mount_prefix=mount_prefix
+        )
 
         public.add_api_route(
             "/oauth2/authorize", authorize_handler, methods=["GET"], name="oauth2_authorize"
@@ -258,7 +277,9 @@ def register_dashboard(
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
         if agent.scope != "personal":
-            return RedirectResponse(url=f"/dashboard/chat?agent_id={agent_id}", status_code=303)
+            return RedirectResponse(
+                url=_url(f"/dashboard/chat?agent_id={agent_id}"), status_code=303
+            )
 
         agent_name = agent.display_name or agent_id
         setup_schema = agent.setup_schema or {}
@@ -467,7 +488,9 @@ def register_dashboard(
                 await gw._scheduler.pause(existing_schedule.id)
 
         if setup_completed:
-            return RedirectResponse(url=f"/dashboard/chat?agent_id={agent_id}", status_code=303)
+            return RedirectResponse(
+                url=_url(f"/dashboard/chat?agent_id={agent_id}"), status_code=303
+            )
 
         # If not complete, show the form again with a message
         return templates.TemplateResponse(
@@ -499,7 +522,7 @@ def register_dashboard(
         user_id = current_user.username
         if user_id and user_id != "anonymous":
             await gw._user_agent_config_repo.delete(user_id, agent_id)
-        return RedirectResponse(url="/dashboard/agents", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/agents"), status_code=303)
 
     @protected.get("/agents/{agent_id}/detail", response_class=HTMLResponse)
     async def agent_detail(
@@ -602,7 +625,7 @@ def register_dashboard(
         await anyio.to_thread.run_sync(lambda: update_agent_frontmatter(agent.path, updates))
         await gw.reload()
 
-        return RedirectResponse(url=f"/dashboard/agents/{agent_id}/detail", status_code=303)
+        return RedirectResponse(url=_url(f"/dashboard/agents/{agent_id}/detail"), status_code=303)
 
     @protected.post("/agents/{agent_id}/toggle")
     async def toggle_agent(
@@ -622,7 +645,7 @@ def register_dashboard(
         )
         await gw.reload()
 
-        return RedirectResponse(url="/dashboard/agents", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/agents"), status_code=303)
 
     @protected.get("/executions", response_class=HTMLResponse)
     async def executions_page(
@@ -860,7 +883,7 @@ def register_dashboard(
             )
         )
 
-        return RedirectResponse(url=f"/dashboard/executions/{new_exec_id}", status_code=303)
+        return RedirectResponse(url=_url(f"/dashboard/executions/{new_exec_id}"), status_code=303)
 
     @protected.get("/conversations", response_class=HTMLResponse)
     async def conversations_page(
@@ -1033,7 +1056,7 @@ def register_dashboard(
                         return
                     user_agent_config = await gw._user_agent_config_repo.get(user_id, agent_id)
                     if user_agent_config is None or not user_agent_config.setup_completed:
-                        setup_url = f"/dashboard/agents/{agent_id}/setup"
+                        setup_url = _url(f"/dashboard/agents/{agent_id}/setup")
                         err = {
                             "message": "Setup required before chatting.",
                             "setup_url": setup_url,
@@ -1197,7 +1220,7 @@ def register_dashboard(
             else:
                 await gw._scheduler.pause(schedule_id)
 
-        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/schedules"), status_code=303)
 
     async def _render_schedule_detail(
         request: Request,
@@ -1306,7 +1329,7 @@ def register_dashboard(
         if not ok:
             raise HTTPException(status_code=404, detail="Schedule not found")
 
-        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/schedules"), status_code=303)
 
     @protected.post("/schedules/create")
     async def create_admin_schedule(
@@ -1363,7 +1386,7 @@ def register_dashboard(
                 status_code=422,
             )
 
-        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/schedules"), status_code=303)
 
     @protected.post("/schedules/{schedule_id:path}/delete")
     async def delete_admin_schedule(
@@ -1374,7 +1397,7 @@ def register_dashboard(
         """Delete an admin-created schedule."""
         gw = request.app
         await gw.delete_admin_schedule(schedule_id)
-        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/schedules"), status_code=303)
 
     @protected.get("/my-schedules", response_class=HTMLResponse)
     async def my_schedules_page(
@@ -1505,7 +1528,7 @@ def register_dashboard(
                 instructions=sched_instructions,
             )
 
-        return RedirectResponse(url="/dashboard/my-schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/my-schedules"), status_code=303)
 
     @protected.post("/my-schedules/{schedule_id}/toggle")
     async def toggle_user_schedule(
@@ -1527,7 +1550,7 @@ def register_dashboard(
             else:
                 await gw._scheduler.pause(schedule_id)
 
-        return RedirectResponse(url="/dashboard/my-schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/my-schedules"), status_code=303)
 
     @protected.post("/my-schedules/{schedule_id}/delete")
     async def delete_user_schedule(
@@ -1545,7 +1568,7 @@ def register_dashboard(
         if gw._scheduler is not None:
             await gw._scheduler.remove_user_schedule(schedule_id)
 
-        return RedirectResponse(url="/dashboard/my-schedules", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/my-schedules"), status_code=303)
 
     @protected.get("/analytics", response_class=HTMLResponse)
     async def analytics_page(
@@ -1724,7 +1747,7 @@ def register_dashboard(
             config=config,
         )
 
-        return RedirectResponse(url="/dashboard/notifications", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/notifications"), status_code=303)
 
     # ── MCP Servers (admin-only) ─────────────────────────────────────────
     @protected.get(
@@ -1875,7 +1898,7 @@ def register_dashboard(
             created_at=_dt.now(UTC),
         )
         await gw._mcp_repo.upsert(config)
-        return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/mcp-servers"), status_code=303)
 
     @protected.post("/mcp-servers/{server_id}/delete")
     async def mcp_servers_delete(
@@ -1889,7 +1912,7 @@ def register_dashboard(
             if gw._mcp_manager is not None:
                 await gw._mcp_manager.disconnect_one(existing.name)
             await gw._mcp_repo.delete(server_id)
-        return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/mcp-servers"), status_code=303)
 
     @protected.post("/mcp-servers/{server_id}/test", response_class=HTMLResponse)
     async def mcp_servers_test(
@@ -1932,7 +1955,7 @@ def register_dashboard(
                 await gw._mcp_manager.refresh_server(config.name, config)
             except Exception:
                 logger.warning("Failed to refresh MCP server '%s'", config.name, exc_info=True)
-        return RedirectResponse(url="/dashboard/mcp-servers", status_code=303)
+        return RedirectResponse(url=_url("/dashboard/mcp-servers"), status_code=303)
 
     @protected.get("/mcp-servers/{server_id}/tools", response_class=HTMLResponse)
     async def mcp_server_tools_fragment(

@@ -108,9 +108,28 @@ curl -X POST http://localhost:8000/v1/agents/assistant/chat \
 
 Pass the same `session_id` across requests to maintain conversation history.
 
+## Mounting into an Existing App
+
+If you already have a FastAPI application, you can mount the gateway as a sub-app instead of running it standalone:
+
+```python
+from fastapi import FastAPI
+from agent_gateway import Gateway
+
+app = FastAPI(title="My Application")
+
+gw = Gateway(workspace="./workspace")
+gw.mount_to(app, path="/ai")
+
+# Gateway API at /ai/v1/..., dashboard at /ai/dashboard/
+```
+
+All features (dashboard, auth, scheduling, etc.) work identically when mounted. See the [Sub-App Mounting guide](../guides/mounting.md) for details.
+
 ## Next Steps
 
 - [Project Structure](./project-structure.md) — understand the workspace layout in detail
 - Agents guide — configure skills, memory, and behavioral guardrails
 - Tools guide — write and register tools
 - Authentication guide — add OAuth2 or API key auth
+- [Sub-App Mounting](../guides/mounting.md) — integrate into an existing FastAPI app

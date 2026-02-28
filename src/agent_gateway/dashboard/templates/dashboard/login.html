@@ -29,8 +29,9 @@
       },
     }
   </script>
-  <link rel="stylesheet" href="/dashboard/static/dashboard/tokens.css" />
-  <link rel="stylesheet" href="/dashboard/static/dashboard/app.css" />
+  <meta name="base-path" content="{{ base_path }}" />
+  <link rel="stylesheet" href="{{ base_path }}/dashboard/static/dashboard/tokens.css" />
+  <link rel="stylesheet" href="{{ base_path }}/dashboard/static/dashboard/app.css" />
   <style>
     :root {
       --color-accent: {{ dashboard_colors.accent }};
@@ -55,8 +56,6 @@
     <div class="text-center mb-8">
       {% if dashboard_logo_url %}
       <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="h-7 w-auto mx-auto mb-5" />
-      {% elif dashboard_icon_url %}
-      <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-14 h-14 rounded-2xl object-contain mb-5 mx-auto">
       {% else %}
       <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary shadow-lg shadow-primary/30 mb-5">
         <span class="material-symbols-outlined text-white text-3xl">hub</span>
@@ -78,7 +77,7 @@
     <!-- Login Card -->
     <div class="bg-surface border border-border-dark rounded-2xl shadow-xl p-7">
       {% if auth_method == "oauth2" %}
-      <a href="/dashboard/oauth2/authorize"
+      <a href="{{ base_path }}/dashboard/oauth2/authorize"
          class="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 no-underline">
         <span class="material-symbols-outlined text-lg">login</span>
         {{ login_button_text }}
@@ -91,7 +90,7 @@
       </div>
       <details{% if admin_error %} open{% endif %}>
         <summary class="text-sm text-slate-400 hover:text-slate-300 cursor-pointer transition-colors text-center">Sign in with admin credentials</summary>
-        <form action="/dashboard/login" method="post" class="space-y-4 mt-4">
+        <form action="{{ base_path }}/dashboard/login" method="post" class="space-y-4 mt-4">
           <div>
             <label for="username" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
             <div class="relative">
@@ -140,7 +139,7 @@
       </details>
       {% endif %}
       {% else %}
-      <form action="/dashboard/login" method="post" class="space-y-4">
+      <form action="{{ base_path }}/dashboard/login" method="post" class="space-y-4">
         <div>
           <label for="username" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
           <div class="relative">
@@ -198,7 +197,7 @@
     </p>
   </div>
 </div>
-<script src="/dashboard/static/dashboard/app.js" defer></script>
+<script src="{{ base_path }}/dashboard/static/dashboard/app.js" defer></script>
 <style>
   /* Override Tailwind forms plugin base reset which injects after linked CSS */
   .input { background-color: var(--color-surface) !important; color: var(--color-text) !important; }

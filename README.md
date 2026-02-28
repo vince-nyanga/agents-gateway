@@ -121,6 +121,31 @@ curl -X POST http://localhost:8000/v1/agents/assistant/chat \
 - **Input/output schemas** — JSON Schema validation for agent inputs and outputs
 - **CLI** — Project scaffolding, agent listing, and dev server via `agents-gateway` CLI
 - **Lifecycle hooks** — `before_invoke`, `after_invoke`, `on_error` hooks for custom logic
+- **Sub-app mounting** — Mount into an existing FastAPI app with `gw.mount_to(app, path="/ai")` — full feature parity
+
+## Sub-App Mounting
+
+Mount the gateway into an existing FastAPI app with full feature parity — dashboard, auth, OAuth2, static assets, and all background subsystems work identically:
+
+```python
+from fastapi import FastAPI
+from agent_gateway import Gateway
+
+app = FastAPI(title="My App")
+gw = Gateway(workspace="./workspace")
+
+gw.use_api_keys([{"name": "dev", "key": "secret", "scopes": ["*"]}])
+gw.use_dashboard(auth_username="user", auth_password="pass",
+                 admin_username="admin", admin_password="admin")
+
+gw.mount_to(app, path="/ai")
+
+# Your routes at /
+# Gateway API at /ai/v1/...
+# Dashboard at /ai/dashboard/
+```
+
+See the [mounting guide](https://vince-nyanga.github.io/agents-gateway/guides/mounting/) for details.
 
 ## Configuration
 

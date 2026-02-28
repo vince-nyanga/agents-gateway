@@ -34,7 +34,7 @@
     </div>
 
     {% if current_user and current_user.is_admin %}
-    <a href="/dashboard/agents/{{ agent.id }}/detail" class="text-base font-bold text-white group-hover:text-primary transition-colors hover:underline">{{ agent.display_name }}</a>
+    <a href="{{ base_path }}/dashboard/agents/{{ agent.id }}/detail" class="text-base font-bold text-white group-hover:text-primary transition-colors hover:underline">{{ agent.display_name }}</a>
     {% else %}
     <h4 class="text-base font-bold text-white group-hover:text-primary transition-colors">{{ agent.display_name }}</h4>
     {% endif %}
@@ -58,28 +58,28 @@
   <div class="px-5 py-3 bg-surface-2 border-t border-border-dark/50 flex items-center justify-between rounded-b-xl">
     <div class="flex items-center gap-2">
       {% if agent.status == 'setup_required' %}
-      <a href="/dashboard/agents/{{ agent.id }}/setup" class="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors">
+      <a href="{{ base_path }}/dashboard/agents/{{ agent.id }}/setup" class="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors">
         <span class="material-symbols-outlined text-sm">settings</span>
         Configure
       </a>
       {% else %}
-      <a href="/dashboard/chat?agent_id={{ agent.id }}" class="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors">
+      <a href="{{ base_path }}/dashboard/chat?agent_id={{ agent.id }}" class="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors">
         <span class="material-symbols-outlined text-sm">chat_bubble</span>
         Chat
       </a>
-      <a href="/dashboard/executions?agent_id={{ agent.id }}" class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20" title="View Executions">
+      <a href="{{ base_path }}/dashboard/executions?agent_id={{ agent.id }}" class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20" title="View Executions">
         <span class="material-symbols-outlined text-base">terminal</span>
       </a>
       {% endif %}
     </div>
     <div class="flex items-center gap-1">
       {% if agent.is_personal and agent.status != 'setup_required' %}
-      <a href="/dashboard/agents/{{ agent.id }}/setup" class="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Configuration">
+      <a href="{{ base_path }}/dashboard/agents/{{ agent.id }}/setup" class="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Configuration">
         <span class="material-symbols-outlined text-base">settings</span>
       </a>
       {% endif %}
       {% if current_user and current_user.is_admin %}
-      <form method="POST" action="/dashboard/agents/{{ agent.id }}/toggle" class="inline">
+      <form method="POST" action="{{ base_path }}/dashboard/agents/{{ agent.id }}/toggle" class="inline">
         {% if agent.enabled %}
         <button type="submit" class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all" title="Disable Agent">
           <span class="material-symbols-outlined text-base">block</span>
