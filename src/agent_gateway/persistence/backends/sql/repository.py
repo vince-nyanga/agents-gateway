@@ -1115,7 +1115,7 @@ class McpServerRepository:
         async with self._session_factory() as session:
             stmt = (
                 select(McpServerConfig)
-                .where(McpServerConfig.enabled == True)  # noqa: E712  # type: ignore[arg-type]
+                .where(McpServerConfig.enabled == True)  # type: ignore[arg-type]  # noqa: E712
                 .order_by(McpServerConfig.created_at)  # type: ignore[arg-type]
             )
             result = await session.execute(stmt)

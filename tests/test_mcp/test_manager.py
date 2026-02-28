@@ -118,7 +118,7 @@ class TestMcpConnectionManager:
             _background_task=task,
         )
         mgr._connections["test-server"] = conn
-        with pytest.raises(McpToolExecutionError, match="connection has been lost"):
+        with pytest.raises(McpToolExecutionError, match="reconnection failed"):
             await mgr.call_tool("test-server", "tool", {})
 
     @pytest.mark.asyncio
