@@ -30,6 +30,7 @@ Your agent API is now running at `http://localhost:8000` with interactive docs a
 |---------|-------------|
 | [Agents](guides/agents.md) | Define agents as markdown files with YAML frontmatter |
 | [Tools](guides/tools.md) | File-based or code-based tools with automatic schema inference |
+| [MCP Servers](guides/mcp-servers.md) | Connect to external MCP servers for tool discovery |
 | [Skills](guides/skills.md) | Composable workflows with sequential and parallel steps |
 | [Authentication](guides/authentication.md) | API key and OAuth2/JWT auth out of the box |
 | [Persistence](guides/persistence.md) | SQLite or PostgreSQL with Alembic migrations |

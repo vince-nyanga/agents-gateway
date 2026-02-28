@@ -38,6 +38,7 @@ Root configuration object. Loaded from `workspace/gateway.yaml`.
 | `queue` | `QueueConfig` | — | Async execution queue settings. |
 | `scheduler` | `SchedulerConfig` | — | Cron scheduler settings. |
 | `context_retrieval` | `ContextRetrievalConfig` | — | RAG context retrieval settings. |
+| `mcp` | `McpConfig` | — | MCP server connection settings. |
 | `memory` | `MemoryConfig` | — | Agent memory settings. |
 | `cors` | `CorsConfig` | — | CORS middleware settings. |
 | `rate_limit` | `RateLimitConfig` | — | Rate limiting middleware settings. |
@@ -249,6 +250,19 @@ Env prefix: `AGENT_GATEWAY_CONTEXT_RETRIEVAL__`
 
 ---
 
+## McpConfig
+
+Controls timeouts for MCP server connections and tool calls. See the [MCP Servers guide](../guides/mcp-servers.md).
+
+Env prefix: `AGENT_GATEWAY_MCP__`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tool_call_timeout_ms` | `int` | `30000` | Maximum time in milliseconds to wait for a single MCP tool call to complete. |
+| `connection_timeout_ms` | `int` | `10000` | Maximum time in milliseconds to wait for an MCP server connection to be established. |
+
+---
+
 ## MemoryConfig
 
 Global memory defaults. Individual agents override these in `AGENT.md` frontmatter.
@@ -424,6 +438,10 @@ queue:
   backend: redis
   redis_url: ${REDIS_URL}
 
+mcp:
+  tool_call_timeout_ms: 30000
+  connection_timeout_ms: 10000
+
 notifications:
   slack:
     enabled: true
@@ -469,6 +487,7 @@ Each agent is defined by an `AGENT.md` file with YAML frontmatter. The following
 | `notifications` | `object` | `{}` | Notification targets for `on_complete`, `on_error`, `on_timeout`. |
 | `context` | `list[str]` | `[]` | Explicit context file paths relative to workspace root. |
 | `retrievers` | `list[str]` | `[]` | Context retriever IDs for RAG. |
+| `mcp_servers` | `list[str]` | `[]` | MCP server names this agent can access. If no agent lists `mcp_servers`, all agents can use all MCP tools. |
 | `memory` | `object` | `{}` | Memory configuration (`enabled`, `auto_extract`, etc.). |
 
 ### ScheduleConfig

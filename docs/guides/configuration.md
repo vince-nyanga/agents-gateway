@@ -153,6 +153,18 @@ When running multiple gateway instances or worker processes, set `distributed_lo
 
 See the [Scheduling guide](scheduling.md#multi-instance-deployment) for a full walkthrough of distributed locking options.
 
+### mcp
+
+Settings for [MCP server](mcp-servers.md) connections:
+
+```yaml
+mcp:
+  tool_call_timeout_ms: 30000    # Per-tool-call timeout in ms (default: 30000)
+  connection_timeout_ms: 10000   # Connection startup timeout in ms (default: 10000)
+```
+
+These timeouts apply to all MCP servers registered via `gw.add_mcp_server()` or the Admin API.
+
 ### context_retrieval
 
 Controls how context is fetched from retrievers and static files:

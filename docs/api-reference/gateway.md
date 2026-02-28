@@ -606,6 +606,59 @@ Use the built-in file-based memory backend. Stores memories as structured markdo
 
 ---
 
+### MCP Servers
+
+#### `add_mcp_server`
+
+```python
+def add_mcp_server(
+    name: str,
+    transport: str,
+    *,
+    command: str | None = None,
+    args: list[str] | None = None,
+    env: dict[str, str] | None = None,
+    url: str | None = None,
+    headers: dict[str, str] | None = None,
+    credentials: dict[str, str] | None = None,
+    enabled: bool = True,
+) -> Gateway
+```
+
+Register an external [MCP server](../guides/mcp-servers.md) whose tools will be discovered and made available to agents.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Unique server name. Tools are namespaced as `{name}__{tool}`. |
+| `transport` | `str` | `"stdio"` (subprocess) or `"streamable_http"` (remote HTTP). |
+| `command` | `str \| None` | Executable to spawn (stdio only). |
+| `args` | `list[str] \| None` | Arguments for the command (stdio only). |
+| `env` | `dict[str, str] \| None` | Environment variables passed to the subprocess (stdio only). |
+| `url` | `str \| None` | Server URL (streamable_http only). |
+| `headers` | `dict[str, str] \| None` | Extra HTTP headers (streamable_http only). |
+| `credentials` | `dict[str, str] \| None` | Auth credentials. Supports `{"bearer_token": "..."}` or `{"api_key": "...", "api_key_header": "X-Api-Key"}`. |
+| `enabled` | `bool` | Whether the server is active. Default `True`. |
+
+Raises `ValueError` if `transport` is not `"stdio"` or `"streamable_http"`.
+
+```python
+gw.add_mcp_server(
+    name="my-tools",
+    transport="stdio",
+    command="npx",
+    args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+)
+
+gw.add_mcp_server(
+    name="remote-tools",
+    transport="streamable_http",
+    url="https://mcp.example.com/mcp",
+    credentials={"bearer_token": "sk-..."},
+)
+```
+
+---
+
 ### CORS
 
 #### `use_cors`

@@ -201,6 +201,13 @@ All endpoints include OpenAPI summaries, descriptions, and error response docume
 | GET | /v1/agents/{id}/config | User Config | Get user config |
 | DELETE | /v1/agents/{id}/config | User Config | Delete user config |
 | GET | /v1/notifications | Notifications | List notification delivery records |
+| POST | /v1/admin/mcp-servers | Admin | Create MCP server config |
+| GET | /v1/admin/mcp-servers | Admin | List MCP servers |
+| GET | /v1/admin/mcp-servers/{id} | Admin | Get MCP server details |
+| PUT | /v1/admin/mcp-servers/{id} | Admin | Update MCP server config |
+| DELETE | /v1/admin/mcp-servers/{id} | Admin | Delete MCP server |
+| POST | /v1/admin/mcp-servers/{id}/refresh | Admin | Reconnect and rediscover tools |
+| GET | /v1/admin/mcp-servers/{id}/tools | Admin | List discovered MCP tools |
 | POST | /v1/agents/{id}/memory/compact | Admin | Compact agent memory |
 | POST | /v1/reload | Admin | Reload workspace |
 
@@ -227,6 +234,10 @@ persistence:
 memory:
   enabled: true
   auto_extract: true
+
+mcp:
+  tool_call_timeout_ms: 30000
+  connection_timeout_ms: 10000
 
 cors:
   enabled: true

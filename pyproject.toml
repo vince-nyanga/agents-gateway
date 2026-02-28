@@ -103,7 +103,7 @@ all = ["agents-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq
 agents-gateway = "agent_gateway.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/vince-nyanga/agents-gateway"
+Homepage = "https://honesdev.com/agents-gateway"
 Repository = "https://github.com/vince-nyanga/agents-gateway"
 Documentation = "https://vince-nyanga.github.io/agents-gateway/"
 Issues = "https://github.com/vince-nyanga/agents-gateway/issues"
