@@ -136,8 +136,8 @@ class TestGoogleImportError:
             patch("agent_gateway.mcp.auth_google.sa", None),
             pytest.raises(ImportError, match="google-auth is required"),
         ):
-                GoogleServiceAccountProvider(
-                    server_name="gcp-srv",
-                    service_account_info={"type": "service_account"},
-                    scopes=["scope"],
-                )
+            GoogleServiceAccountProvider(
+                server_name="gcp-srv",
+                service_account_info={"type": "service_account"},
+                scopes=["scope"],
+            )

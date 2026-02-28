@@ -148,17 +148,22 @@ class McpConnectionManager:
                         # Legacy path: inject static Authorization header from credentials
                         if auth is None:
                             if "bearer_token" in credentials:
-                                headers["Authorization"] = (
-                                    f"Bearer {credentials['bearer_token']}"
-                                )
+                                headers["Authorization"] = f"Bearer {credentials['bearer_token']}"
                             if "api_key" in credentials and "api_key_header" in credentials:
                                 headers[credentials["api_key_header"]] = credentials["api_key"]
                         # Pass-through: any remaining keys that look like HTTP headers
                         # (contain a hyphen, e.g. "X-Goog-Api-Key") are treated as headers.
                         _reserved = {
-                            "headers", "bearer_token", "api_key", "api_key_header",
-                            "auth_type", "token_url", "client_id", "client_secret",
-                            "scopes", "service_account_json",
+                            "headers",
+                            "bearer_token",
+                            "api_key",
+                            "api_key_header",
+                            "auth_type",
+                            "token_url",
+                            "client_id",
+                            "client_secret",
+                            "scopes",
+                            "service_account_json",
                         }
                         for key, value in credentials.items():
                             if key not in _reserved and isinstance(value, str):

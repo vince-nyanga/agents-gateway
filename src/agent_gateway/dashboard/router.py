@@ -1954,10 +1954,7 @@ def register_dashboard(
                 "flex items-start gap-3 px-3 py-2"
                 " bg-surface-2 rounded-lg border border-border-dark/30"
             )
-            icon_cls = (
-                "material-symbols-outlined text-sm"
-                " text-primary flex-shrink-0 mt-0.5"
-            )
+            icon_cls = "material-symbols-outlined text-sm text-primary flex-shrink-0 mt-0.5"
             html_parts.append(
                 f'<div class="{div_cls}">'
                 f'<span class="{icon_cls}">build</span>'
