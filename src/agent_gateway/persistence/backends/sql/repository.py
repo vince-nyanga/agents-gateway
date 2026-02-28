@@ -1094,6 +1094,7 @@ class McpServerRepository:
                 existing.encrypted_env = config.encrypted_env
                 existing.url = config.url
                 existing.headers = config.headers
+                existing.encrypted_headers = config.encrypted_headers
                 existing.encrypted_credentials = config.encrypted_credentials
                 existing.enabled = config.enabled
                 existing.updated_at = config.updated_at

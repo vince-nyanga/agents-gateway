@@ -198,6 +198,20 @@ if bigquery_project:
         ],
     )
 
+# --- MCP server with encrypted headers (streamable_http) ---
+# Set MCP_HTTP_SERVER_URL to enable. Headers are encrypted at rest.
+mcp_http_url = os.environ.get("MCP_HTTP_SERVER_URL")
+if mcp_http_url:
+    gw.add_mcp_server(
+        "http-with-headers",
+        "streamable_http",
+        url=mcp_http_url,
+        headers={
+            "Authorization": os.environ.get("MCP_HTTP_AUTH_HEADER", "Bearer changeme"),
+            "X-API-Version": "2024-01-01",
+        },
+    )
+
 # --- MCP server with OAuth2 client_credentials auth ---
 # Set MCP_OAUTH2_TOKEN_URL, MCP_OAUTH2_CLIENT_ID, MCP_OAUTH2_CLIENT_SECRET,
 # and MCP_OAUTH2_SERVER_URL to enable.

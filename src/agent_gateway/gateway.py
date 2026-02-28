@@ -529,7 +529,9 @@ class Gateway(FastAPI):
                             _encrypt(json.dumps(raw["env"])) if raw.get("env") else None
                         ),
                         url=raw.get("url"),
-                        headers=raw.get("headers"),
+                        encrypted_headers=(
+                            _encrypt(json.dumps(raw["headers"])) if raw.get("headers") else None
+                        ),
                         encrypted_credentials=(
                             _encrypt(json.dumps(raw["credentials"]))
                             if raw.get("credentials")

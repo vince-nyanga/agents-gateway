@@ -187,7 +187,8 @@ class McpServerConfig:
     encrypted_env: str | None = None  # Fernet-encrypted JSON of env dict
     # HTTP fields
     url: str | None = None  # e.g. "http://localhost:8080/mcp"
-    headers: dict[str, str] | None = None  # non-sensitive headers only
+    headers: dict[str, str] | None = None  # legacy plaintext headers (deprecated)
+    encrypted_headers: str | None = None  # Fernet-encrypted JSON of headers dict
     # Auth (all sensitive values encrypted)
     encrypted_credentials: str | None = None  # Fernet-encrypted JSON of credentials dict
     # Metadata

@@ -294,6 +294,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("encrypted_env", Text, nullable=True),  # Fernet-encrypted JSON string
         Column("url", String, nullable=True),
         Column("headers", JSON, nullable=True),
+        Column("encrypted_headers", Text, nullable=True),  # Fernet-encrypted JSON string
         Column("encrypted_credentials", Text, nullable=True),  # Fernet-encrypted JSON string
         Column("enabled", Boolean, nullable=False, default=True),
         Column(

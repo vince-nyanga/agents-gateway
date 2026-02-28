@@ -92,8 +92,22 @@ class McpConnectionManager:
         is made available immediately via a ready_event.
         """
         # Decrypt credentials and env
-        credentials = decrypt_json_blob(config.encrypted_credentials)
-        env_vars = decrypt_json_blob(config.encrypted_env)
+        try:
+            credentials = decrypt_json_blob(config.encrypted_credentials)
+        except Exception:
+            logger.warning(
+                "Failed to decrypt credentials for MCP server '%s', using empty credentials",
+                config.name,
+            )
+            credentials = {}
+        try:
+            env_vars = decrypt_json_blob(config.encrypted_env)
+        except Exception:
+            logger.warning(
+                "Failed to decrypt env for MCP server '%s', using empty env",
+                config.name,
+            )
+            env_vars = {}
 
         shutdown_event = asyncio.Event()
         ready_event = asyncio.Event()
@@ -139,8 +153,18 @@ class McpConnectionManager:
                     elif credentials:
                         auth = build_auth_from_credentials(credentials, server_name=config.name)
 
-                    # Build static headers (non-sensitive + optional static auth)
+                    # Build static headers: legacy plaintext fallback, then encrypted
                     headers = dict(config.headers or {})
+                    try:
+                        encrypted_hdrs = decrypt_json_blob(config.encrypted_headers)
+                    except Exception:
+                        logger.warning(
+                            "Failed to decrypt headers for MCP server '%s', skipping",
+                            config.name,
+                        )
+                        encrypted_hdrs = {}
+                    if encrypted_hdrs:
+                        headers.update(encrypted_hdrs)
                     if credentials:
                         # Merge encrypted headers from credentials
                         if "headers" in credentials and isinstance(credentials["headers"], dict):
@@ -270,8 +294,22 @@ class McpConnectionManager:
         Raises McpConnectionError on failure.
         """
         # Decrypt credentials and env
-        credentials = decrypt_json_blob(config.encrypted_credentials)
-        env_vars = decrypt_json_blob(config.encrypted_env)
+        try:
+            credentials = decrypt_json_blob(config.encrypted_credentials)
+        except Exception:
+            logger.warning(
+                "Failed to decrypt credentials for MCP server '%s', using empty credentials",
+                config.name,
+            )
+            credentials = {}
+        try:
+            env_vars = decrypt_json_blob(config.encrypted_env)
+        except Exception:
+            logger.warning(
+                "Failed to decrypt env for MCP server '%s', using empty env",
+                config.name,
+            )
+            env_vars = {}
 
         shutdown_event = asyncio.Event()
         ready_event = asyncio.Event()
@@ -311,6 +349,16 @@ class McpConnectionManager:
                     elif credentials:
                         auth = build_auth_from_credentials(credentials, server_name=config.name)
                     headers = dict(config.headers or {})
+                    try:
+                        encrypted_hdrs = decrypt_json_blob(config.encrypted_headers)
+                    except Exception:
+                        logger.warning(
+                            "Failed to decrypt headers for MCP server '%s', skipping",
+                            config.name,
+                        )
+                        encrypted_hdrs = {}
+                    if encrypted_hdrs:
+                        headers.update(encrypted_hdrs)
                     if auth is None and credentials:
                         if "bearer_token" in credentials:
                             headers["Authorization"] = f"Bearer {credentials['bearer_token']}"

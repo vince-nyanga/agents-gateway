@@ -112,7 +112,7 @@ class McpServerResponse(BaseModel):
     command: str | None = None
     args: list[str] | None = None
     url: str | None = None
-    headers: dict[str, str] | None = None
+    header_keys: list[str] = Field(default_factory=list)  # header names only, never values
     enabled: bool
     credential_keys: list[str]  # names only, never values
     has_env: bool  # whether encrypted env is set
@@ -157,6 +157,7 @@ async def create_mcp_server(request: Request, body: CreateMcpServerRequest) -> M
 
     encrypted_creds = encrypt_value(json.dumps(body.credentials)) if body.credentials else None
     encrypted_env = encrypt_value(json.dumps(body.env)) if body.env else None
+    encrypted_hdrs = encrypt_value(json.dumps(body.headers)) if body.headers else None
 
     config = McpServerConfig(
         id=str(uuid.uuid4()),
@@ -166,7 +167,7 @@ async def create_mcp_server(request: Request, body: CreateMcpServerRequest) -> M
         args=body.args,
         encrypted_env=encrypted_env,
         url=body.url,
-        headers=body.headers,
+        encrypted_headers=encrypted_hdrs,
         encrypted_credentials=encrypted_creds,
         enabled=body.enabled,
         created_at=datetime.now(UTC),
@@ -246,7 +247,9 @@ async def update_mcp_server(
     if "url" in update_data:
         existing.url = update_data["url"]
     if "headers" in update_data:
-        existing.headers = update_data["headers"]
+        existing.encrypted_headers = (
+            encrypt_value(json.dumps(update_data["headers"])) if update_data["headers"] else None
+        )
     if "enabled" in update_data:
         existing.enabled = update_data["enabled"]
     if "credentials" in update_data:
@@ -421,6 +424,15 @@ def _to_response(config: McpServerConfig, manager: Any) -> McpServerResponse:
     """Convert domain object to API response (never exposing secrets)."""
     from agent_gateway.secrets import decrypt_json_blob
 
+    # Decrypt headers to get key names only
+    header_keys: list[str] = []
+    if config.encrypted_headers:
+        try:
+            decrypted_headers = decrypt_json_blob(config.encrypted_headers)
+            header_keys = list(decrypted_headers.keys())
+        except Exception:
+            header_keys = ["<decryption_failed>"]
+
     # Decrypt credentials once -- reuse for both cred_keys and auth_type
     creds: dict[str, Any] = {}
     cred_keys: list[str] = []
@@ -449,7 +461,7 @@ def _to_response(config: McpServerConfig, manager: Any) -> McpServerResponse:
         command=config.command,
         args=config.args,
         url=config.url,
-        headers=config.headers,
+        header_keys=header_keys,
         enabled=config.enabled,
         credential_keys=cred_keys,
         has_env=bool(config.encrypted_env),

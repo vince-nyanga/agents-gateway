@@ -74,12 +74,16 @@ gw.add_mcp_server(
     name="remote-tools",
     transport="streamable_http",
     url="https://mcp.example.com/mcp",
-    headers={"X-Custom": "value"},
-    credentials={"bearer_token": "sk-..."},
+    headers={
+        "Authorization": "Bearer sk-...",
+        "X-API-Version": "2024-01-01",
+    },
 )
 ```
 
-Supported credential patterns:
+The `headers` parameter accepts a `dict[str, str]` of HTTP headers to send with every request. All header values are **encrypted at rest** -- any header can contain sensitive data like API keys or tokens.
+
+For legacy compatibility, credential-based header patterns are still supported:
 
 - `{"bearer_token": "..."}` -- sets `Authorization: Bearer ...`
 - `{"api_key": "...", "api_key_header": "X-Api-Key"}` -- sets the named header
@@ -161,7 +165,7 @@ mcp:
 
 ## Credential Security
 
-When using the Admin API, `credentials` and `env` values are encrypted at rest using Fernet symmetric encryption. The encryption key is derived from `AGENT_GATEWAY_SECRET_KEY` (or auto-generated). Credential values are never exposed in API responses -- only key names are returned.
+When using the Admin API or Dashboard, `headers`, `credentials`, and `env` values are encrypted at rest using Fernet symmetric encryption. The encryption key is derived from `AGENT_GATEWAY_SECRET_KEY` (or auto-generated). Header and credential values are never exposed in API responses -- only key names are returned.
 
 ## Dashboard
 
@@ -169,6 +173,8 @@ The MCP Servers page (admin only) lets you:
 
 - View all configured servers with connection status
 - Add new servers (stdio or streamable_http)
+- **Headers UI** -- add key-value HTTP headers via a dynamic form (streamable_http only). Headers are encrypted at rest.
+- **Advanced Auth** -- configure OAuth2 or Google Service Account credentials via a collapsible section
 - **Test connection** -- verify connectivity without affecting the live connection
 - Refresh (reconnect and rediscover tools)
 - Delete servers

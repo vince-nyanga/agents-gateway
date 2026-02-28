@@ -6,6 +6,7 @@ import contextlib
 import importlib.resources
 import json
 import logging
+import re
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
@@ -48,6 +49,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _PAGE_SIZE = 20
+_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+_HEADER_NAME_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+\-.^_|~]+$")
 
 
 def _build_templates(dash_config: DashboardConfig, mount_prefix: str = "") -> Jinja2Templates:
@@ -1800,10 +1803,10 @@ def register_dashboard(
         command: str = Form(""),
         args: str = Form(""),
         url: str = Form(""),
+        headers: str = Form(""),
         credentials: str = Form(""),
         env: str = Form(""),
     ) -> Response:
-        import re
         import uuid as _uuid
         from datetime import datetime as _dt
 
@@ -1848,7 +1851,6 @@ def register_dashboard(
             )
 
         # Validate name
-        _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
         if not name or len(name) > 64 or not _NAME_RE.match(name):
             return await _render_with_error(
                 "Invalid server name. Must be 1-64 characters, lowercase "
@@ -1863,7 +1865,37 @@ def register_dashboard(
                 f"Must be one of: {', '.join(sorted(_VALID_TRANSPORTS))}."
             )
 
-        # Parse and encrypt credentials JSON
+        # Parse and encrypt headers JSON
+        encrypted_hdrs = None
+        if headers.strip():
+            try:
+                parsed_headers = json.loads(headers)
+                if not isinstance(parsed_headers, dict):
+                    return await _render_with_error(
+                        'Headers must be a JSON object (e.g. {"Authorization": "Bearer ..."}).'
+                    )
+                seen_names: set[str] = set()
+                for hdr_name, hdr_value in parsed_headers.items():
+                    if not hdr_name:
+                        return await _render_with_error("Header name cannot be empty.")
+                    if not _HEADER_NAME_RE.match(hdr_name):
+                        return await _render_with_error(
+                            f"Invalid header name '{hdr_name}'. "
+                            "Only RFC 7230 token characters are allowed."
+                        )
+                    lower_name = hdr_name.lower()
+                    if lower_name in seen_names:
+                        return await _render_with_error(f"Duplicate header name '{hdr_name}'.")
+                    seen_names.add(lower_name)
+                    if not isinstance(hdr_value, str):
+                        return await _render_with_error(
+                            f"Header value for '{hdr_name}' must be a string."
+                        )
+                encrypted_hdrs = encrypt_value(json.dumps(parsed_headers))
+            except json.JSONDecodeError:
+                return await _render_with_error("Invalid headers JSON. Please provide valid JSON.")
+
+        # Parse and encrypt credentials JSON (advanced auth)
         encrypted_creds = None
         if credentials.strip():
             try:
@@ -1892,6 +1924,7 @@ def register_dashboard(
             command=command or None,
             args=[a.strip() for a in args.split(",") if a.strip()] or None,
             url=url or None,
+            encrypted_headers=encrypted_hdrs,
             encrypted_credentials=encrypted_creds,
             encrypted_env=encrypted_env,
             enabled=True,

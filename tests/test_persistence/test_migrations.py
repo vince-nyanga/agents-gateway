@@ -59,7 +59,7 @@ def test_current_revision_after_upgrade(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "012"
+    assert rev == "013"
 
 
 def test_downgrade_removes_tables(tmp_db) -> None:
@@ -89,7 +89,7 @@ def test_upgrade_is_idempotent(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "012"
+    assert rev == "013"
 
 
 def test_current_revision_on_empty_db(tmp_db) -> None:
