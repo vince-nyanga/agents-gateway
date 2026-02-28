@@ -105,6 +105,11 @@ class ToolRegistry:
 
         for tool in tools:
             ns_name = tool.namespaced_name
+            if ns_name in self._mcp_tools:
+                logger.warning(
+                    "MCP tool '%s' already registered; overwriting with new definition",
+                    ns_name,
+                )
             resolved = ResolvedTool(
                 name=ns_name,
                 description=tool.description,

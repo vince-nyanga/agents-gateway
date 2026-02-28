@@ -450,7 +450,10 @@ class Gateway(FastAPI):
             # Load from DB + pending list
             db_mcp_configs = await self._mcp_repo.list_enabled()
             pending_mcp_configs: list[_McpCfg] = []
+            pending_token_providers: dict[str, Any] = {}
             for raw in self._pending_mcp_servers:
+                if raw.get("token_provider") is not None:
+                    pending_token_providers[raw["name"]] = raw["token_provider"]
                 pending_mcp_configs.append(
                     _McpCfg(
                         id=str(uuid.uuid4()),
@@ -499,7 +502,9 @@ class Gateway(FastAPI):
                     connection_timeout_ms=self._config.mcp.connection_timeout_ms,
                     tool_call_timeout_ms=self._config.mcp.tool_call_timeout_ms,
                 )
-                await self._mcp_manager.connect_all(all_mcp_configs)
+                await self._mcp_manager.connect_all(
+                    all_mcp_configs, token_providers=pending_token_providers
+                )
 
                 # Compute allowed_agents per server
                 server_to_agents = compute_server_to_agents(workspace)
@@ -1287,7 +1292,8 @@ class Gateway(FastAPI):
         env: dict[str, str] | None = None,
         url: str | None = None,
         headers: dict[str, str] | None = None,
-        credentials: dict[str, str] | None = None,
+        credentials: dict[str, Any] | None = None,
+        token_provider: Any | None = None,
         enabled: bool = True,
     ) -> Gateway:
         """Register an MCP server programmatically (fluent API).
@@ -1295,6 +1301,21 @@ class Gateway(FastAPI):
         Stores raw (unencrypted) values in the pending list. Encryption
         happens during startup so that AGENT_GATEWAY_SECRET_KEY does not
         need to be set at import time.
+
+        Args:
+            name: Unique server name.
+            transport: 'stdio' or 'streamable_http'.
+            command: Command for stdio transport.
+            args: Arguments for stdio transport.
+            env: Environment variables for stdio transport.
+            url: URL for streamable_http transport.
+            headers: Static HTTP headers.
+            credentials: Credential dict (may contain auth_type for OAuth2).
+            token_provider: Optional custom token provider. When provided, takes
+                precedence over credentials-based auth. Implement the
+                McpTokenProvider protocol to plug in any custom auth (Azure,
+                AWS, etc.) without library changes.
+            enabled: Whether the server is enabled.
 
         Raises:
             ValueError: If transport is not 'stdio' or 'streamable_http'.
@@ -1314,6 +1335,7 @@ class Gateway(FastAPI):
                 "url": url,
                 "headers": headers,
                 "credentials": credentials,
+                "token_provider": token_provider,
                 "enabled": enabled,
             }
         )

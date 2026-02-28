@@ -176,6 +176,63 @@ gw.add_mcp_server(
     args=["mcp_test_server.py"],
 )
 
+# --- MCP server with OAuth2 client_credentials auth ---
+# Set MCP_OAUTH2_TOKEN_URL, MCP_OAUTH2_CLIENT_ID, MCP_OAUTH2_CLIENT_SECRET,
+# and MCP_OAUTH2_SERVER_URL to enable.
+mcp_oauth2_url = os.environ.get("MCP_OAUTH2_SERVER_URL")
+if mcp_oauth2_url:
+    gw.add_mcp_server(
+        "oauth2-mcp",
+        "streamable_http",
+        url=mcp_oauth2_url,
+        credentials={
+            "auth_type": "oauth2_client_credentials",
+            "token_url": os.environ["MCP_OAUTH2_TOKEN_URL"],
+            "client_id": os.environ["MCP_OAUTH2_CLIENT_ID"],
+            "client_secret": os.environ["MCP_OAUTH2_CLIENT_SECRET"],
+            "scopes": os.environ.get("MCP_OAUTH2_SCOPES", "").split(","),
+        },
+    )
+
+# --- MCP server with Google service account auth ---
+# Set GCP_SA_KEY_JSON (raw JSON string) and GCP_MCP_SERVER_URL to enable.
+# Requires: pip install agent-gateway[gcp]
+gcp_mcp_url = os.environ.get("GCP_MCP_SERVER_URL")
+if gcp_mcp_url:
+    import json as _json
+
+    gw.add_mcp_server(
+        "gcp-mcp",
+        "streamable_http",
+        url=gcp_mcp_url,
+        credentials={
+            "auth_type": "google_service_account",
+            "service_account_json": _json.loads(os.environ["GCP_SA_KEY_JSON"]),
+            "scopes": os.environ.get(
+                "GCP_MCP_SCOPES",
+                "https://www.googleapis.com/auth/bigquery",
+            ).split(","),
+        },
+    )
+
+# --- MCP server with custom token provider ---
+# Example showing how to plug in a custom McpTokenProvider for any auth scheme.
+# Uncomment and adapt for your use case:
+#
+# from agent_gateway.mcp.auth import McpTokenProvider
+#
+# class MyCustomProvider:
+#     server_name = "custom-mcp"
+#     async def get_token(self) -> str:
+#         return "my-custom-token"
+#
+# gw.add_mcp_server(
+#     "custom-mcp",
+#     "streamable_http",
+#     url="https://my-mcp-server.example.com/mcp",
+#     token_provider=MyCustomProvider(),
+# )
+
 # --- Context retrievers ---
 
 gw.use_retriever("email-history", EmailHistoryRetriever())

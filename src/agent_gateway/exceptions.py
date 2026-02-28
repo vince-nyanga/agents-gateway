@@ -98,6 +98,14 @@ class McpConnectionError(McpError):
         super().__init__(message)
 
 
+class McpAuthError(McpError):
+    """OAuth2 token refresh failed for an MCP server."""
+
+    def __init__(self, message: str, server_name: str) -> None:
+        self.server_name = server_name
+        super().__init__(message)
+
+
 class McpToolExecutionError(McpError):
     """Failed to execute a tool on an MCP server."""
 

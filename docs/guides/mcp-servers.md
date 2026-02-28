@@ -84,6 +84,71 @@ Supported credential patterns:
 - `{"bearer_token": "..."}` -- sets `Authorization: Bearer ...`
 - `{"api_key": "...", "api_key_header": "X-Api-Key"}` -- sets the named header
 
+## OAuth2 Authentication
+
+For MCP servers that require OAuth2 authentication, Agent Gateway supports automatic token refresh via built-in providers or custom token providers.
+
+### OAuth2 Client Credentials
+
+Use `auth_type: "oauth2_client_credentials"` in the credentials dict to automatically fetch and refresh tokens using the OAuth2 client credentials grant:
+
+```python
+gw.add_mcp_server(
+    name="secure-tools",
+    transport="streamable_http",
+    url="https://mcp.example.com/mcp",
+    credentials={
+        "auth_type": "oauth2_client_credentials",
+        "token_url": "https://auth.example.com/oauth2/token",
+        "client_id": "my-client-id",
+        "client_secret": "my-client-secret",
+        "scopes": ["read", "write"],          # optional
+        "extra_params": {"audience": "my-api"},  # optional
+    },
+)
+```
+
+### Google Service Account
+
+Use `auth_type: "google_service_account"` with a service account JSON key. Requires the `gcp` extra (`pip install agent-gateway[gcp]`):
+
+```python
+gw.add_mcp_server(
+    name="gcp-tools",
+    transport="streamable_http",
+    url="https://mcp.example.com/mcp",
+    credentials={
+        "auth_type": "google_service_account",
+        "service_account_json": { ... },  # service account key dict
+        "scopes": ["https://www.googleapis.com/auth/cloud-platform"],
+    },
+)
+```
+
+### Custom Token Provider
+
+For advanced use cases, implement the `McpTokenProvider` protocol and pass it directly:
+
+```python
+from agent_gateway.mcp import McpTokenProvider
+
+class MyTokenProvider:
+    server_name: str = "my-server"
+
+    async def get_token(self) -> str:
+        # Your custom token acquisition logic
+        return "my-access-token"
+
+gw.add_mcp_server(
+    name="my-server",
+    transport="streamable_http",
+    url="https://mcp.example.com/mcp",
+    token_provider=MyTokenProvider(),
+)
+```
+
+The `McpTokenProvider` protocol, `McpHttpAuth`, and `OAuth2ClientCredentialsProvider` are all exported from `agent_gateway.mcp`.
+
 ## Configuration
 
 Global MCP settings in `gateway.yaml` or `GatewayConfig`:

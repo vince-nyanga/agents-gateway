@@ -621,6 +621,7 @@ def add_mcp_server(
     url: str | None = None,
     headers: dict[str, str] | None = None,
     credentials: dict[str, str] | None = None,
+    token_provider: McpTokenProvider | None = None,
     enabled: bool = True,
 ) -> Gateway
 ```
@@ -636,7 +637,8 @@ Register an external [MCP server](../guides/mcp-servers.md) whose tools will be 
 | `env` | `dict[str, str] \| None` | Environment variables passed to the subprocess (stdio only). |
 | `url` | `str \| None` | Server URL (streamable_http only). |
 | `headers` | `dict[str, str] \| None` | Extra HTTP headers (streamable_http only). |
-| `credentials` | `dict[str, str] \| None` | Auth credentials. Supports `{"bearer_token": "..."}` or `{"api_key": "...", "api_key_header": "X-Api-Key"}`. |
+| `credentials` | `dict[str, str] \| None` | Auth credentials. Supports `{"bearer_token": "..."}`, `{"api_key": "...", "api_key_header": "X-Api-Key"}`, or OAuth2 configs (see [OAuth2 Authentication](../guides/mcp-servers.md#oauth2-authentication)). |
+| `token_provider` | `McpTokenProvider \| None` | Custom token provider implementing the `McpTokenProvider` protocol. Takes precedence over `credentials`-based auth. See [Custom Token Provider](../guides/mcp-servers.md#custom-token-provider). |
 | `enabled` | `bool` | Whether the server is active. Default `True`. |
 
 Raises `ValueError` if `transport` is not `"stdio"` or `"streamable_http"`.

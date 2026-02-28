@@ -60,6 +60,7 @@ otlp = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.24",
     "opentelemetry-exporter-otlp-proto-http>=1.24",
 ]
+gcp = ["google-auth>=2.20"]
 oauth2 = ["PyJWT[crypto]>=2.8"]
 slack = ["slack-bolt>=1.18"]
 redis = ["redis>=5.0"]
@@ -205,4 +206,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "slowapi.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "google.*"
 ignore_missing_imports = true

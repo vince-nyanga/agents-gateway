@@ -8,11 +8,13 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 
 from agent_gateway.exceptions import McpConnectionError, McpToolExecutionError
+from agent_gateway.mcp.auth import McpHttpAuth, McpTokenProvider, build_auth_from_credentials
 from agent_gateway.mcp.domain import McpToolInfo
 from agent_gateway.persistence.domain import McpServerConfig
 from agent_gateway.secrets import decrypt_json_blob
@@ -49,16 +51,21 @@ class McpConnectionManager:
         self._connection_timeout_s = connection_timeout_ms / 1000.0
         self._tool_call_timeout_s = tool_call_timeout_ms / 1000.0
 
-    async def connect_all(self, configs: list[McpServerConfig]) -> None:
+    async def connect_all(
+        self,
+        configs: list[McpServerConfig],
+        token_providers: dict[str, McpTokenProvider] | None = None,
+    ) -> None:
         """Connect to all enabled MCP servers. Called during gateway startup.
 
         Failures are logged and skipped -- never blocks startup.
         """
+        providers = token_providers or {}
         for config in configs:
             if not config.enabled:
                 continue
             try:
-                await self._connect_one(config)
+                await self._connect_one(config, token_provider=providers.get(config.name))
                 logger.info(
                     "Connected to MCP server '%s' (%s), discovered %d tools",
                     config.name,
@@ -72,7 +79,11 @@ class McpConnectionManager:
                     exc_info=True,
                 )
 
-    async def _connect_one(self, config: McpServerConfig) -> None:
+    async def _connect_one(
+        self,
+        config: McpServerConfig,
+        token_provider: McpTokenProvider | None = None,
+    ) -> None:
         """Establish connection to a single MCP server.
 
         Spawns a background task that enters the transport and session
@@ -118,16 +129,36 @@ class McpConnectionManager:
                         raise ValueError(
                             f"MCP server '{config.name}': streamable_http transport requires 'url'"
                         )
-                    # Build headers with auth
+
+                    # Determine auth: user-provided token_provider takes precedence,
+                    # otherwise build from credentials dict.
+                    auth: httpx.Auth | None = None
+                    if token_provider is not None:
+                        auth = McpHttpAuth(token_provider)
+                    elif credentials:
+                        auth = build_auth_from_credentials(credentials, server_name=config.name)
+
+                    # Build static headers (non-sensitive + optional static auth)
                     headers = dict(config.headers or {})
-                    if credentials:
+                    if auth is None and credentials:
+                        # Legacy path: inject static Authorization header from credentials
                         if "bearer_token" in credentials:
                             headers["Authorization"] = f"Bearer {credentials['bearer_token']}"
                         if "api_key" in credentials and "api_key_header" in credentials:
                             headers[credentials["api_key_header"]] = credentials["api_key"]
 
+                    # Construct httpx.AsyncClient with auth and headers.
+                    # Note: headers are set on the AsyncClient (not passed to
+                    # streamable_http_client) because the SDK API only accepts
+                    # http_client=. The AsyncClient lifecycle must be inside
+                    # _run_connection() so it stays open for the MCP session.
+                    http_client = httpx.AsyncClient(
+                        auth=auth,
+                        headers=headers,
+                    )
                     async with (
-                        streamablehttp_client(config.url, headers=headers) as (
+                        http_client,
+                        streamable_http_client(config.url, http_client=http_client) as (
                             read,
                             write,
                             _get_session_id,
@@ -227,10 +258,15 @@ class McpConnectionManager:
             except Exception:
                 logger.warning("Error disconnecting MCP server '%s'", name, exc_info=True)
 
-    async def refresh_server(self, name: str, config: McpServerConfig) -> None:
+    async def refresh_server(
+        self,
+        name: str,
+        config: McpServerConfig,
+        token_provider: McpTokenProvider | None = None,
+    ) -> None:
         """Reconnect a single server (after config change)."""
         await self.disconnect_one(name)
-        await self._connect_one(config)
+        await self._connect_one(config, token_provider=token_provider)
 
     def get_tools(self, server_name: str) -> list[McpToolInfo]:
         """Get discovered tools for a server. Returns empty list if not connected."""

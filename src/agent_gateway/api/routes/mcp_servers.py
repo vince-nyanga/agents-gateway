@@ -21,6 +21,34 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
+_VALID_AUTH_TYPES = {
+    "none",
+    "static_header",
+    "google_service_account",
+    "oauth2_client_credentials",
+}
+
+
+def _validate_auth_credentials(credentials: dict[str, Any] | None) -> None:
+    """Validate OAuth2 credential shapes. Shared by Create and Update models."""
+    if not credentials or "auth_type" not in credentials:
+        return
+    at = credentials["auth_type"]
+    if at not in _VALID_AUTH_TYPES:
+        raise ValueError(f"Unknown auth_type '{at}'. Must be one of: {sorted(_VALID_AUTH_TYPES)}")
+    if at == "google_service_account":
+        for key in ("service_account_json", "scopes"):
+            if key not in credentials:
+                raise ValueError(
+                    f"credentials must contain '{key}' for auth_type 'google_service_account'"
+                )
+    elif at == "oauth2_client_credentials":
+        for key in ("token_url", "client_id", "client_secret"):
+            if key not in credentials:
+                raise ValueError(
+                    f"credentials must contain '{key}' for auth_type 'oauth2_client_credentials'"
+                )
+
 
 class CreateMcpServerRequest(BaseModel):
     name: str = Field(..., pattern=r"^[a-z0-9][a-z0-9_-]*$", max_length=64)
@@ -30,7 +58,7 @@ class CreateMcpServerRequest(BaseModel):
     env: dict[str, str] | None = None  # plaintext, encrypted before storage
     url: str | None = None
     headers: dict[str, str] | None = None
-    credentials: dict[str, str] | None = None  # plaintext, encrypted before storage
+    credentials: dict[str, Any] | None = None  # plaintext, encrypted before storage
     enabled: bool = True
 
     @model_validator(mode="after")
@@ -43,6 +71,7 @@ class CreateMcpServerRequest(BaseModel):
             raise ValueError("'url' should not be set for stdio transport")
         if self.transport == "streamable_http" and self.command:
             raise ValueError("'command' should not be set for streamable_http transport")
+        _validate_auth_credentials(self.credentials)
         return self
 
 
@@ -63,7 +92,7 @@ class UpdateMcpServerRequest(BaseModel):
     env: dict[str, str] | None = None
     url: str | None = None
     headers: dict[str, str] | None = None
-    credentials: dict[str, str] | None = None
+    credentials: dict[str, Any] | None = None
     enabled: bool | None = None
 
     @model_validator(mode="after")
@@ -72,6 +101,7 @@ class UpdateMcpServerRequest(BaseModel):
             raise ValueError("'url' should not be set for stdio transport")
         if self.transport == "streamable_http" and self.command is not None:
             raise ValueError("'command' should not be set for streamable_http transport")
+        _validate_auth_credentials(self.credentials)
         return self
 
 
@@ -86,6 +116,7 @@ class McpServerResponse(BaseModel):
     enabled: bool
     credential_keys: list[str]  # names only, never values
     has_env: bool  # whether encrypted env is set
+    auth_type: str  # "none", "static_header", "google_service_account", etc.
     tool_count: int
     connected: bool
     created_at: str
@@ -327,7 +358,8 @@ def _to_response(config: McpServerConfig, manager: Any) -> McpServerResponse:
     """Convert domain object to API response (never exposing secrets)."""
     from agent_gateway.secrets import decrypt_json_blob
 
-    # Determine credential key names without exposing values
+    # Decrypt credentials once -- reuse for both cred_keys and auth_type
+    creds: dict[str, Any] = {}
     cred_keys: list[str] = []
     if config.encrypted_credentials:
         try:
@@ -335,6 +367,11 @@ def _to_response(config: McpServerConfig, manager: Any) -> McpServerResponse:
             cred_keys = list(creds.keys())
         except Exception:
             cred_keys = ["<decryption_failed>"]
+
+    # Determine auth type from decrypted credentials
+    auth_type = "none"
+    if creds:
+        auth_type = creds.get("auth_type", "static_header")
 
     tool_count = 0
     connected = False
@@ -353,6 +390,7 @@ def _to_response(config: McpServerConfig, manager: Any) -> McpServerResponse:
         enabled=config.enabled,
         credential_keys=cred_keys,
         has_env=bool(config.encrypted_env),
+        auth_type=auth_type,
         tool_count=tool_count,
         connected=connected,
         created_at=config.created_at.isoformat() if config.created_at else "",

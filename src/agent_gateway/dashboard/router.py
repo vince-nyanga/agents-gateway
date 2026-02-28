@@ -1868,7 +1868,7 @@ def register_dashboard(
             html_parts.append(
                 f'<div class="flex items-start gap-3 px-3 py-2 bg-surface-2 rounded-lg border border-border-dark/30">'
                 f'<span class="material-symbols-outlined text-sm text-primary flex-shrink-0 mt-0.5">build</span>'
-                f'<div>'
+                f"<div>"
                 f'<span class="text-xs font-mono font-semibold text-slate-300">{safe_name}</span>'
                 f'<p class="text-xs text-slate-500 mt-0.5">{safe_desc}</p>'
                 f"</div></div>"

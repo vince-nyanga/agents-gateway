@@ -52,7 +52,7 @@ def decrypt_value(ciphertext: str, key: str | None = None) -> str:
         raise ValueError("Failed to decrypt secret: invalid key or corrupted data") from e
 
 
-def decrypt_json_blob(encrypted: str | None, key: str | None = None) -> dict[str, str]:
+def decrypt_json_blob(encrypted: str | None, key: str | None = None) -> dict[str, Any]:
     """Decrypt a Fernet-encrypted JSON blob, returning empty dict on None/empty.
 
     Used for MCP server credentials and env vars.
@@ -60,7 +60,7 @@ def decrypt_json_blob(encrypted: str | None, key: str | None = None) -> dict[str
     if not encrypted:
         return {}
     plaintext = decrypt_value(encrypted, key)
-    result: dict[str, str] = json.loads(plaintext)
+    result: dict[str, Any] = json.loads(plaintext)
     return result
 
 
