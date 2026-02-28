@@ -10,7 +10,7 @@ from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 import anyio
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1779,7 +1779,7 @@ def register_dashboard(
         url: str = Form(""),
         credentials: str = Form(""),
         env: str = Form(""),
-    ) -> RedirectResponse | HTMLResponse:
+    ) -> Response:
         import re
         import uuid as _uuid
         from datetime import datetime as _dt

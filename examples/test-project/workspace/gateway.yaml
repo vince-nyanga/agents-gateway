@@ -36,6 +36,13 @@ scheduler:
     backend: auto  # auto-detects Redis or Postgres
     lock_ttl_seconds: 300
 
+guardrails:
+  timeout_ms: 300000  # 5 minutes — design/data APIs can be slow
+  max_iterations: 15
+
+mcp:
+  tool_call_timeout_ms: 300000  # 5 minutes per tool call — design APIs can be very slow
+
 telemetry:
   enabled: true
   exporter: console

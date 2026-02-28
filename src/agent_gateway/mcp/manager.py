@@ -29,6 +29,7 @@ class McpConnection:
     config: McpServerConfig
     session: ClientSession
     tools: list[McpToolInfo] = field(default_factory=list)
+    token_provider: Any = None  # McpTokenProvider | None, kept for reconnection
     # Lifecycle handles
     _shutdown_event: asyncio.Event = field(default_factory=asyncio.Event)
     _background_task: asyncio.Task[None] | None = None
@@ -140,12 +141,28 @@ class McpConnectionManager:
 
                     # Build static headers (non-sensitive + optional static auth)
                     headers = dict(config.headers or {})
-                    if auth is None and credentials:
+                    if credentials:
+                        # Merge encrypted headers from credentials
+                        if "headers" in credentials and isinstance(credentials["headers"], dict):
+                            headers.update(credentials["headers"])
                         # Legacy path: inject static Authorization header from credentials
-                        if "bearer_token" in credentials:
-                            headers["Authorization"] = f"Bearer {credentials['bearer_token']}"
-                        if "api_key" in credentials and "api_key_header" in credentials:
-                            headers[credentials["api_key_header"]] = credentials["api_key"]
+                        if auth is None:
+                            if "bearer_token" in credentials:
+                                headers["Authorization"] = (
+                                    f"Bearer {credentials['bearer_token']}"
+                                )
+                            if "api_key" in credentials and "api_key_header" in credentials:
+                                headers[credentials["api_key_header"]] = credentials["api_key"]
+                        # Pass-through: any remaining keys that look like HTTP headers
+                        # (contain a hyphen, e.g. "X-Goog-Api-Key") are treated as headers.
+                        _reserved = {
+                            "headers", "bearer_token", "api_key", "api_key_header",
+                            "auth_type", "token_url", "client_id", "client_secret",
+                            "scopes", "service_account_json",
+                        }
+                        for key, value in credentials.items():
+                            if key not in _reserved and isinstance(value, str):
+                                headers[key] = value
 
                     # Construct httpx.AsyncClient with auth and headers.
                     # Note: headers are set on the AsyncClient (not passed to
@@ -230,6 +247,7 @@ class McpConnectionManager:
             config=config,
             session=session,
             tools=discovered,
+            token_provider=token_provider,
             _shutdown_event=shutdown_event,
             _background_task=task,
         )
@@ -419,13 +437,27 @@ class McpConnectionManager:
                 tool_name=tool_name,
             )
 
-        # Check background task is still alive
+        # Auto-reconnect if background task has died
         if conn._background_task is None or conn._background_task.done():
-            raise McpToolExecutionError(
-                f"MCP server '{server_name}' connection has been lost",
-                server_name=server_name,
-                tool_name=tool_name,
-            )
+            logger.warning("MCP server '%s' connection lost, attempting reconnect…", server_name)
+            try:
+                await self._connect_one(conn.config, conn.token_provider)
+                conn = self._connections.get(server_name)
+                if conn is None or conn._background_task is None or conn._background_task.done():
+                    raise McpToolExecutionError(
+                        f"MCP server '{server_name}' reconnection failed",
+                        server_name=server_name,
+                        tool_name=tool_name,
+                    )
+                logger.info("MCP server '%s' reconnected successfully", server_name)
+            except McpToolExecutionError:
+                raise
+            except Exception as exc:
+                raise McpToolExecutionError(
+                    f"MCP server '{server_name}' reconnection failed: {exc}",
+                    server_name=server_name,
+                    tool_name=tool_name,
+                ) from exc
 
         try:
             result = await asyncio.wait_for(
