@@ -27,6 +27,9 @@ input_schema:
     - destination
     - origin
     - departure_date
+model:
+  name: "gemini/gemini-2.0-flash-lite"
+  fallback: "gemini/gemini-1.5-flash"
 memory:
   enabled: true
   auto_extract: true

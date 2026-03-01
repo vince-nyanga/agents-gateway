@@ -76,6 +76,10 @@ model:
 
 All fields are optional. Omitted fields inherit the global defaults.
 
+- `name` accepts any [LiteLLM model identifier](https://docs.litellm.ai/docs/providers). It is automatically registered in the LLM router at startup, so retry and cooldown policies apply.
+- `fallback` designates a fallback model used when the primary fails. Must be a valid LiteLLM model identifier.
+- The reserved names `"default"` and `"fallback"` must not be used as `model.name` — they are used internally by the router for the global model configuration.
+
 ### Delegation
 
 Agents can delegate tasks to other agents using the built-in `delegate_to_agent` tool:

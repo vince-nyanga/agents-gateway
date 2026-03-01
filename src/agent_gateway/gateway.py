@@ -592,7 +592,8 @@ class Gateway(FastAPI):
         # 7. Build LLM client and execution engine
         engine: ExecutionEngine | None = None
         try:
-            self._llm_client = LLMClient(self._config)
+            agent_models = [a.model for a in workspace.agents.values()]
+            self._llm_client = LLMClient(self._config, agent_models=agent_models)
             engine = ExecutionEngine(
                 llm_client=self._llm_client,
                 tool_registry=tool_registry,
@@ -2171,6 +2172,13 @@ class Gateway(FastAPI):
                 for server_name, tools in all_mcp_tools.items():
                     allowed = server_to_agents.get(server_name)
                     new_registry.register_mcp_tools(tools, allowed_agents=allowed)
+
+            # Rebuild LLM client with updated agent models
+            if self._llm_client and self._config:
+                agent_models = [a.model for a in new_workspace.agents.values()]
+                old_llm = self._llm_client
+                self._llm_client = LLMClient(self._config, agent_models=agent_models)
+                await old_llm.close()
 
             new_engine: ExecutionEngine | None = None
             if self._llm_client and self._config:
