@@ -104,9 +104,9 @@
         </h3>
       </div>
       <div class="glass-card p-6 rounded-2xl border-l-[6px] border-l-emerald-500 shadow-xl shadow-black/20">
-        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Target Model</p>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Models Used</p>
         <h3 class="text-base font-black text-white truncate">
-          {{ detail.models_used | join(', ') if detail.models_used else 'Execution Logic' }}
+          {{ detail.models_used | join(', ') if detail.models_used else '—' }}
         </h3>
       </div>
     </div>

@@ -23,7 +23,7 @@
             {% if step.is_llm_call %}LLM Completion{% elif step.is_tool_call %}Tool Invocation{% else %}Execution Step{% endif %}
           </span>
           <h3 class="text-sm font-bold text-slate-900 dark:text-white">
-            {% if step.is_llm_call %}Summarize / Generate{% elif step.is_tool_call %}{{ step.data.get('tool_name', 'Unknown Tool') }}{% else %}Result Payload{% endif %}
+            {% if step.is_llm_call %}{{ step.data.get('model', 'Unknown Model') }}{% elif step.is_tool_call %}{{ step.data.get('tool_name', 'Unknown Tool') }}{% else %}Result Payload{% endif %}
           </h3>
         </div>
         <div class="flex items-center gap-4">
@@ -48,7 +48,7 @@
       <div class="p-4 space-y-4">
         {% if step.is_llm_call %}
           <div class="space-y-2">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Model Context</p>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Model</p>
             <div class="bg-black/20 dark:bg-white/5 rounded-lg p-3 text-xs leading-relaxed text-slate-400 font-mono">
               {{ step.data.get('model', 'Unknown Model') }}
             </div>
