@@ -28,7 +28,7 @@ input_schema:
     - origin
     - departure_date
 model:
-  name: "gemini/gemini-2.0-flash-lite"
+  name: "anthropic/claude-haiku-4-5"
   fallback: "gemini/gemini-1.5-flash"
 memory:
   enabled: true

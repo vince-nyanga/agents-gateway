@@ -9,7 +9,8 @@ delegates_to:
 skills:
   - general-tools
 model:
-  temperature: 0
+  name: "anthropic/claude-haiku-4-5"
+  temperature: 0.4
 ---
 
 # Coordinator Agent
