@@ -1,8 +1,11 @@
-.PHONY: dev test test-e2e lint check typecheck
+.PHONY: dev stop test test-e2e lint check typecheck
 
 dev:  ## Run the test project (standalone)
 	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	uv run --directory examples/test-project python app.py
+
+stop:  ## Stop the dev server running on port 8000
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null && echo "Server stopped." || echo "No server running on port 8000."
 
 dev-mounted:  ## Run the test project (mounted sub-app at /ai)
 	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
