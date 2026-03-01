@@ -39,14 +39,24 @@ class LLMResponse:
     cost: float = 0.0
 
 
-def _build_model_list(config: ModelConfig) -> list[dict[str, Any]]:
-    """Build LiteLLM Router model_list from gateway config."""
+def _build_model_list(
+    config: ModelConfig,
+    agent_models: list[AgentModelConfig] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build LiteLLM Router model_list and fallback_list from gateway config.
+
+    Returns a tuple of (model_list, fallback_list) where model_list contains all
+    deployments (default, fallback, and agent-specific models) and fallback_list
+    contains the fallback routing rules.
+    """
     models: list[dict[str, Any]] = [
         {
             "model_name": "default",
             "litellm_params": {"model": config.default},
         }
     ]
+    fallbacks: list[dict[str, Any]] = []
+
     if config.fallback:
         models.append(
             {
@@ -54,7 +64,44 @@ def _build_model_list(config: ModelConfig) -> list[dict[str, Any]]:
                 "litellm_params": {"model": config.fallback},
             }
         )
-    return models
+        fallbacks.append({"default": ["fallback"]})
+
+    # Register agent-specific models
+    if agent_models:
+        seen: set[str] = set()
+        for agent_model in agent_models:
+            name = agent_model.name
+            if not name:
+                continue
+            if name in ("default", "fallback"):
+                logger.warning("Agent model name '%s' is reserved and will be skipped.", name)
+                continue
+            if name == config.default:
+                # Already handled by the "default" group
+                continue
+            if name in seen:
+                continue
+            seen.add(name)
+            models.append({"model_name": name, "litellm_params": {"model": name}})
+
+            # Handle agent-level fallback
+            fb = agent_model.fallback
+            if fb:
+                if fb in ("default", "fallback"):
+                    logger.warning(
+                        "Agent model fallback '%s' uses a reserved router group name;"
+                        " ignoring fallback.",
+                        fb,
+                    )
+                elif fb == config.default:
+                    fallbacks.append({name: ["default"]})
+                else:
+                    if fb not in seen:
+                        seen.add(fb)
+                        models.append({"model_name": fb, "litellm_params": {"model": fb}})
+                    fallbacks.append({name: [fb]})
+
+    return models, fallbacks
 
 
 def _parse_tool_calls(response: ModelResponse) -> list[ToolCall]:
@@ -98,13 +145,13 @@ def _extract_cost(response: ModelResponse) -> float:
 class LLMClient:
     """Production LLM client with failover and cost tracking."""
 
-    def __init__(self, config: GatewayConfig) -> None:
+    def __init__(
+        self,
+        config: GatewayConfig,
+        agent_models: list[AgentModelConfig] | None = None,
+    ) -> None:
         self._config = config
-        model_list = _build_model_list(config.model)
-
-        fallback_list = []
-        if config.model.fallback:
-            fallback_list = [{"default": ["fallback"]}]
+        model_list, fallback_list = _build_model_list(config.model, agent_models)
 
         self._router = Router(
             model_list=model_list,
@@ -284,11 +331,24 @@ class LLMClient:
 
         if agent_model:
             if agent_model.name:
-                model = agent_model.name
+                if agent_model.name == self._config.model.default:
+                    # Routes through the "default" group in the router
+                    model = None
+                else:
+                    model = agent_model.name
             if agent_model.temperature is not None:
                 temperature = agent_model.temperature
             if agent_model.max_tokens is not None:
                 max_tokens = agent_model.max_tokens
+
+        if model is not None:
+            registered = {d["model_name"] for d in self._router.model_list}
+            if model not in registered:
+                logger.warning(
+                    "Agent model '%s' is not registered in the LLM router "
+                    "— this will cause a 'no healthy deployments' error.",
+                    model,
+                )
 
         return model, temperature, max_tokens
 
@@ -318,5 +378,5 @@ class LLMClient:
 
     async def close(self) -> None:
         """Clean up resources."""
-        # Router doesn't have a close method, but we include this for future use
+        # LiteLLM Router has no background tasks requiring cleanup; kept for future use
         pass
