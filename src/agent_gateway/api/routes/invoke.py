@@ -1,13 +1,11 @@
 """Agent invocation endpoint."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
@@ -37,16 +35,12 @@ from agent_gateway.tools.runner import execute_tool
 
 _metrics = create_metrics()
 
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
-    from agent_gateway.workspace.agent import AgentDefinition
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
-def _should_queue(agent: AgentDefinition, request_async: bool) -> bool:
+def _should_queue(agent: Any, request_async: bool) -> bool:
     """Determine whether an invocation should be queued.
 
     Agent config is a floor, not a ceiling:
@@ -113,7 +107,7 @@ async def invoke_agent(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> InvokeResponse | JSONResponse:
     """Invoke an agent with a message."""
-    gw: Gateway = request.app
+    gw = request.app
 
     snapshot = gw._snapshot
     if snapshot is None or snapshot.workspace is None:
@@ -300,7 +294,7 @@ async def invoke_agent(
 
 
 async def _run_background_execution(
-    gw: Gateway,
+    gw: Any,
     agent: Any,
     body: InvokeRequest,
     execution_id: str,
