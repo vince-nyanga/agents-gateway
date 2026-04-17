@@ -37,6 +37,7 @@ class SecurityHeadersMiddleware:
             )
         self._api_csp = config.content_security_policy.encode()
         self._dashboard_csp = config.dashboard_content_security_policy.encode()
+        self._docs_csp = config.docs_content_security_policy.encode()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -48,13 +49,19 @@ class SecurityHeadersMiddleware:
         if root_path and path.startswith(root_path):
             path = path[len(root_path) :]
         is_dashboard = path.startswith("/dashboard")
+        is_docs = path in ("/docs", "/redoc", "/openapi.json")
 
         async def send_with_headers(message: MutableMapping[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers.extend(self._base_headers)
-                # Use relaxed CSP for dashboard, strict for API
-                csp = self._dashboard_csp if is_dashboard else self._api_csp
+                # Use relaxed CSP for dashboard and docs, strict for API
+                if is_dashboard:
+                    csp = self._dashboard_csp
+                elif is_docs:
+                    csp = self._docs_csp
+                else:
+                    csp = self._api_csp
                 headers.append((b"content-security-policy", csp))
                 message["headers"] = headers
             await send(message)
