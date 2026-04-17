@@ -1,9 +1,7 @@
 """Schedule management endpoints — list, pause, resume, trigger, create, delete schedules."""
 
-from __future__ import annotations
-
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
@@ -14,9 +12,6 @@ from agent_gateway.api.models import ScheduleDetailInfo, ScheduleInfo
 from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
-
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +44,7 @@ class CreateScheduleRequest(BaseModel):
 )
 async def list_schedules(request: Request) -> list[ScheduleInfo]:
     """List all registered schedules."""
-    gw: Gateway = request.app
+    gw = request.app
     schedules = await gw.list_schedules()
     return [ScheduleInfo(**s) for s in schedules]
 
@@ -74,7 +69,7 @@ async def create_schedule(
     """Create a new admin schedule."""
     from agent_gateway.exceptions import ScheduleConflictError, ScheduleValidationError
 
-    gw: Gateway = request.app
+    gw = request.app
     if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
@@ -118,7 +113,7 @@ async def get_schedule(
     schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> ScheduleDetailInfo | JSONResponse:
     """Get details of a specific schedule."""
-    gw: Gateway = request.app
+    gw = request.app
     detail = await gw.get_schedule(schedule_id)
     if detail is None:
         return not_found("schedule", schedule_id)
@@ -143,7 +138,7 @@ async def delete_schedule(
     schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Delete an admin-created schedule."""
-    gw: Gateway = request.app
+    gw = request.app
     if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
@@ -182,7 +177,7 @@ async def pause_schedule(
     schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Pause a schedule (stops future cron fires)."""
-    gw: Gateway = request.app
+    gw = request.app
     if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
@@ -209,7 +204,7 @@ async def resume_schedule(
     schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Resume a paused schedule."""
-    gw: Gateway = request.app
+    gw = request.app
     if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 
@@ -239,7 +234,7 @@ async def trigger_schedule(
     schedule_id: str = Path(..., min_length=1, max_length=256, pattern=_SCHEDULE_ID_PATTERN),
 ) -> JSONResponse:
     """Manually trigger a scheduled job (runs immediately)."""
-    gw: Gateway = request.app
+    gw = request.app
     if gw.scheduler is None:
         return error_response(404, "scheduler_not_active", "Scheduler is not active")
 

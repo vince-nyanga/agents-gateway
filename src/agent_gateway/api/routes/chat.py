@@ -1,9 +1,7 @@
 """Multi-turn chat endpoint and session management."""
 
-from __future__ import annotations
-
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -21,9 +19,6 @@ from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.api.routes.status import stop_reason_to_status
 from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import ExecutionHandle, ExecutionOptions
-
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +46,7 @@ async def chat_with_agent(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> ChatResponse | JSONResponse | StreamingResponse:
     """Send a message to an agent in a multi-turn conversation."""
-    gw: Gateway = request.app
+    gw = request.app
 
     snapshot = gw._snapshot
     if snapshot is None or snapshot.workspace is None:
@@ -134,7 +129,7 @@ async def chat_with_agent(
 
 
 def _create_streaming_response(
-    gw: Gateway,
+    gw: Any,
     agent_id: str,
     body: ChatRequest,
 ) -> StreamingResponse:
@@ -235,7 +230,7 @@ async def get_session(
     session_id: str = Path(..., min_length=1),
 ) -> SessionInfo | JSONResponse:
     """Get session details."""
-    gw: Gateway = request.app
+    gw = request.app
 
     if gw._session_store is None:
         return error_response(503, "sessions_unavailable", "Session store not initialized")
@@ -273,7 +268,7 @@ async def delete_session(
     session_id: str = Path(..., min_length=1),
 ) -> JSONResponse:
     """Delete a session."""
-    gw: Gateway = request.app
+    gw = request.app
 
     if gw._session_store is None:
         return error_response(503, "sessions_unavailable", "Session store not initialized")
@@ -308,7 +303,7 @@ async def list_sessions(
     limit: int = Query(50, ge=1, le=200),
 ) -> list[SessionInfo]:
     """List active sessions. In multi-user mode, only returns the caller's sessions."""
-    gw: Gateway = request.app
+    gw = request.app
 
     if gw._session_store is None:
         return []
@@ -349,7 +344,7 @@ async def list_conversations(
     offset: int = Query(0, ge=0),
 ) -> list[dict[str, Any]]:
     """List the caller's persisted conversations."""
-    gw: Gateway = request.app
+    gw = request.app
     auth = request.scope.get("auth")
     user_id = gw._derive_user_id(auth) if auth else None
 
@@ -391,7 +386,7 @@ async def get_conversation_messages(
     offset: int = Query(0, ge=0),
 ) -> list[dict[str, Any]] | JSONResponse:
     """Get messages from a persisted conversation."""
-    gw: Gateway = request.app
+    gw = request.app
     auth = request.scope.get("auth")
     user_id = gw._derive_user_id(auth) if auth else None
 
@@ -435,7 +430,7 @@ async def compact_agent_memory(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Trigger memory compaction for an agent. Admin operation."""
-    gw: Gateway = request.app
+    gw = request.app
 
     if gw.memory_manager is None:
         return error_response(503, "memory_unavailable", "Memory system not enabled")

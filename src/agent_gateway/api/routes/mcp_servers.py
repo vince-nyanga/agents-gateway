@@ -1,12 +1,10 @@
 """Admin CRUD endpoints for MCP server configurations."""
 
-from __future__ import annotations
-
 import json
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
@@ -62,7 +60,7 @@ class CreateMcpServerRequest(BaseModel):
     enabled: bool = True
 
     @model_validator(mode="after")
-    def _validate_transport_fields(self) -> CreateMcpServerRequest:
+    def _validate_transport_fields(self) -> Self:
         if self.transport == "stdio" and not self.command:
             raise ValueError("'command' is required for stdio transport")
         if self.transport == "streamable_http" and not self.url:
@@ -96,7 +94,7 @@ class UpdateMcpServerRequest(BaseModel):
     enabled: bool | None = None
 
     @model_validator(mode="after")
-    def _validate_transport_fields(self) -> UpdateMcpServerRequest:
+    def _validate_transport_fields(self) -> Self:
         if self.transport == "stdio" and self.url is not None:
             raise ValueError("'url' should not be set for stdio transport")
         if self.transport == "streamable_http" and self.command is not None:
