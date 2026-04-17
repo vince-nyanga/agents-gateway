@@ -1517,6 +1517,7 @@ class Gateway(FastAPI):
         content_security_policy: str = "default-src 'self'",
         referrer_policy: str = "strict-origin-when-cross-origin",
         dashboard_content_security_policy: str | None = None,
+        docs_content_security_policy: str | None = None,
     ) -> Gateway:
         """Customize security headers.
 
@@ -1541,6 +1542,8 @@ class Gateway(FastAPI):
         }
         if dashboard_content_security_policy is not None:
             kwargs["dashboard_content_security_policy"] = dashboard_content_security_policy
+        if docs_content_security_policy is not None:
+            kwargs["docs_content_security_policy"] = docs_content_security_policy
         self._pending_security_config = SecurityConfig(**kwargs)
         return self
 

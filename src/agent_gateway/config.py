@@ -302,6 +302,13 @@ class SecurityConfig(BaseModel):
         "img-src 'self' data: https://ui-avatars.com; "
         "connect-src 'self'"
     )
+    # Relaxed CSP for API docs paths (/docs, /redoc) — Swagger UI loads from CDN
+    docs_content_security_policy: str = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https://fastapi.tiangolo.com"
+    )
 
 
 class CorsConfig(BaseModel):

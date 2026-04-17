@@ -113,6 +113,43 @@ class TestSecurityHeadersDashboardCsp:
         assert "'unsafe-inline'" in csp_values[0]
 
 
+class TestSecurityHeadersDocsCsp:
+    async def test_docs_gets_relaxed_csp(self) -> None:
+        """Docs paths (/docs, /redoc) receive a relaxed CSP for Swagger UI CDN resources."""
+        from agent_gateway.api.middleware.security import SecurityHeadersMiddleware
+
+        config = SecurityConfig()
+        captured_headers: list[tuple[bytes, bytes]] = []
+
+        async def mock_app(
+            scope: dict,
+            receive: object,
+            send: object,  # noqa: ARG001
+        ) -> None:
+            assert callable(send)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+
+        async def capture_send(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                captured_headers.extend(message.get("headers", []))
+
+        mw = SecurityHeadersMiddleware(app=mock_app, config=config)
+
+        for path in ("/docs", "/redoc", "/openapi.json"):
+            captured_headers.clear()
+            await mw(
+                {"type": "http", "path": path},
+                lambda: None,  # type: ignore[arg-type,return-value]
+                capture_send,
+            )
+            csp_values = [
+                v.decode() for k, v in captured_headers if k == b"content-security-policy"
+            ]
+            assert len(csp_values) == 1, f"Expected 1 CSP header for {path}"
+            assert "cdn.jsdelivr.net" in csp_values[0], f"Docs CSP missing jsdelivr for {path}"
+            assert "'unsafe-inline'" in csp_values[0], f"Docs CSP missing unsafe-inline for {path}"
+
+
 class TestUseSecurityHeadersApi:
     def test_returns_self(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False)
