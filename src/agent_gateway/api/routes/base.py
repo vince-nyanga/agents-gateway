@@ -1,6 +1,5 @@
 """Custom APIRoute subclass for agent gateway endpoints."""
 
-
 import time
 import uuid
 from collections.abc import Callable, Coroutine
