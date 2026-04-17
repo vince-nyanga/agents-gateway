@@ -1,7 +1,5 @@
 """Shared status mapping utilities for API routes."""
 
-from __future__ import annotations
-
 from agent_gateway.engine.models import ExecutionStatus, StopReason
 
 

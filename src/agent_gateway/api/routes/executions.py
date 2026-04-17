@@ -1,9 +1,5 @@
 """Execution history and control endpoints."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
@@ -15,9 +11,6 @@ from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import ExecutionStatus
 from agent_gateway.persistence.domain import ExecutionRecord
 from agent_gateway.queue.null import NullQueue
-
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
 
 _TERMINAL_STATUSES = frozenset(
     {
@@ -66,7 +59,7 @@ async def get_execution(
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> ExecutionResponse | JSONResponse:
     """Get execution details by ID."""
-    gw: Gateway = request.app
+    gw = request.app
 
     record = await gw._execution_repo.get(execution_id)
     if record is None:
@@ -94,7 +87,7 @@ async def list_executions(
     limit: int = Query(50, ge=1, le=500, description="Max results"),
 ) -> list[ExecutionResponse]:
     """List executions, optionally filtered by agent, session, or delegation tree."""
-    gw: Gateway = request.app
+    gw = request.app
 
     if root_execution_id:
         records = await gw._execution_repo.list_by_root_execution(root_execution_id)
@@ -126,7 +119,7 @@ async def get_execution_workflow(
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> list[ExecutionResponse] | JSONResponse:
     """Get the full delegation workflow tree for an execution."""
-    gw: Gateway = request.app
+    gw = request.app
 
     record = await gw._execution_repo.get(execution_id)
     if record is None:
@@ -156,7 +149,7 @@ async def cancel_execution(
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Cancel a running or queued execution."""
-    gw: Gateway = request.app
+    gw = request.app
 
     # 1. Try in-memory handle (sync execution or same-process worker)
     handle = gw._execution_handles.get(execution_id)

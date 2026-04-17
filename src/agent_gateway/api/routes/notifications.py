@@ -1,9 +1,5 @@
 """Notification delivery log endpoints."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 from fastapi import APIRouter, Depends, Query, Request
 
 from agent_gateway.api.models import (
@@ -12,9 +8,6 @@ from agent_gateway.api.models import (
 )
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
-
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
@@ -36,7 +29,7 @@ async def list_notifications(
     limit: int = Query(50, ge=1, le=200, description="Max records to return."),
     offset: int = Query(0, ge=0, description="Offset for pagination."),
 ) -> NotificationDeliveryListResponse:
-    gw: Gateway = request.app
+    gw = request.app
     repo = gw._notification_repo
 
     records = await repo.list_recent(

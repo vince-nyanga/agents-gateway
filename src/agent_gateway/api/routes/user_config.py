@@ -1,10 +1,8 @@
 """Per-user agent configuration CRUD endpoints."""
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
@@ -14,15 +12,12 @@ from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
-def _get_user_id(request: Request, gw: Gateway) -> str | None:
+def _get_user_id(request: Request, gw: Any) -> str | None:
     """Extract user_id from auth context."""
     auth = request.scope.get("auth")
     return gw._derive_user_id(auth) if auth else None
@@ -41,7 +36,7 @@ async def get_setup_schema(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Get the setup schema for a personal agent."""
-    gw: Gateway = request.app
+    gw = request.app
 
     snapshot = gw._snapshot
     if snapshot is None or snapshot.workspace is None:
@@ -80,7 +75,7 @@ async def save_user_config(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Save user's configuration for a personal agent."""
-    gw: Gateway = request.app
+    gw = request.app
 
     user_id = _get_user_id(request, gw)
     if user_id is None:
@@ -174,7 +169,7 @@ async def get_user_config(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Get user's config for an agent (secrets redacted)."""
-    gw: Gateway = request.app
+    gw = request.app
 
     user_id = _get_user_id(request, gw)
     if user_id is None:
@@ -215,7 +210,7 @@ async def delete_user_config(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
 ) -> JSONResponse:
     """Delete user's config for an agent."""
-    gw: Gateway = request.app
+    gw = request.app
 
     user_id = _get_user_id(request, gw)
     if user_id is None:

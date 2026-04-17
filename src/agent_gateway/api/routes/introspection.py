@@ -1,9 +1,7 @@
 """Introspection endpoints — list agents, skills, tools, and trigger reload."""
 
-from __future__ import annotations
-
 import logging
-from typing import TYPE_CHECKING
+from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
@@ -20,10 +18,6 @@ from agent_gateway.api.openapi import build_responses
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
-if TYPE_CHECKING:
-    from agent_gateway.gateway import Gateway
-    from agent_gateway.workspace.agent import AgentDefinition
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
@@ -31,7 +25,7 @@ router = APIRouter(route_class=GatewayAPIRoute)
 _ID_PATTERN = r"^[a-zA-Z0-9_.-]+$"
 
 
-def _build_notification_config(agent: AgentDefinition) -> NotificationConfigInfo | None:
+def _build_notification_config(agent: Any) -> NotificationConfigInfo | None:
     """Build notification config info for introspection, or None if unconfigured."""
     cfg = agent.notifications
     if not cfg.on_complete and not cfg.on_error and not cfg.on_timeout:
@@ -60,7 +54,7 @@ def _build_notification_config(agent: AgentDefinition) -> NotificationConfigInfo
 )
 async def list_agents(request: Request) -> list[AgentInfo]:
     """List all discovered agents."""
-    gw: Gateway = request.app
+    gw = request.app
     ws = gw.workspace
     if ws is None:
         return []
@@ -102,7 +96,7 @@ async def get_agent(
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
 ) -> AgentInfo | JSONResponse:
     """Get details of a specific agent."""
-    gw: Gateway = request.app
+    gw = request.app
     ws = gw.workspace
     if ws is None:
         return not_found("agent", agent_id)
@@ -141,7 +135,7 @@ async def get_agent(
 )
 async def list_skills(request: Request) -> list[SkillInfo]:
     """List all discovered skills."""
-    gw: Gateway = request.app
+    gw = request.app
     ws = gw.workspace
     if ws is None:
         return []
@@ -173,7 +167,7 @@ async def get_skill(
     skill_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
 ) -> SkillInfo | JSONResponse:
     """Get details of a specific skill."""
-    gw: Gateway = request.app
+    gw = request.app
     ws = gw.workspace
     if ws is None:
         return not_found("skill", skill_id)
@@ -203,7 +197,7 @@ async def get_skill(
 )
 async def list_tools(request: Request) -> list[ToolInfo]:
     """List all registered tools (file-based + code-based)."""
-    gw: Gateway = request.app
+    gw = request.app
     reg = gw.tool_registry
     if reg is None:
         return []
@@ -233,7 +227,7 @@ async def get_tool(
     tool_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
 ) -> ToolInfo | JSONResponse:
     """Get details of a specific tool."""
-    gw: Gateway = request.app
+    gw = request.app
     reg = gw.tool_registry
     if reg is None:
         return not_found("tool", tool_id)
@@ -262,7 +256,7 @@ async def get_tool(
 )
 async def reload_workspace(request: Request) -> JSONResponse:
     """Re-scan workspace and reload all definitions."""
-    gw: Gateway = request.app
+    gw = request.app
 
     if not gw._reload_enabled:
         return error_response(403, "reload_disabled", "Workspace reload is disabled")
