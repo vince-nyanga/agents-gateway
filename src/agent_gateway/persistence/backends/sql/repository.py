@@ -114,7 +114,7 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             stmt = (
                 select(ExecutionRecord)
-                .where(ExecutionRecord.agent_id == agent_id)  # type: ignore[arg-type]
+                .where(ExecutionRecord.agent_id == agent_id)  # type: ignore[arg-type, misc]
                 .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
                 .limit(limit)
             )
@@ -132,8 +132,8 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             stmt = (
                 select(ExecutionRecord)
-                .where(ExecutionRecord.id == execution_id)  # type: ignore[arg-type]
-                .options(selectinload(ExecutionRecord.steps))  # type: ignore[arg-type]
+                .where(ExecutionRecord.id == execution_id)  # type: ignore[arg-type, misc]
+                .options(selectinload(ExecutionRecord.steps))  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -159,11 +159,11 @@ class ExecutionRepository:
             )
             if agent_id is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]
+                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
                 )
             if status is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.status == status  # type: ignore[arg-type]
+                    ExecutionRecord.status == status  # type: ignore[arg-type, misc]
                 )
             if since is not None:
                 stmt = stmt.where(
@@ -175,17 +175,17 @@ class ExecutionRepository:
                 )
             if session_id is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
+                    ExecutionRecord.session_id == session_id  # type: ignore[arg-type, misc]
                 )
             if schedule_id is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.schedule_id == schedule_id  # type: ignore[arg-type]
+                    ExecutionRecord.schedule_id == schedule_id  # type: ignore[arg-type, misc]
                 )
             if search is not None:
                 like_pattern = f"%{search}%"
                 stmt = stmt.where(
                     (ExecutionRecord.message.ilike(like_pattern))  # type: ignore[attr-defined]
-                    | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined]
+                    | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined, misc]
                     | (ExecutionRecord.session_id.like(like_pattern))  # type: ignore[union-attr]
                     | (ExecutionRecord.error.ilike(like_pattern))  # type: ignore[union-attr]
                 )
@@ -220,15 +220,15 @@ class ExecutionRepository:
             stmt = select(func.count()).select_from(ExecutionRecord)
             if schedule_id is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.schedule_id == schedule_id  # type: ignore[arg-type]
+                    ExecutionRecord.schedule_id == schedule_id  # type: ignore[arg-type, misc]
                 )
             if agent_id is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]
+                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
                 )
             if status is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.status == status  # type: ignore[arg-type]
+                    ExecutionRecord.status == status  # type: ignore[arg-type, misc]
                 )
             if since is not None:
                 stmt = stmt.where(
@@ -240,13 +240,13 @@ class ExecutionRepository:
                 )
             if session_id is not None:
                 stmt = stmt.where(
-                    ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
+                    ExecutionRecord.session_id == session_id  # type: ignore[arg-type, misc]
                 )
             if search is not None:
                 like_pattern = f"%{search}%"
                 stmt = stmt.where(
                     (ExecutionRecord.message.ilike(like_pattern))  # type: ignore[attr-defined]
-                    | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined]
+                    | (ExecutionRecord.id.like(like_pattern))  # type: ignore[attr-defined, misc]
                     | (ExecutionRecord.session_id.like(like_pattern))  # type: ignore[union-attr]
                     | (ExecutionRecord.error.ilike(like_pattern))  # type: ignore[union-attr]
                 )
@@ -273,12 +273,12 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             stmt = (
                 select(ExecutionRecord)
-                .where(ExecutionRecord.session_id == session_id)  # type: ignore[arg-type]
+                .where(ExecutionRecord.session_id == session_id)  # type: ignore[arg-type, misc]
                 .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
                 .limit(limit)
             )
             if user_id is not None:
-                stmt = stmt.where(ExecutionRecord.user_id == user_id)  # type: ignore[arg-type]
+                stmt = stmt.where(ExecutionRecord.user_id == user_id)  # type: ignore[arg-type, misc]
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
@@ -357,11 +357,11 @@ class ExecutionRepository:
             stmt = (
                 select(ExecutionRecord)
                 .where(
-                    ExecutionRecord.root_execution_id == root_execution_id  # type: ignore[arg-type]
+                    ExecutionRecord.root_execution_id == root_execution_id  # type: ignore[arg-type, misc]
                 )
                 .order_by(
-                    ExecutionRecord.delegation_depth,  # type: ignore[arg-type]
-                    ExecutionRecord.created_at,  # type: ignore[arg-type]
+                    ExecutionRecord.delegation_depth,  # type: ignore[arg-type, misc]
+                    ExecutionRecord.created_at,  # type: ignore[arg-type, misc]
                 )
             )
             result = await session.execute(stmt)
@@ -387,9 +387,9 @@ class ExecutionRepository:
             stmt = (
                 select(ExecutionRecord)
                 .where(
-                    ExecutionRecord.parent_execution_id == parent_execution_id  # type: ignore[arg-type]
+                    ExecutionRecord.parent_execution_id == parent_execution_id  # type: ignore[arg-type, misc]
                 )
-                .order_by(ExecutionRecord.created_at)  # type: ignore[arg-type]
+                .order_by(ExecutionRecord.created_at)  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -608,9 +608,9 @@ class ScheduleRepository:
             )
             if agent_id is not None:
                 stmt = stmt.where(
-                    ScheduleRecord.agent_id == agent_id  # type: ignore[arg-type]
+                    ScheduleRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
                 )
-            stmt = stmt.order_by(ScheduleRecord.created_at)  # type: ignore[arg-type]
+            stmt = stmt.order_by(ScheduleRecord.created_at)  # type: ignore[arg-type, misc]
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
@@ -779,7 +779,7 @@ class ConversationRepository:
             stmt = (
                 select(ConversationRecord)
                 .where(
-                    ConversationRecord.user_id == user_id  # type: ignore[arg-type]
+                    ConversationRecord.user_id == user_id  # type: ignore[arg-type, misc]
                 )
                 .order_by(
                     ConversationRecord.updated_at.desc()  # type: ignore[union-attr]
@@ -787,7 +787,7 @@ class ConversationRepository:
             )
             if agent_id is not None:
                 stmt = stmt.where(
-                    ConversationRecord.agent_id == agent_id  # type: ignore[arg-type]
+                    ConversationRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
                 )
             stmt = stmt.limit(limit).offset(offset)
             result = await session.execute(stmt)
@@ -823,10 +823,10 @@ class ConversationRepository:
             stmt = (
                 select(ConversationMessage)
                 .where(
-                    ConversationMessage.conversation_id == conversation_id  # type: ignore[arg-type]
+                    ConversationMessage.conversation_id == conversation_id  # type: ignore[arg-type, misc]
                 )
                 .order_by(
-                    ConversationMessage.created_at  # type: ignore[arg-type]
+                    ConversationMessage.created_at  # type: ignore[arg-type, misc]
                 )
                 .limit(limit)
                 .offset(offset)
@@ -893,7 +893,7 @@ class UserAgentConfigRepository:
         """List all configs for a user."""
         async with self._session_factory() as session:
             stmt = select(UserAgentConfig).where(
-                UserAgentConfig.user_id == user_id  # type: ignore[arg-type]
+                UserAgentConfig.user_id == user_id  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -902,7 +902,7 @@ class UserAgentConfigRepository:
         """List all user configs for an agent."""
         async with self._session_factory() as session:
             stmt = select(UserAgentConfig).where(
-                UserAgentConfig.agent_id == agent_id  # type: ignore[arg-type]
+                UserAgentConfig.agent_id == agent_id  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -926,7 +926,7 @@ class UserScheduleRepository:
     async def list_by_user(self, user_id: str) -> list[UserScheduleRecord]:
         async with self._session_factory() as session:
             stmt = select(UserScheduleRecord).where(
-                UserScheduleRecord.user_id == user_id  # type: ignore[arg-type]
+                UserScheduleRecord.user_id == user_id  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -1061,7 +1061,7 @@ class McpServerRepository:
         """List all MCP server configurations."""
         async with self._session_factory() as session:
             stmt = select(McpServerConfig).order_by(
-                McpServerConfig.created_at  # type: ignore[arg-type]
+                McpServerConfig.created_at  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -1070,7 +1070,7 @@ class McpServerRepository:
         """Fetch an MCP server config by unique name."""
         async with self._session_factory() as session:
             stmt = select(McpServerConfig).where(
-                McpServerConfig.name == name  # type: ignore[arg-type]
+                McpServerConfig.name == name  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
@@ -1116,8 +1116,8 @@ class McpServerRepository:
         async with self._session_factory() as session:
             stmt = (
                 select(McpServerConfig)
-                .where(McpServerConfig.enabled == True)  # type: ignore[arg-type]  # noqa: E712
-                .order_by(McpServerConfig.created_at)  # type: ignore[arg-type]
+                .where(McpServerConfig.enabled == True)  # type: ignore[arg-type, misc]  # noqa: E712
+                .order_by(McpServerConfig.created_at)  # type: ignore[arg-type, misc]
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())

@@ -67,7 +67,7 @@ class SqlMemoryRepository:
         """List memories with optional user/type filters."""
         async with self._session_factory() as session:
             stmt = select(MemoryRecord).where(
-                MemoryRecord.agent_id == agent_id  # type: ignore[arg-type]
+                MemoryRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
             )
 
             stmt = self._apply_user_filter(stmt, user_id, include_global)
@@ -134,11 +134,11 @@ class SqlMemoryRepository:
         """Delete all memories for an agent (optionally scoped to user)."""
         async with self._session_factory() as session:
             stmt = select(MemoryRecord).where(
-                MemoryRecord.agent_id == agent_id  # type: ignore[arg-type]
+                MemoryRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
             )
             if user_id is not None:
                 stmt = stmt.where(
-                    MemoryRecord.user_id == user_id  # type: ignore[arg-type]
+                    MemoryRecord.user_id == user_id  # type: ignore[arg-type, misc]
                 )
             result = await session.execute(stmt)
             records = list(result.scalars().all())
@@ -154,12 +154,12 @@ class SqlMemoryRepository:
                 select(func.count())
                 .select_from(MemoryRecord)
                 .where(
-                    MemoryRecord.agent_id == agent_id  # type: ignore[arg-type]
+                    MemoryRecord.agent_id == agent_id  # type: ignore[arg-type, misc]
                 )
             )
             if user_id is not None:
                 stmt = stmt.where(
-                    MemoryRecord.user_id == user_id  # type: ignore[arg-type]
+                    MemoryRecord.user_id == user_id  # type: ignore[arg-type, misc]
                 )
             result = await session.execute(stmt)
             return result.scalar_one()
@@ -176,7 +176,7 @@ class SqlMemoryRepository:
             # Both user-specific and global
             stmt = stmt.where(
                 or_(
-                    MemoryRecord.user_id == user_id,  # type: ignore[arg-type]
+                    MemoryRecord.user_id == user_id,  # type: ignore[arg-type, misc]
                     MemoryRecord.user_id.is_(None),  # type: ignore[union-attr]
                 )
             )

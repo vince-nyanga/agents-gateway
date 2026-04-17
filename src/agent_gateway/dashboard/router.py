@@ -1785,9 +1785,9 @@ def register_dashboard(
             logger.warning("Failed to load MCP servers for dashboard", exc_info=True)
 
         return templates.TemplateResponse(
-            "dashboard/mcp_servers.html",
-            {
-                "request": request,
+            request=request,
+            name="dashboard/mcp_servers.html",
+            context={
                 "active_page": "mcp_servers",
                 "current_user": current_user,
                 "servers": servers,
@@ -1839,9 +1839,9 @@ def register_dashboard(
             except Exception:
                 logger.warning("Failed to load MCP servers for dashboard", exc_info=True)
             return templates.TemplateResponse(
-                "dashboard/mcp_servers.html",
-                {
-                    "request": request,
+                request=request,
+                name="dashboard/mcp_servers.html",
+                context={
                     "active_page": "mcp_servers",
                     "current_user": current_user,
                     "servers": servers,
