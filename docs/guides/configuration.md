@@ -29,7 +29,7 @@ Default LLM settings used by all agents unless overridden in `AGENT.md`:
 model:
   default: "gpt-4o-mini"  # LiteLLM model identifier
   temperature: 0.1         # Sampling temperature (default: 0.1)
-  max_tokens: 4096         # Maximum output tokens (default: 4096)
+  max_tokens: 50000        # Maximum output tokens (default: 50000)
   fallback: null           # Fallback model if primary fails (default: none)
 ```
 

@@ -40,7 +40,7 @@ class TestModelConfig:
     def test_defaults(self) -> None:
         config = GatewayConfig()
         assert config.model.temperature == 0.1
-        assert config.model.max_tokens == 4096
+        assert config.model.max_tokens == 50_000
         assert config.model.fallback is None
 
 
