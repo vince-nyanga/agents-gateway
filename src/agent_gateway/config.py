@@ -79,7 +79,7 @@ class ServerConfig(BaseModel):
 class ModelConfig(BaseModel):
     default: str = "gemini/gemini-2.5-flash"
     temperature: float = 0.1
-    max_tokens: int = 4096
+    max_tokens: int = 50_000
     fallback: str | None = None
 
 

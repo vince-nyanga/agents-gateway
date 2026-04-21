@@ -208,9 +208,18 @@ class WorkerPool:
         handle = ExecutionHandle(job.execution_id)
         gw._execution_handles[job.execution_id] = handle
 
+        # Precedence: explicit job.output_schema > agent.output_schema > None.
+        # Scheduled agent runs (cron fires) don't set job.output_schema, so
+        # this fall-back is how they inherit their frontmatter schema.
+        # Pydantic classes registered via gw.set_output_schema() live on the
+        # agent as _pydantic_output_model — prefer that over the derived dict
+        # for stricter validation.
+        effective_output_schema: Any = job.output_schema
+        if effective_output_schema is None:
+            effective_output_schema = agent._pydantic_output_model or agent.output_schema
         exec_options = ExecutionOptions(
             timeout_ms=job.timeout_ms,
-            output_schema=job.output_schema,
+            output_schema=effective_output_schema,
         )
 
         start = time.monotonic()

@@ -133,6 +133,7 @@ class Gateway(FastAPI):
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
         self._pending_input_schemas: dict[str, dict[str, Any] | type] = {}
+        self._pending_output_schemas: dict[str, dict[str, Any] | type] = {}
         self._pending_retrievers: dict[str, ContextRetriever] = {}
         self._retriever_registry: RetrieverRegistry | None = None
         self._hooks = HookRegistry()
@@ -684,8 +685,9 @@ class Gateway(FastAPI):
                 len(workspace.agents),
             )
 
-        # 7.5. Apply code-registered input schemas (overrides frontmatter)
+        # 7.5. Apply code-registered input / output schemas (overrides frontmatter)
         self._apply_pending_input_schemas(workspace)
+        self._apply_pending_output_schemas(workspace)
 
         # 8. Atomic snapshot
         self._snapshot = WorkspaceSnapshot(
@@ -1947,6 +1949,32 @@ class Gateway(FastAPI):
             json_schema, _ = resolve_input_schema(schema)
             agent.input_schema = json_schema
 
+    def _apply_pending_output_schemas(self, workspace: WorkspaceState) -> None:
+        """Apply code-registered output schemas to workspace agents.
+
+        Invoked twice: once from the initial ``_startup()`` pass and again
+        on every hot-reload. Must be called at BOTH sites; otherwise a
+        reloaded workspace silently drops any Pydantic models registered
+        via ``gw.set_output_schema()``.
+        """
+        if not self._pending_output_schemas:
+            return
+
+        from agent_gateway.engine.output import resolve_schema
+
+        for agent_id, schema in self._pending_output_schemas.items():
+            agent = workspace.agents.get(agent_id)
+            if agent is None:
+                logger.warning(
+                    "set_output_schema: agent '%s' not found in workspace, skipping",
+                    agent_id,
+                )
+                continue
+            json_schema, model_cls = resolve_schema(schema)
+            # Code-registered schemas override frontmatter values.
+            agent.output_schema = json_schema
+            agent._pydantic_output_model = model_cls
+
     def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
         """Create a backend from YAML/env configuration (backward compat)."""
         if config.backend == "sqlite":
@@ -2221,8 +2249,9 @@ class Gateway(FastAPI):
                 delegation_tool = self._build_delegation_tool(new_workspace)
                 new_registry.register_code_tool(delegation_tool)
 
-            # Re-apply code-registered input schemas
+            # Re-apply code-registered input / output schemas
             self._apply_pending_input_schemas(new_workspace)
+            self._apply_pending_output_schemas(new_workspace)
 
             # Single atomic reference swap
             self._snapshot = WorkspaceSnapshot(
@@ -2663,6 +2692,16 @@ class Gateway(FastAPI):
                     errors=errors,
                 )
 
+        # Merge the agent's output_schema into ExecutionOptions.
+        # Precedence: caller-provided options.output_schema wins; otherwise
+        # fall back to the Pydantic class (stricter) or the frontmatter dict.
+        # Scheduled runs reach this code via _invoke_fn and therefore also
+        # pick up the agent's declared schema automatically.
+        if options is None:
+            options = ExecutionOptions()
+        if options.output_schema is None:
+            options.output_schema = agent._pydantic_output_model or agent.output_schema
+
         # Load per-user agent config for personal agents
         user_id = self._derive_user_id(auth) if auth else None
         user_instructions: str | None = None
@@ -2897,6 +2936,10 @@ class Gateway(FastAPI):
             self._execution_handles[execution_id] = handle
 
             start = time.monotonic()
+            # Chat is intentionally NOT merged with agent.output_schema here.
+            # Chat returns free-text conversational output; structured output
+            # only applies on the invoke / scheduled-execution paths. See
+            # docs/plans/2026-04-20-feat-agent-output-schema-plan.md.
             try:
                 result = await snapshot.engine.execute(
                     agent=agent,
@@ -3279,6 +3322,36 @@ class Gateway(FastAPI):
             gw.set_input_schema("underwriting", DealInput)
         """
         self._pending_input_schemas[agent_id] = schema
+
+    def set_output_schema(
+        self,
+        agent_id: str,
+        schema: dict[str, Any] | type,
+    ) -> None:
+        """Set the output schema for an agent programmatically.
+
+        Accepts either a JSON Schema dict or a Pydantic ``BaseModel`` class.
+        A Pydantic class enables stricter validation (full field-level errors
+        via ``model_validate``) and lets ``result.output`` come back as an
+        instance of your model class. A plain dict validates via
+        ``jsonschema`` and ``result.output`` is a dict.
+
+        Call before ``startup()`` / ``async with gw``. Code-registered
+        schemas override any ``output_schema:`` declared in ``AGENT.md``
+        frontmatter. If the referenced agent is unknown at workspace-load
+        time, a warning is logged and the call is a no-op.
+
+        Usage::
+
+            from pydantic import BaseModel
+
+            class ResumeExtraction(BaseModel):
+                full_name: str
+                years_experience: int
+
+            gw.set_output_schema("resume-parser", ResumeExtraction)
+        """
+        self._pending_output_schemas[agent_id] = schema
 
     def on(self, event: str) -> Callable[..., Any]:
         """Register a lifecycle hook callback.

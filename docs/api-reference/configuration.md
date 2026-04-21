@@ -72,7 +72,7 @@ Env prefix: `AGENT_GATEWAY_MODEL__`
 |-------|------|---------|-------------|
 | `default` | `str` | `"gpt-4o-mini"` | Default model identifier (any LiteLLM model string). |
 | `temperature` | `float` | `0.1` | Sampling temperature (0.0–2.0). |
-| `max_tokens` | `int` | `4096` | Maximum output tokens per LLM call. |
+| `max_tokens` | `int` | `50000` | Maximum output tokens per LLM call. |
 | `fallback` | `str \| None` | `None` | Model to fall back to on primary model failure. |
 
 ---

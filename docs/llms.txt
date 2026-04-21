@@ -94,6 +94,17 @@ setup_schema:
       sensitive: true
 ```
 
+Agents can declare an `output_schema` in AGENT.md frontmatter. When set, every `invoke` and scheduled run automatically constrains the LLM to return JSON matching the schema and validates the response. Callers can override per-request via `options.output_schema`. Chat endpoints are exempt — they always return free text. Register Pydantic models at runtime via `gw.set_output_schema(agent_id, ModelClass)`; code registration overrides frontmatter.
+
+```yaml
+output_schema:
+  type: object
+  properties:
+    summary: { type: string }
+    score: { type: number }
+  required: [summary]
+```
+
 API: `POST /v1/agents/{id}/config` to save user config, `GET /v1/agents/{id}/setup-schema` for schema. Fields marked `sensitive: true` are encrypted at rest. Requires `AGENT_GATEWAY_SECRET_KEY` env var.
 
 ### Tools
@@ -223,7 +234,7 @@ server:
 model:
   default: "gemini/gemini-2.0-flash"
   temperature: 0.1
-  max_tokens: 4096
+  max_tokens: 50000
 
 auth:
   enabled: true

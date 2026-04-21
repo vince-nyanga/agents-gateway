@@ -5,10 +5,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent_gateway.notifications.models import AgentNotificationConfig, NotificationTarget
 from agent_gateway.workspace.parser import parse_markdown_file
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,13 @@ class AgentDefinition:
     execution_mode: str = "sync"  # "sync" | "async"
     notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
     input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    # Internal: holds a programmatically-registered Pydantic class for output
+    # validation. Populated by Gateway._apply_pending_output_schemas when
+    # gw.set_output_schema() is called with a BaseModel class. Kept separate
+    # from output_schema (which is always the resolved JSON Schema dict) so
+    # introspection still works for Pydantic-registered agents.
+    _pydantic_output_model: type[BaseModel] | None = field(default=None, repr=False)
 
     # Delegation: list of agent IDs this agent can delegate to
     delegates_to: list[str] = field(default_factory=list)
@@ -165,6 +175,7 @@ class AgentDefinition:
         notifications = _parse_notification_config(raw_notif, agent_dir)
 
         input_schema = _parse_input_schema(agent_meta.get("input_schema"), agent_dir)
+        output_schema = _parse_output_schema(agent_meta.get("output_schema"), agent_dir)
 
         # Validate schedule contexts against input_schema at load time
         if input_schema:
@@ -232,6 +243,7 @@ class AgentDefinition:
             execution_mode=execution_mode,
             notifications=notifications,
             input_schema=input_schema,
+            output_schema=output_schema,
             context_content=context_content,
             retrievers=retrievers,
             memory_config=memory_config,
@@ -351,6 +363,37 @@ def _parse_input_schema(
     except jsonschema.SchemaError as e:
         logger.warning(
             "Invalid JSON Schema in input_schema for %s: %s, ignoring",
+            agent_dir,
+            e.message,
+        )
+        return None
+
+    return raw
+
+
+def _parse_output_schema(
+    raw: Any,
+    agent_dir: Path,
+) -> dict[str, Any] | None:
+    """Parse and validate an output_schema from agent frontmatter.
+
+    Returns the schema dict if valid, None otherwise. Invalid schemas are
+    logged as warnings rather than raised — matches ``_parse_input_schema``
+    behaviour so one bad schema cannot crash the whole loader.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        logger.warning("Invalid output_schema (not a dict) in %s, ignoring", agent_dir)
+        return None
+
+    import jsonschema
+
+    try:
+        jsonschema.Draft202012Validator.check_schema(raw)
+    except jsonschema.SchemaError as e:
+        logger.warning(
+            "Invalid JSON Schema in output_schema for %s: %s, ignoring",
             agent_dir,
             e.message,
         )

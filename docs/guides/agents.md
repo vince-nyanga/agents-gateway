@@ -166,6 +166,30 @@ input_schema:
 
 The gateway validates incoming requests against this schema and returns a 422 error for invalid input. Schedule inputs are also validated against this schema at startup.
 
+### Output schema
+
+Declare the structured output an agent produces using a [JSON Schema](https://json-schema.org/) object. When set, every `invoke` call (HTTP or programmatic) and every scheduled run automatically instructs the LLM to emit JSON matching the schema, and validates the response before returning. Callers can still override on a per-request basis via `options.output_schema`.
+
+```yaml
+output_schema:
+  type: object
+  properties:
+    summary:
+      type: string
+    key_metrics:
+      type: array
+      items:
+        type: object
+        properties:
+          name: { type: string }
+          value: { type: number }
+        required: [name, value]
+  required: [summary, key_metrics]
+  additionalProperties: false
+```
+
+When `output_schema` is set, `GET /v1/agents/{id}` returns the JSON Schema so clients and other agents can discover the contract. Chat endpoints are intentionally exempt — chat always returns free text even when the agent has an `output_schema`. See the [structured output guide](structured-output.md) for full precedence rules and a Pydantic-model example.
+
 ### Retrievers
 
 Reference named context retrievers registered in your application code:

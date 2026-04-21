@@ -73,6 +73,7 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             execution_mode=agent.execution_mode,
             notifications=_build_notification_config(agent),
             input_schema=agent.input_schema,
+            output_schema=agent.output_schema,
             retrievers=agent.retrievers,
             context_file_count=len(agent.context_content),
             memory_enabled=bool(agent.memory_config and agent.memory_config.enabled),
@@ -118,8 +119,10 @@ async def get_agent(
         execution_mode=agent.execution_mode,
         notifications=_build_notification_config(agent),
         input_schema=agent.input_schema,
+        output_schema=agent.output_schema,
         retrievers=agent.retrievers,
         context_file_count=len(agent.context_content),
+        memory_enabled=bool(agent.memory_config and agent.memory_config.enabled),
         enabled=agent.enabled,
     )
 

@@ -150,12 +150,19 @@ async def invoke_agent(
             "Streaming is not available for async agents. Use polling or callbacks.",
         )
 
-    # Build execution options
+    # Build execution options.
+    # Precedence for output_schema: per-call option > agent frontmatter (or
+    # programmatic Pydantic model) > None. Prefer the Pydantic class over the
+    # derived dict when both are present so the executor uses stricter
+    # Pydantic validation.
+    effective_output_schema = body.options.output_schema or (
+        agent._pydantic_output_model or agent.output_schema
+    )
     exec_options = ExecutionOptions(
         async_execution=should_queue,
         timeout_ms=body.options.timeout_ms,
         stream=body.options.stream,
-        output_schema=body.options.output_schema,
+        output_schema=effective_output_schema,
     )
 
     # Derive user_id from auth context (before creating execution record)
@@ -188,12 +195,23 @@ async def invoke_agent(
             gw._background_tasks.add(task)
             task.add_done_callback(gw._background_tasks.discard)
         else:
+            # For queued execution the schema must be JSON-serialisable, so
+            # only propagate the dict form. Pydantic classes registered via
+            # gw.set_output_schema() are not queueable — sync/direct paths
+            # still use the class, and agents with frontmatter schemas are
+            # unaffected.
+            queued_output_schema = (
+                body.options.output_schema
+                if isinstance(body.options.output_schema, dict)
+                else None
+            ) or agent.output_schema
             job = ExecutionJob(
                 execution_id=execution_id,
                 agent_id=agent_id,
                 message=body.message,
                 input=body.input or None,
                 timeout_ms=body.options.timeout_ms,
+                output_schema=queued_output_schema,
                 enqueued_at=datetime.now(UTC).isoformat(),
             )
             await gw._queue.enqueue(job)
