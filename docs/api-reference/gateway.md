@@ -865,3 +865,25 @@ class AnalysisInput(BaseModel):
 
 gw.set_input_schema("financial-analyst", AnalysisInput)
 ```
+
+### `gw.set_output_schema`
+
+```python
+def set_output_schema(agent_id: str, schema: dict[str, Any] | type) -> None
+```
+
+Set the output schema for an agent programmatically. Accepts a JSON Schema dict or a Pydantic `BaseModel` class. A Pydantic class enables stricter validation via `model_validate` and makes `result.output` an instance of that model; a plain dict is validated via `jsonschema` and `result.output` comes back as a dict.
+
+Call before `startup()` / `async with gw`. Code-registered schemas override any `output_schema:` declared in `AGENT.md` frontmatter. The pending registration is re-applied on every workspace hot-reload, so it survives a `POST /v1/reload`. If the referenced agent is unknown at workspace-load time, a warning is logged and the call is a no-op.
+
+```python
+from pydantic import BaseModel
+
+class ResumeExtraction(BaseModel):
+    full_name: str
+    years_experience: int
+
+gw.set_output_schema("resume-parser", ResumeExtraction)
+```
+
+Precedence at invocation time is `options.output_schema` > `gw.set_output_schema(...)` > frontmatter `output_schema:` > no schema. Chat endpoints are intentionally exempt from this merge — structured output is only enforced on `invoke` and scheduled-execution paths. See the [structured output guide](../guides/structured-output.md).

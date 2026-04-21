@@ -81,6 +81,10 @@ async def chat_with_agent(
             message=body.message,
             session_id=body.session_id,
             input=body.input or None,
+            # Chat is intentionally excluded from structured-output enforcement.
+            # Even if the agent declares an output_schema in AGENT.md, chat
+            # endpoints return free-text conversational output. See
+            # docs/plans/2026-04-20-feat-agent-output-schema-plan.md.
             options=ExecutionOptions(timeout_ms=body.options.timeout_ms),
             auth=auth,
         )
@@ -181,6 +185,10 @@ def _create_streaming_response(
             *session.messages,
         ]
 
+        # Chat streaming does NOT apply the agent's output_schema. Structured
+        # output is only enforced on invoke / scheduled-execution paths; chat
+        # stays free-text. See
+        # docs/plans/2026-04-20-feat-agent-output-schema-plan.md.
         exec_options = ExecutionOptions(timeout_ms=body.options.timeout_ms)
         import uuid
 

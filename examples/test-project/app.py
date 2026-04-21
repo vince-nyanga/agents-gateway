@@ -570,6 +570,29 @@ class MathResult(BaseModel):
     explanation: str
 
 
+# --- Programmatic output schema registration ---
+# `data-analyst` declares its output_schema inline in AGENT.md, but you can
+# also bind a Pydantic model to an agent at startup via set_output_schema().
+# Code-registered schemas override any frontmatter schema on the same agent
+# and give you a typed model instance in result.output. Calls that pass a
+# schema via ExecutionOptions still win over both.
+
+
+class ResearchBrief(BaseModel):
+    """Structured output for the researcher agent."""
+
+    title: str
+    summary: str
+    key_points: list[str] = []
+    source_url: str | None = None
+
+
+# Wire the Pydantic model to the researcher agent — no frontmatter changes
+# needed. After startup GET /v1/agents/researcher will expose the derived
+# JSON Schema under `output_schema`.
+gw.set_output_schema("researcher", ResearchBrief)
+
+
 # --- Lifecycle hooks ---
 
 

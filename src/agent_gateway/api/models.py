@@ -162,6 +162,13 @@ class AgentInfo(BaseModel):
     input_schema: dict[str, Any] | None = Field(
         None, description="JSON Schema for agent input validation."
     )
+    output_schema: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "JSON Schema for agent structured output, if the agent declares one "
+            "in AGENT.md frontmatter or via gw.set_output_schema()."
+        ),
+    )
     retrievers: list[str] = Field(
         default_factory=list, description="Context retriever IDs used by agent."
     )
