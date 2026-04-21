@@ -50,3 +50,22 @@ class TestGuardrailsConfig:
         assert config.guardrails.max_tool_calls == 20
         assert config.guardrails.max_iterations == 10
         assert config.guardrails.timeout_ms == 60_000
+
+
+class TestProxyConfig:
+    def test_defaults(self) -> None:
+        config = GatewayConfig()
+        assert config.proxy.trust_forwarded is False
+        assert config.proxy.forwarded_allow_ips == "127.0.0.1"
+
+
+class TestDashboardSessionCookieConfig:
+    def test_defaults_preserve_historical_behavior(self) -> None:
+        config = GatewayConfig()
+        # Historical defaults — must not change without a migration note.
+        assert config.dashboard.auth.session_cookie_name == "agw_dashboard_session"
+        assert config.dashboard.auth.session_max_age_seconds == 86400
+        assert config.dashboard.auth.session_cookie_same_site == "lax"
+        # None = auto-resolve at startup from proxy.trust_forwarded.
+        assert config.dashboard.auth.session_cookie_https_only is None
+        assert config.dashboard.auth.session_cookie_domain is None

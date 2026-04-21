@@ -140,3 +140,71 @@ When running standalone (no `mount_to`), the gateway behaves exactly as before. 
 **Branding URLs include the mount prefix**: If you serve custom branding assets (e.g. `logo_url`, `favicon_url`) from the parent app's static files, the URLs must include the full path as seen by the browser. For example, if the parent app serves `/static/logo.png`, use that path directly. If the gateway serves the assets, prefix them: `logo_url="/ai/static/logo.png"`.
 
 **Cannot mount at root (`/`)**: By design, `mount_to()` requires a non-empty path prefix. To run the gateway at the root, use it as the main app directly instead of mounting.
+
+## Running Behind an HTTPS Reverse Proxy
+
+In production, the gateway (and its parent FastAPI app) is typically deployed behind a TLS-terminating proxy: Cloud Run, Fly.io, Nginx, ALB, Cloudflare, Caddy, and so on. The proxy talks to Uvicorn over plain HTTP, so by default:
+
+- `scope['scheme']` is `http`, not the external `https`.
+- `request.url_for()` returns an internal URL — OAuth2 `redirect_uri` breaks.
+- The dashboard session cookie is **not** marked `Secure`, and strict browsers / intermediaries drop it.
+- Chat streaming can fall into a silent-spinner state if the session is dropped (the client `fetch()` follows the 302 to the login page and tries to parse HTML as SSE).
+
+### Quick checklist
+
+1. **Tell Uvicorn to trust forwarded headers** (preferred):
+
+    ```bash
+    uvicorn app:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
+    ```
+
+    If you cannot set Uvicorn flags (e.g. running under Gunicorn with a Uvicorn worker), use the fluent method instead:
+
+    ```python
+    gw.use_proxy_headers(forwarded_allow_ips="*")
+    ```
+
+    !!! danger "Only enable when a trusted proxy sits in front of the app"
+        Without a trusted upstream, any client can inject `X-Forwarded-Host` and hijack the OAuth2 `redirect_uri` — an open-redirect / account-takeover vector. Narrow `forwarded_allow_ips` to your known proxy peers wherever possible.
+
+2. **Mark the session cookie `Secure`** — leave `session_cookie_https_only=None` (the default) so it auto-resolves to `True` whenever `trust_forwarded` is on, or pass `True` explicitly:
+
+    ```python
+    gw.use_dashboard(
+        ...,
+        session_cookie_https_only=None,   # auto: True when trust_forwarded
+        session_cookie_same_site="lax",
+    )
+    ```
+
+3. **Register the OAuth2 `redirect_uri` with your IdP as the EXTERNAL URL.** For a gateway mounted at `/ai` on `app.example.com`, register exactly:
+
+    ```
+    https://app.example.com/ai/dashboard/oauth2/callback
+    ```
+
+    On every authorize start the gateway logs the computed callback URL at INFO (`OAuth2 redirect_uri=...`). Grep your logs if the IdP rejects the authorize request.
+
+### Forwarded headers consumed
+
+| Header | Effect |
+|---|---|
+| `X-Forwarded-Proto` | Sets `scope['scheme']` (→ `request.url.scheme`, `request.url_for()`) |
+| `X-Forwarded-For` | Sets `scope['client']` |
+| `X-Forwarded-Host` | Used by `_build_callback_url()` (and Uvicorn's middleware) to rewrite the OAuth2 redirect URI |
+
+### Middleware ordering
+
+When `use_proxy_headers()` is called, the gateway installs `ProxyHeadersMiddleware` **outside** `SessionMiddleware`. That guarantees `scope['scheme']` is corrected **before** session cookie evaluation, so the `Secure` attribute check resolves against the real external scheme.
+
+### Dashboard chat under HTTPS
+
+The dashboard's streaming chat (`POST /dashboard/chat/stream`) uses `fetch(..., { redirect: 'error' })` and verifies the response `Content-Type` starts with `text/event-stream`. If either check fails (e.g. the session expired and the server tried to 302 to `/dashboard/login`), the client navigates to the login page immediately rather than silently spinning. Nothing is required on the operator side for this; it's pure client-side hardening.
+
+### Troubleshooting
+
+**Login succeeds but the browser bounces back to `/dashboard/login`**: the session cookie is being dropped. Confirm the response to `POST /dashboard/login` sets a cookie with `Secure`, and that `trust_forwarded` is on (or you passed `session_cookie_https_only=True`).
+
+**OAuth2 IdP rejects the authorize request**: the registered `redirect_uri` must match what the gateway computes. Look for `OAuth2 redirect_uri=...` in the gateway logs and paste that exact URL into the IdP's allowed redirect URIs list.
+
+**Chat shows a spinner that never resolves**: this was the pre-fix symptom. Upgrade the gateway, re-load the dashboard (hard refresh to pick up the new `app.js`), and verify DevTools → Network shows `Accept: text/event-stream` and `redirect: error` on `/dashboard/chat/stream`.

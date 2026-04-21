@@ -43,6 +43,7 @@ Root configuration object. Loaded from `workspace/gateway.yaml`.
 | `cors` | `CorsConfig` | — | CORS middleware settings. |
 | `rate_limit` | `RateLimitConfig` | — | Rate limiting middleware settings. |
 | `security` | `SecurityConfig` | — | Security headers middleware settings. |
+| `proxy` | `ProxyConfig` | — | Trust upstream reverse-proxy forwarded headers. |
 | `dashboard` | `DashboardConfig` | — | Built-in web dashboard settings. |
 | `context` | `dict[str, Any]` | `{}` | Arbitrary key-value context injected into all agent prompts. |
 
@@ -339,6 +340,27 @@ Env prefix: `AGENT_GATEWAY_SECURITY__`
 
 ---
 
+## ProxyConfig
+
+Trust `X-Forwarded-*` headers from an upstream TLS-terminating reverse proxy. See the [mounting guide](../guides/mounting.md#running-behind-an-https-reverse-proxy) for background.
+
+Env prefix: `AGENT_GATEWAY_PROXY__`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `trust_forwarded` | `bool` | `False` | Install Uvicorn's `ProxyHeadersMiddleware`. Turn on **only** when a trusted reverse proxy terminates TLS in front of the app. |
+| `forwarded_allow_ips` | `str` | `"127.0.0.1"` | Comma-separated list of trusted peer IPs. Use `"*"` on platforms where the upstream path is segregated by a private network (Cloud Run, Fly.io, ALB). |
+
+Prefer the equivalent Uvicorn CLI flags in production:
+
+```bash
+uvicorn app:app --proxy-headers --forwarded-allow-ips='*'
+```
+
+The fluent `gw.use_proxy_headers()` method is a fallback for operators who cannot set Uvicorn flags (Gunicorn-with-uvicorn-worker, etc.).
+
+---
+
 ## DashboardConfig
 
 Env prefix: `AGENT_GATEWAY_DASHBOARD__`
@@ -365,6 +387,11 @@ Env prefix: `AGENT_GATEWAY_DASHBOARD__`
 | `login_button_text` | `str` | `"Sign in with SSO"` | Text on the SSO login button (OAuth2 mode). |
 | `session_secret` | `str` | `""` | Secret for signing session cookies. Auto-generated if empty. |
 | `oauth2` | `DashboardOAuth2Config \| None` | `None` | OAuth2/OIDC configuration. Mutually exclusive with `password`. |
+| `session_cookie_name` | `str` | `"agw_dashboard_session"` | Cookie name. Rename if you run multiple gateways on the same domain. |
+| `session_cookie_same_site` | `"lax" \| "strict" \| "none"` | `"lax"` | `SameSite` attribute. `"none"` requires `https_only=True` per spec. |
+| `session_cookie_https_only` | `bool \| None` | `None` | Set the `Secure` attribute. `None` = auto: `True` when `proxy.trust_forwarded` is on, else `False`. |
+| `session_cookie_domain` | `str \| None` | `None` | Optional `Domain` attribute on the cookie. |
+| `session_max_age_seconds` | `int` | `86400` | Session lifetime in seconds (default 24h). |
 
 ### DashboardOAuth2Config
 

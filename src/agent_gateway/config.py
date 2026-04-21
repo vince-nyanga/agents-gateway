@@ -230,6 +230,22 @@ class DashboardAuthConfig(BaseModel):
     session_secret: str = ""  # auto-generated if empty
     oauth2: DashboardOAuth2Config | None = None
 
+    # --- Session cookie hardening (HTTPS-proxy deployments) ---
+    # Name of the session cookie. Kept as a field so operators can rename it
+    # (e.g. to scope cookies across multiple gateways on the same domain).
+    session_cookie_name: str = "agw_dashboard_session"
+    # SameSite attribute for the session cookie. "lax" is the safe default for
+    # dashboards; "none" requires https_only=True per spec.
+    session_cookie_same_site: Literal["lax", "strict", "none"] = "lax"
+    # Whether to set the Secure attribute. None = auto: resolved at startup to
+    # True when ProxyConfig.trust_forwarded is on (operator is almost certainly
+    # behind HTTPS), otherwise False (local-dev over http://localhost).
+    session_cookie_https_only: bool | None = None
+    # Optional explicit Domain attribute on the cookie.
+    session_cookie_domain: str | None = None
+    # Session lifetime in seconds (default 24h, matching historical behavior).
+    session_max_age_seconds: int = 86400
+
 
 class DashboardColorConfig(BaseModel):
     primary: str = "#6366f1"
@@ -276,6 +292,27 @@ class DashboardConfig(BaseModel):
     favicon_url: str = "/dashboard/static/dashboard/default-icon.png"
     auth: DashboardAuthConfig = DashboardAuthConfig()
     theme: DashboardThemeConfig = DashboardThemeConfig()
+
+
+class ProxyConfig(BaseModel):
+    """Trust ``X-Forwarded-*`` headers from an upstream reverse proxy.
+
+    When a Gateway runs behind a TLS-terminating proxy (Cloud Run, Fly.io,
+    Nginx, ALB, Cloudflare, Caddy, …) the incoming ASGI scope carries the
+    internal scheme/host pair ("http://uvicorn-pod:8000"), not the external
+    one the browser sees ("https://app.example.com"). Enabling this config
+    installs Uvicorn's ``ProxyHeadersMiddleware`` so ``request.url_for()``
+    and session-cookie ``Secure``-resolution reflect the external URL.
+
+    SECURITY: only enable this when a trusted proxy sits in front of the
+    gateway. Without that, any client can inject ``X-Forwarded-*`` headers
+    and hijack URL construction.
+    """
+
+    trust_forwarded: bool = False
+    # Comma-separated list of trusted peer IPs. "*" allows any upstream (use
+    # only when the upstream path is segregated by a private network).
+    forwarded_allow_ips: str = "127.0.0.1"
 
 
 class RateLimitConfig(BaseModel):
@@ -355,6 +392,7 @@ class GatewayConfig(BaseSettings):
     cors: CorsConfig = CorsConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
     security: SecurityConfig = SecurityConfig()
+    proxy: ProxyConfig = ProxyConfig()
     dashboard: DashboardConfig = DashboardConfig()
 
     @classmethod

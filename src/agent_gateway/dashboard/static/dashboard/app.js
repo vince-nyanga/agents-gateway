@@ -118,15 +118,43 @@ async function sendChatMessage(form) {
   const bubbleContent = bubble.querySelector('.message-bubble');
   let fullText = '';
 
+  const loginUrl = getBasePath() + '/dashboard/login';
+
+  let response;
   try {
-    const response = await fetch(getBasePath() + '/dashboard/chat/stream', {
+    // HARDENING (HTTPS-proxy regression): two independent tripwires for
+    // "your session expired and the server redirected us to /dashboard/login":
+    //   1. ``redirect: 'error'`` makes fetch() REJECT on any 3xx instead of
+    //      silently following it to an HTML login page that the SSE parser
+    //      would treat as an empty stream (spinner hangs forever).
+    //   2. Content-Type check below catches any path that returns a 200 HTML
+    //      page (e.g. a proxy-injected login page).
+    // Either tripwire navigates the browser to the login page fast and loud.
+    response = await fetch(getBasePath() + '/dashboard/chat/stream', {
       method: 'POST',
       body: formData,
+      redirect: 'error',
+      headers: { 'Accept': 'text/event-stream' },
     });
+  } catch (err) {
+    // redirect: 'error' rejects with TypeError on redirect — treat as auth loss.
+    if (indicator) indicator.style.display = 'none';
+    if (submitBtn) submitBtn.disabled = false;
+    window.location.assign(loginUrl);
+    return;
+  }
 
+  try {
     if (!response.ok) {
       bubbleContent.textContent = 'Error: ' + response.statusText;
       bubble.classList.add('message-error');
+      return;
+    }
+
+    const ctype = (response.headers.get('content-type') || '').toLowerCase();
+    if (!ctype.startsWith('text/event-stream')) {
+      // Server returned HTML (likely a login page) — navigate to login.
+      window.location.assign(loginUrl);
       return;
     }
 
