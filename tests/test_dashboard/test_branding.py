@@ -53,6 +53,32 @@ class TestUseDashboardOverrides:
         assert "subtitle" not in gw._pending_dashboard_overrides
         assert "favicon_url" not in gw._pending_dashboard_overrides
 
+    def test_session_secret_override(self) -> None:
+        gw = Gateway(workspace="./workspace")
+        gw.use_dashboard(session_secret="deadbeef" * 8)
+        assert gw._pending_dashboard_overrides["auth"]["session_secret"] == "deadbeef" * 8
+
+    def test_session_secret_not_stored_when_unset(self) -> None:
+        gw = Gateway(workspace="./workspace")
+        gw.use_dashboard()
+        auth_overrides = gw._pending_dashboard_overrides.get("auth", {})
+        assert "session_secret" not in auth_overrides
+
+    def test_session_secret_merges_into_auth_config(self) -> None:
+        from agent_gateway.config import DashboardAuthConfig
+
+        gw = Gateway(workspace="./workspace")
+        gw.use_dashboard(
+            admin_username="admin",
+            admin_password="pw",
+            session_secret="stable-across-tasks",
+        )
+        # Simulate the startup merge: reconstruct DashboardAuthConfig from the
+        # overrides the same way _maybe_init_dashboard does.
+        auth_overrides = gw._pending_dashboard_overrides["auth"]
+        merged = DashboardAuthConfig(**auth_overrides)
+        assert merged.session_secret == "stable-across-tasks"
+
 
 class TestTemplateBranding:
     """Template rendering with branding globals."""
