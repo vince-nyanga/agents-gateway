@@ -151,8 +151,11 @@ def _build_envelope_models(
     output_model: type[BaseModel] | None,
 ) -> tuple[type[InvokeRequest], type[InvokeResponse]]:
     """Compose per-agent request/response wrappers over the shared envelopes."""
+    request_cls: type[InvokeRequest]
+    response_cls: type[InvokeResponse]
+
     if input_model is not None:
-        request_cls = create_model(
+        request_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
             f"InvokeRequest_{py_id}",
             __base__=InvokeRequest,
             input=(input_model, ...),
@@ -160,24 +163,24 @@ def _build_envelope_models(
     else:
         # No input_schema — keep the generic request shape but emit a named
         # alias so OpenAPI shows the agent-specific operation clearly.
-        request_cls = create_model(
+        request_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
             f"InvokeRequest_{py_id}",
             __base__=InvokeRequest,
         )
 
     if output_model is not None:
-        result_cls = create_model(
+        result_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
             f"ResultPayload_{py_id}",
             __base__=ResultPayload,
             output=(output_model | None, None),
         )
-        response_cls = create_model(
+        response_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
             f"InvokeResponse_{py_id}",
             __base__=InvokeResponse,
             result=(result_cls | None, None),
         )
     else:
-        response_cls = create_model(
+        response_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
             f"InvokeResponse_{py_id}",
             __base__=InvokeResponse,
         )
