@@ -183,6 +183,10 @@ class Gateway(FastAPI):
         self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
         self._rehydration_tasks: dict[str, asyncio.Task[ChatSession | None]] = {}
         self._mount_prefix: str = ""  # set by mount_to(); empty for standalone
+        # Gateway-local paths for per-agent typed invoke routes; consulted by
+        # the custom RequestValidationError handler so it only rewrites the
+        # error envelope for routes this gateway owns.
+        self._per_agent_invoke_paths: set[str] = set()
 
         # Merge default OpenAPI tags with any caller-supplied tags (de-duplicate by name)
         caller_tags = fastapi_kwargs.pop("openapi_tags", None) or []
@@ -688,6 +692,9 @@ class Gateway(FastAPI):
         # 7.5. Apply code-registered input / output schemas (overrides frontmatter)
         self._apply_pending_input_schemas(workspace)
         self._apply_pending_output_schemas(workspace)
+
+        # 7.6. Register per-agent typed invoke routes for agents with schemas.
+        self._apply_per_agent_invoke_routes(workspace)
 
         # 8. Atomic snapshot
         self._snapshot = WorkspaceSnapshot(
@@ -1932,7 +1939,14 @@ class Gateway(FastAPI):
         )
 
     def _apply_pending_input_schemas(self, workspace: WorkspaceState) -> None:
-        """Apply code-registered input schemas to workspace agents."""
+        """Apply code-registered input schemas to workspace agents.
+
+        Invoked twice: once from the initial ``_startup()`` pass and again
+        on every hot-reload. Preserves the resolved Pydantic class on
+        ``agent._pydantic_input_model`` so per-agent typed invoke routes can
+        bind to the exact model the user registered (no JSON Schema
+        round-trip).
+        """
         if not self._pending_input_schemas:
             return
 
@@ -1946,8 +1960,65 @@ class Gateway(FastAPI):
                     agent_id,
                 )
                 continue
-            json_schema, _ = resolve_input_schema(schema)
+            json_schema, model_cls = resolve_input_schema(schema)
             agent.input_schema = json_schema
+            agent._pydantic_input_model = model_cls
+
+    def _apply_per_agent_invoke_routes(self, workspace: WorkspaceState) -> None:
+        """Rebuild per-agent typed invoke routes for the given workspace.
+
+        Removes any previously-registered per-agent invoke routes (identified
+        by ``name`` prefix ``invoke_agent__``) and inserts newly-built typed
+        routes **before** the generic parameterized route so Starlette
+        matches the literal path first. Invalidates the OpenAPI cache so
+        ``/openapi.json`` regenerates on next request.
+
+        Called from ``_startup()`` and from ``reload()`` while holding
+        ``self._reload_lock``; runs synchronously in a single block so
+        concurrent requests never observe a half-mutated router.
+        """
+        from agent_gateway.api.routes.per_agent import (
+            build_per_agent_invoke_routes,
+        )
+
+        new_routes, new_paths = build_per_agent_invoke_routes(self, workspace)
+
+        # 1. Drop existing per-agent routes (keep the generic one).
+        def _is_per_agent_route(r: Any) -> bool:
+            name = getattr(r, "name", None)
+            return isinstance(name, str) and name.startswith("invoke_agent__")
+
+        self.router.routes = [r for r in self.router.routes if not _is_per_agent_route(r)]
+
+        if not new_routes:
+            self._per_agent_invoke_paths = set()
+            # Still invalidate cache in case we removed stale routes.
+            self.openapi_schema = None
+            return
+
+        # 2. Find the generic route's index so we can insert before it.
+        generic_index: int | None = None
+        for idx, route in enumerate(self.router.routes):
+            if getattr(route, "name", None) == "invoke_agent":
+                generic_index = idx
+                break
+
+        if generic_index is None:
+            # Shouldn't happen — the generic route is eagerly registered by
+            # _register_routes(). Fall back to append so we don't lose work.
+            logger.warning(
+                "Generic invoke route not found; appending per-agent routes "
+                "at end of router. OpenAPI order may be non-optimal."
+            )
+            self.router.routes.extend(new_routes)
+        else:
+            for offset, route in enumerate(new_routes):
+                self.router.routes.insert(generic_index + offset, route)
+
+        self._per_agent_invoke_paths = new_paths
+        # Regenerate OpenAPI on next request so the typed operations appear.
+        self.openapi_schema = None
+        logger.info("Registered %d per-agent typed invoke route(s)", len(new_routes))
 
     def _apply_pending_output_schemas(self, workspace: WorkspaceState) -> None:
         """Apply code-registered output schemas to workspace agents.
@@ -2158,6 +2229,9 @@ class Gateway(FastAPI):
 
     def _register_routes(self) -> None:
         """Mount all /v1/ API routes."""
+        from fastapi.exceptions import RequestValidationError
+
+        from agent_gateway.api.errors import per_agent_invoke_validation_handler
         from agent_gateway.api.routes.base import GatewayAPIRoute
         from agent_gateway.api.routes.chat import router as chat_router
         from agent_gateway.api.routes.executions import router as executions_router
@@ -2181,6 +2255,15 @@ class Gateway(FastAPI):
         v1.include_router(mcp_servers_router)
 
         self.include_router(v1)
+
+        # Install a custom 422 handler that rewrites FastAPI's default
+        # envelope on per-agent typed invoke routes (keeping backwards
+        # compatibility with clients reading ``error.code``) while
+        # deferring to FastAPI's default for every other route.
+        self.add_exception_handler(
+            RequestValidationError,
+            per_agent_invoke_validation_handler,  # type: ignore[arg-type]
+        )
 
     async def reload(self) -> None:
         """Reload workspace from disk and rebuild registry (atomic snapshot swap)."""
@@ -2252,6 +2335,9 @@ class Gateway(FastAPI):
             # Re-apply code-registered input / output schemas
             self._apply_pending_input_schemas(new_workspace)
             self._apply_pending_output_schemas(new_workspace)
+
+            # Rebuild per-agent typed invoke routes to match the new workspace.
+            self._apply_per_agent_invoke_routes(new_workspace)
 
             # Single atomic reference swap
             self._snapshot = WorkspaceSnapshot(
@@ -3308,7 +3394,10 @@ class Gateway(FastAPI):
         """Set the input schema for an agent.
 
         Can be called with a JSON Schema dict or a Pydantic BaseModel class.
-        Call before ``startup()`` — the schema is applied when the workspace loads.
+        Call before ``startup()`` — the schema is applied when the workspace
+        loads and per-agent typed invoke routes are built once. After
+        startup, raise ``ConfigError``. For live updates, edit the workspace
+        and call ``gw.reload()`` which rebuilds the typed routes atomically.
         Code-registered schemas override AGENT.md frontmatter schemas.
 
         Usage::
@@ -3321,6 +3410,14 @@ class Gateway(FastAPI):
 
             gw.set_input_schema("underwriting", DealInput)
         """
+        from agent_gateway.exceptions import ConfigError
+
+        if self._started:
+            raise ConfigError(
+                "set_input_schema must be called before startup. "
+                "For on-the-fly updates, edit the workspace and call "
+                "gw.reload()."
+            )
         self._pending_input_schemas[agent_id] = schema
 
     def set_output_schema(
@@ -3336,10 +3433,12 @@ class Gateway(FastAPI):
         instance of your model class. A plain dict validates via
         ``jsonschema`` and ``result.output`` is a dict.
 
-        Call before ``startup()`` / ``async with gw``. Code-registered
-        schemas override any ``output_schema:`` declared in ``AGENT.md``
-        frontmatter. If the referenced agent is unknown at workspace-load
-        time, a warning is logged and the call is a no-op.
+        Call before ``startup()`` / ``async with gw``. After startup, raise
+        ``ConfigError`` — per-agent typed routes are built once at startup
+        and atomically on ``gw.reload()``. Code-registered schemas override
+        any ``output_schema:`` declared in ``AGENT.md`` frontmatter. If the
+        referenced agent is unknown at workspace-load time, a warning is
+        logged and the call is a no-op.
 
         Usage::
 
@@ -3351,6 +3450,14 @@ class Gateway(FastAPI):
 
             gw.set_output_schema("resume-parser", ResumeExtraction)
         """
+        from agent_gateway.exceptions import ConfigError
+
+        if self._started:
+            raise ConfigError(
+                "set_output_schema must be called before startup. "
+                "For on-the-fly updates, edit the workspace and call "
+                "gw.reload()."
+            )
         self._pending_output_schemas[agent_id] = schema
 
     def on(self, event: str) -> Callable[..., Any]:

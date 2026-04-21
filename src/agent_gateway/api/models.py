@@ -82,12 +82,36 @@ class InvokeResponse(BaseModel):
     error: str | None = Field(None, description="Error message if execution failed.")
 
 
+class FieldError(BaseModel):
+    """Field-level error entry surfaced in validation failures."""
+
+    loc: list[str | int] = Field(
+        default_factory=list,
+        description="Dot-path of the field that failed validation.",
+    )
+    msg: str = Field(..., description="Human-readable field-level message.")
+    type: str = Field("", description="Validator type (e.g. 'missing', 'value_error').")
+
+
 class ErrorDetail(BaseModel):
-    """Structured error information."""
+    """Structured error information.
+
+    The ``details`` array is populated for framework-level validation
+    failures on per-agent typed invoke routes, so clients generated from
+    ``/openapi.json`` can surface field-by-field issues while legacy
+    readers that only inspect ``code`` / ``message`` keep working.
+    """
 
     code: str = Field(..., description="Machine-readable error code.")
     message: str = Field(..., description="Human-readable error message.")
     execution_id: str | None = Field(None, description="Related execution ID, if applicable.")
+    details: list[FieldError] | None = Field(
+        None,
+        description=(
+            "Optional field-level validation errors. Populated for schema "
+            "validation failures on per-agent typed invoke routes."
+        ),
+    )
 
 
 class ErrorResponse(BaseModel):

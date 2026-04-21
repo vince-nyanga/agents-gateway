@@ -578,6 +578,13 @@ class MathResult(BaseModel):
 # schema via ExecutionOptions still win over both.
 
 
+class ResearchInput(BaseModel):
+    """Typed input for the researcher agent."""
+
+    topic: str
+    depth: int = 1
+
+
 class ResearchBrief(BaseModel):
     """Structured output for the researcher agent."""
 
@@ -587,9 +594,12 @@ class ResearchBrief(BaseModel):
     source_url: str | None = None
 
 
-# Wire the Pydantic model to the researcher agent — no frontmatter changes
+# Wire the Pydantic models to the researcher agent — no frontmatter changes
 # needed. After startup GET /v1/agents/researcher will expose the derived
-# JSON Schema under `output_schema`.
+# JSON Schema under `input_schema` and `output_schema`, and `/docs` gains
+# a dedicated typed route `POST /v1/agents/researcher/invoke` that mirrors
+# the `ResearchInput` / `ResearchBrief` shapes.
+gw.set_input_schema("researcher", ResearchInput)
 gw.set_output_schema("researcher", ResearchBrief)
 
 

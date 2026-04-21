@@ -415,6 +415,30 @@ curl http://localhost:8000/api/demo/travel-plan
 Raw `dict` schemas continue to work identically — passing a `dict` to
 `output_schema` behaves exactly as before.
 
+### Typed per-agent invoke routes in OpenAPI
+
+Any agent that declares `input_schema` and/or `output_schema` — in
+`AGENT.md` frontmatter (e.g. `data-analyst`) or programmatically via
+`gw.set_input_schema()` / `gw.set_output_schema()` (e.g. `researcher`) —
+automatically gets a dedicated typed route in the OpenAPI spec alongside
+the generic `POST /v1/agents/{agent_id}/invoke` fallback.
+
+```bash
+make dev
+# In another terminal:
+curl -sS http://localhost:8000/openapi.json \
+  | jq '.paths | keys | .[] | select(contains("invoke"))'
+# Expect:
+# "/v1/agents/{agent_id}/invoke"
+# "/v1/agents/data-analyst/invoke"
+# "/v1/agents/researcher/invoke"
+# "/v1/agents/travel-planner/invoke"
+```
+
+Open http://localhost:8000/docs and the typed agents render with their
+own request/response shapes, so clients generated from the spec get real
+types per agent. Agents without schemas keep using the generic route.
+
 ### Notifications
 
 Agents can send notifications on completion, error, or timeout. Configure

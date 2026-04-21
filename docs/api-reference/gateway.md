@@ -856,6 +856,8 @@ def set_input_schema(agent_id: str, schema: dict[str, Any] | type) -> None
 
 Set the input schema for an agent programmatically. Accepts a JSON Schema dict or a Pydantic `BaseModel` class. Call before startup. Code-registered schemas override any `input_schema:` defined in `AGENT.md` frontmatter.
 
+**Raises:** `ConfigError` if called after the gateway has started. Per-agent typed invoke routes are built once at startup and atomically on `gw.reload()`; mutating them mid-request would require a third code path. For live updates, edit the workspace and call `await gw.reload()`.
+
 ```python
 from pydantic import BaseModel
 
@@ -875,6 +877,8 @@ def set_output_schema(agent_id: str, schema: dict[str, Any] | type) -> None
 Set the output schema for an agent programmatically. Accepts a JSON Schema dict or a Pydantic `BaseModel` class. A Pydantic class enables stricter validation via `model_validate` and makes `result.output` an instance of that model; a plain dict is validated via `jsonschema` and `result.output` comes back as a dict.
 
 Call before `startup()` / `async with gw`. Code-registered schemas override any `output_schema:` declared in `AGENT.md` frontmatter. The pending registration is re-applied on every workspace hot-reload, so it survives a `POST /v1/reload`. If the referenced agent is unknown at workspace-load time, a warning is logged and the call is a no-op.
+
+**Raises:** `ConfigError` if called after the gateway has started. For live updates, edit the workspace and call `await gw.reload()`.
 
 ```python
 from pydantic import BaseModel

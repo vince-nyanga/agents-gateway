@@ -62,6 +62,18 @@ class InputValidationError(AgentGatewayError):
         super().__init__(message)
 
 
+class ModelConversionError(AgentGatewayError):
+    """Raised when JSON Schema -> Pydantic model conversion fails.
+
+    The caller typically catches this, logs a warning, and falls back to an
+    untyped route so one bad schema cannot block startup.
+    """
+
+    def __init__(self, message: str, agent_id: str | None = None) -> None:
+        self.agent_id = agent_id
+        super().__init__(message)
+
+
 class AuthError(AgentGatewayError):
     """Authentication or authorization failure."""
 

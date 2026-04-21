@@ -109,3 +109,47 @@ responses = build_responses(auth=True) | {
     202: {"description": "Report generation queued"},
 }
 ```
+
+## Per-agent invoke operations
+
+Agents that declare `input_schema` and/or `output_schema` — via `AGENT.md`
+frontmatter or via `gw.set_input_schema()` / `gw.set_output_schema()` —
+automatically surface as **dedicated typed operations** in
+`/openapi.json`:
+
+```
+POST /v1/agents/<agent-id>/invoke
+```
+
+The generic `POST /v1/agents/{agent_id}/invoke` route is still published
+for schemaless agents and stays available as a fallback. The typed
+routes use per-agent model names (`InvokeRequest_<agent_id>`,
+`InvokeResponse_<agent_id>`, …) so
+`components.schemas` has one entry per agent and never collides.
+
+Clients generated from the spec with `openapi-generator` or similar
+tooling get a real type per agent — `AgentInput_data_analyst` instead of
+`Dict[str, Any]`, `AgentOutput_resume_parser` instead of `Any`.
+
+### Validation error envelope
+
+Typed per-agent routes validate the request body at the framework edge.
+On failure they return HTTP 422 with the gateway's standard envelope and
+an additional `details` array containing FastAPI's field-level errors:
+
+```json
+{
+  "error": {
+    "code": "input_validation_failed",
+    "message": "Input validation failed: body.input.quarter: Field required",
+    "details": [
+      {"loc": ["body", "input", "quarter"], "msg": "Field required", "type": "missing"}
+    ]
+  }
+}
+```
+
+Legacy clients that only read `error.code` / `error.message` continue to
+work unchanged — `details` is additive. See
+[Structured Output](structured-output.md) for the full behaviour,
+including graceful fallback when a schema is too unusual to convert.
