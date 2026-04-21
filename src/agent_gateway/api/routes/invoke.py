@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response
 from agent_gateway.api.models import (
+    InvokeOptions,
     InvokeRequest,
     InvokeResponse,
     ResultPayload,
@@ -84,36 +85,29 @@ def _build_response(
     )
 
 
-@router.post(
-    "/agents/{agent_id}/invoke",
-    response_model=InvokeResponse,
-    summary="Invoke an agent",
-    description=(
-        "Send a message to an agent and receive a response. "
-        "Supports synchronous, asynchronous (polling), and streaming modes."
-    ),
-    tags=["Agents"],
-    responses={
-        202: {
-            "description": "Accepted — async execution queued. Poll via the returned URL.",
-        },
-        **build_responses(auth=True, not_found=True, rate_limit=True),
-    },
-    dependencies=[Depends(RequireScope("agents:invoke"))],
-)
-async def invoke_agent(
-    body: InvokeRequest,
+async def _invoke_agent_core(
+    *,
+    gw: Any,
+    agent_id: str,
+    message: str,
+    input_: dict[str, Any],
+    options: InvokeOptions,
     request: Request,
-    agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
+    skip_input_validation: bool = False,
 ) -> InvokeResponse | JSONResponse:
-    """Invoke an agent with a message."""
-    gw = request.app
+    """Shared execution body for both the generic parameterized route and
+    the dynamically-registered per-agent typed routes.
 
+    ``skip_input_validation`` is passed ``True`` by per-agent routes —
+    FastAPI already validated the body against the typed model at the edge
+    and re-running ``validate_input`` would duplicate work and potentially
+    surface inconsistent error messages. The generic route passes ``False``
+    because it accepts arbitrary ``dict[str, Any]`` input.
+    """
     snapshot = gw._snapshot
     if snapshot is None or snapshot.workspace is None:
         return error_response(503, "workspace_unavailable", "Workspace not loaded")
 
-    # Look up agent
     agent = snapshot.workspace.agents.get(agent_id)
     if agent is None:
         return error_response(404, "agent_not_found", f"Agent '{agent_id}' not found")
@@ -125,10 +119,10 @@ async def invoke_agent(
         return error_response(503, "engine_unavailable", "Execution engine not initialized")
 
     # Validate input against agent's input_schema (before creating execution record)
-    if agent.input_schema:
+    if not skip_input_validation and agent.input_schema:
         from agent_gateway.engine.input import validate_input
 
-        errors = validate_input(body.input, agent.input_schema)
+        errors = validate_input(input_, agent.input_schema)
         if errors:
             return error_response(
                 422,
@@ -140,10 +134,10 @@ async def invoke_agent(
     execution_id = str(uuid.uuid4())
 
     # Determine execution mode
-    should_queue = _should_queue(agent, body.options.async_)
+    should_queue = _should_queue(agent, options.async_)
 
     # Guard: streaming + async are incompatible
-    if should_queue and body.options.stream:
+    if should_queue and options.stream:
         return error_response(
             400,
             "streaming_not_supported",
@@ -155,13 +149,13 @@ async def invoke_agent(
     # programmatic Pydantic model) > None. Prefer the Pydantic class over the
     # derived dict when both are present so the executor uses stricter
     # Pydantic validation.
-    effective_output_schema = body.options.output_schema or (
+    effective_output_schema = options.output_schema or (
         agent._pydantic_output_model or agent.output_schema
     )
     exec_options = ExecutionOptions(
         async_execution=should_queue,
-        timeout_ms=body.options.timeout_ms,
-        stream=body.options.stream,
+        timeout_ms=options.timeout_ms,
+        stream=options.stream,
         output_schema=effective_output_schema,
     )
 
@@ -175,12 +169,17 @@ async def invoke_agent(
         id=execution_id,
         agent_id=agent_id,
         status=initial_status,
-        message=body.message,
-        input=body.input or None,
+        message=message,
+        input=input_ or None,
         user_id=user_id,
         started_at=datetime.now(UTC),
     )
     await gw._execution_repo.create(record)
+
+    # Reconstruct an InvokeRequest for the background queue helper. We keep
+    # this struct because _run_background_execution has historically taken
+    # an InvokeRequest — no behaviour change.
+    proxy_body = InvokeRequest(message=message, input=input_ or {}, options=options)
 
     # Queued execution: enqueue to backend, return 202
     if should_queue:
@@ -189,7 +188,9 @@ async def invoke_agent(
             handle = ExecutionHandle(execution_id)
             gw._execution_handles[execution_id] = handle
             task = asyncio.create_task(
-                _run_background_execution(gw, agent, body, execution_id, exec_options, handle),
+                _run_background_execution(
+                    gw, agent, proxy_body, execution_id, exec_options, handle
+                ),
                 name=f"exec-{execution_id}",
             )
             gw._background_tasks.add(task)
@@ -201,16 +202,14 @@ async def invoke_agent(
             # still use the class, and agents with frontmatter schemas are
             # unaffected.
             queued_output_schema = (
-                body.options.output_schema
-                if isinstance(body.options.output_schema, dict)
-                else None
+                options.output_schema if isinstance(options.output_schema, dict) else None
             ) or agent.output_schema
             job = ExecutionJob(
                 execution_id=execution_id,
                 agent_id=agent_id,
-                message=body.message,
-                input=body.input or None,
-                timeout_ms=body.options.timeout_ms,
+                message=message,
+                input=input_ or None,
+                timeout_ms=options.timeout_ms,
                 output_schema=queued_output_schema,
                 enqueued_at=datetime.now(UTC).isoformat(),
             )
@@ -260,9 +259,9 @@ async def invoke_agent(
     try:
         result = await snapshot.engine.execute(
             agent=agent,
-            message=body.message,
+            message=message,
             workspace=snapshot.workspace,
-            input=body.input,
+            input=input_,
             options=exec_options,
             handle=handle,
             tool_executor=execute_tool,
@@ -300,15 +299,50 @@ async def invoke_agent(
         execution_id=execution_id,
         agent_id=agent_id,
         status=result.stop_reason.value,
-        message=body.message,
+        message=message,
         config=agent.notifications,
         result=result.to_dict() if result.raw_text else None,
         usage=result.usage.to_dict() if result.usage else None,
         duration_ms=duration_ms,
-        input=body.input or None,
+        input=input_ or None,
     )
 
     return _build_response(execution_id, agent_id, result, duration_ms)
+
+
+@router.post(
+    "/agents/{agent_id}/invoke",
+    response_model=InvokeResponse,
+    summary="Invoke an agent",
+    description=(
+        "Send a message to an agent and receive a response. "
+        "Supports synchronous, asynchronous (polling), and streaming modes."
+    ),
+    tags=["Agents"],
+    responses={
+        202: {
+            "description": "Accepted — async execution queued. Poll via the returned URL.",
+        },
+        **build_responses(auth=True, not_found=True, rate_limit=True),
+    },
+    dependencies=[Depends(RequireScope("agents:invoke"))],
+    name="invoke_agent",
+)
+async def invoke_agent(
+    body: InvokeRequest,
+    request: Request,
+    agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
+) -> InvokeResponse | JSONResponse:
+    """Invoke an agent with a message (generic parameterized route)."""
+    return await _invoke_agent_core(
+        gw=request.app,
+        agent_id=agent_id,
+        message=body.message,
+        input_=body.input or {},
+        options=body.options,
+        request=request,
+        skip_input_validation=False,
+    )
 
 
 async def _run_background_execution(

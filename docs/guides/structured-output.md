@@ -188,3 +188,83 @@ except InputValidationError as exc:
 ```
 
 `InputValidationError` is a subclass of `AgentGatewayError` and results in a `422 Unprocessable Entity` response when raised inside an API request handler.
+
+## Typed per-agent routes in OpenAPI
+
+Agents that declare `input_schema`, `output_schema`, or both — via `AGENT.md`
+frontmatter **or** via `gw.set_input_schema()` / `gw.set_output_schema()` —
+automatically get a dedicated typed operation in the OpenAPI spec:
+
+```
+POST /v1/agents/<agent-id>/invoke
+```
+
+This sits alongside the generic parameterized route
+`POST /v1/agents/{agent_id}/invoke`, which continues to serve agents
+without declared schemas. The typed routes are registered *before* the
+generic route so Starlette matches the literal path first.
+
+### What Swagger sees
+
+- **Input-schema agents** get an `InvokeRequest_<agent_id>` request body
+  where `input` is the typed model derived from the schema.
+- **Output-schema agents** get an `InvokeResponse_<agent_id>` response
+  where `result.output` is the typed model.
+- **Agents with both** get both.
+
+Model names are always prefixed with a sanitized form of the agent id
+(hyphens become underscores), so two agents that declare a nested `User`
+type never collide in `components.schemas`.
+
+### Framework-level validation
+
+With a typed per-agent route in place, FastAPI validates the request
+body against the generated Pydantic model *before* your handler runs, so
+invalid requests are rejected at the edge. The 422 response preserves
+the gateway's standard error envelope and adds a `details` array with
+field-level messages suitable for generated clients:
+
+```json
+{
+  "error": {
+    "code": "input_validation_failed",
+    "message": "Input validation failed: body.input.quarter: Field required",
+    "details": [
+      {
+        "loc": ["body", "input", "quarter"],
+        "msg": "Field required",
+        "type": "missing"
+      }
+    ]
+  }
+}
+```
+
+Existing clients that only read `error.code` / `error.message` keep
+working — `details` is additive.
+
+### Graceful fallback
+
+If a schema is unusual enough that conversion to a Pydantic model fails,
+a warning is logged and that agent falls back to the generic
+parameterized route. Other agents are unaffected, and startup never
+fails because of one bad schema.
+
+### Schemas after startup
+
+`set_input_schema` / `set_output_schema` must be called **before** the
+gateway starts (inside `async with gw:` or before
+`await gw._startup()`). After startup they raise `ConfigError`. To pick
+up on-disk schema changes, call `await gw.reload()` — the typed routes
+are rebuilt atomically under the reload lock and the OpenAPI cache is
+invalidated, so `/openapi.json` reflects the new shapes on the next
+request.
+
+### Streaming
+
+Streaming (`options.stream = true`) still works on the typed routes —
+FastAPI validates the request body and the handler returns a
+`StreamingResponse` so the `response_model` is bypassed. If you set
+`options.output_schema` inline to override the agent's declared shape,
+the typed route returns a raw `JSONResponse` (skipping response-model
+validation) since the payload no longer matches the declared contract.

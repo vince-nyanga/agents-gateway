@@ -72,6 +72,13 @@ class AgentDefinition:
     notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
+    # Internal: holds a programmatically-registered Pydantic class for input
+    # validation. Populated by Gateway._apply_pending_input_schemas when
+    # gw.set_input_schema() is called with a BaseModel class. Kept separate
+    # from input_schema (which is always the resolved JSON Schema dict) so
+    # per-agent typed routes can use the exact Pydantic class without a
+    # JSON-Schema round-trip.
+    _pydantic_input_model: type[BaseModel] | None = field(default=None, repr=False)
     # Internal: holds a programmatically-registered Pydantic class for output
     # validation. Populated by Gateway._apply_pending_output_schemas when
     # gw.set_output_schema() is called with a BaseModel class. Kept separate

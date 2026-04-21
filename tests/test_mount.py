@@ -291,3 +291,56 @@ def test_mount_to_empty_path_raises(gateway, parent_app):
         gateway.mount_to(parent_app, path="/")
     with pytest.raises(ConfigError, match="non-empty path prefix"):
         gateway.mount_to(parent_app, path="")
+
+
+# --- Test 21: per-agent typed invoke routes work under mount prefix ---
+@pytest.fixture()
+def typed_workspace(tmp_path):
+    """Workspace whose agent declares input_schema so a typed route is built."""
+    d = tmp_path / "agents" / "typed-agent"
+    d.mkdir(parents=True)
+    (d / "AGENT.md").write_text(
+        """\
+---
+description: Typed agent under a mount.
+input_schema:
+  type: object
+  properties:
+    query:
+      type: string
+  required: [query]
+---
+
+# Typed Agent
+"""
+    )
+    return tmp_path
+
+
+def test_mount_to_per_agent_typed_route_works(typed_workspace, parent_app):
+    """Typed per-agent routes surface at mount-prefixed paths."""
+    gw = Gateway(workspace=typed_workspace)
+    gw.mount_to(parent_app, path="/gw")
+    with TestClient(parent_app) as client:
+        # Invalid body hits the typed route and gets the gateway envelope.
+        resp = client.post(
+            "/gw/v1/agents/typed-agent/invoke",
+            json={"message": "hi", "input": {}},
+        )
+        assert resp.status_code == 422
+        body = resp.json()
+        # The custom per-agent handler should fire even under a mount.
+        assert body["error"]["code"] == "input_validation_failed"
+        assert isinstance(body["error"]["details"], list)
+
+
+def test_mount_to_openapi_surfaces_typed_path(typed_workspace, parent_app):
+    """Gateway's OpenAPI spec lists typed paths with gateway-local form."""
+    gw = Gateway(workspace=typed_workspace)
+    gw.mount_to(parent_app, path="/gw")
+    with TestClient(parent_app) as client:
+        spec = client.get("/gw/openapi.json").json()
+        # Paths in the sub-app's spec are not mount-prefixed (OpenAPI is
+        # paths-relative-to-server); clients hit them under the mount
+        # prefix but the spec lists them bare.
+        assert "/v1/agents/typed-agent/invoke" in spec["paths"]

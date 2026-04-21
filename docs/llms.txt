@@ -96,6 +96,8 @@ setup_schema:
 
 Agents can declare an `output_schema` in AGENT.md frontmatter. When set, every `invoke` and scheduled run automatically constrains the LLM to return JSON matching the schema and validates the response. Callers can override per-request via `options.output_schema`. Chat endpoints are exempt — they always return free text. Register Pydantic models at runtime via `gw.set_output_schema(agent_id, ModelClass)`; code registration overrides frontmatter.
 
+Agents that declare `input_schema` and/or `output_schema` (via AGENT.md frontmatter or `gw.set_*_schema()`) also get a dedicated typed route `POST /v1/agents/<id>/invoke` in `/openapi.json` with per-agent request/response Pydantic models. FastAPI validates the request body at the edge and returns a backwards-compatible 422 envelope. Schemaless agents continue to use the generic parameterized route.
+
 ```yaml
 output_schema:
   type: object

@@ -50,6 +50,7 @@ dependencies = [
     "greenlet>=3.3.1",
     "cryptography>=42.0",
     "mcp>=1.20",
+    "datamodel-code-generator>=0.26",
 ]
 
 [project.optional-dependencies]

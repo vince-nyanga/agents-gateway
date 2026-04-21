@@ -7,6 +7,26 @@ skills:
   - data-visualization
 mcp_servers:
   - bigquery
+input_schema:
+  type: object
+  properties:
+    quarter:
+      type: string
+      pattern: "^Q[1-4]$"
+      description: Calendar quarter to focus on (Q1-Q4).
+    metrics:
+      type: array
+      description: Optional list of metrics the caller cares about.
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          value:
+            type: number
+        required: [name, value]
+  required: [quarter]
+  additionalProperties: false
 output_schema:
   type: object
   properties:
