@@ -1640,6 +1640,7 @@ class Gateway(FastAPI):
         login_button_text: str | None = None,
         admin_username: str | None = None,
         admin_password: str | None = None,
+        session_secret: str | None = None,
         # --- Session cookie hardening (HTTPS-proxy deployments) ---
         session_cookie_name: str | None = None,
         session_cookie_same_site: str | None = None,
@@ -1672,6 +1673,16 @@ class Gateway(FastAPI):
             login_button_text: Text for the SSO login button (default: "Sign in with SSO").
             admin_username: Separate admin account username (optional).
             admin_password: Separate admin account password (optional).
+            session_secret: Secret key used to sign the dashboard session
+                cookie. When unset, the gateway auto-generates a random
+                64-char hex string at startup — which differs across processes.
+                **For multi-instance deployments (e.g. multiple Fargate tasks,
+                Kubernetes replicas), you MUST pin this to a stable value on
+                every instance**, otherwise cookies signed by one instance
+                cannot be decrypted by another and users land in a login loop.
+                Generate once with ``python -c "import secrets; print(secrets.token_hex(32))"``
+                and inject via a secret manager. Same effect as setting the
+                ``AGENT_GATEWAY_DASHBOARD__AUTH__SESSION_SECRET`` env var.
         """
         if self._started:
             raise RuntimeError("Cannot configure dashboard after gateway has started")
@@ -1695,6 +1706,10 @@ class Gateway(FastAPI):
         if admin_password is not None:
             self._pending_dashboard_overrides.setdefault("auth", {})["admin_password"] = (
                 admin_password
+            )
+        if session_secret is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["session_secret"] = (
+                session_secret
             )
         if login_button_text is not None:
             self._pending_dashboard_overrides.setdefault("auth", {})["login_button_text"] = (

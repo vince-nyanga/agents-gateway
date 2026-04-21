@@ -793,6 +793,7 @@ def use_dashboard(
     login_button_text: str | None = None,
     admin_username: str | None = None,
     admin_password: str | None = None,
+    session_secret: str | None = None,
     # --- Session cookie hardening (HTTPS-proxy deployments) ---
     session_cookie_name: str | None = None,
     session_cookie_same_site: str | None = None,   # "lax" | "strict" | "none"
@@ -807,6 +808,8 @@ Enable the built-in web dashboard at `/dashboard`. The dashboard has its own ses
 Password auth and OAuth2 are mutually exclusive. Setting both raises `ConfigError` at startup. A missing password logs a warning but does not prevent startup.
 
 Optionally configure a separate admin account with `admin_username`/`admin_password`. Admin users can toggle schedules and retry executions. OAuth2 users are always non-admin.
+
+**`session_secret`** — secret key used to sign the dashboard session cookie. If unset, the gateway auto-generates a fresh 64-character hex string at startup. **For multi-instance deployments (e.g. multiple ECS/Fargate tasks, Kubernetes replicas), you MUST pin this to a stable value on every instance** — otherwise cookies signed by one instance cannot be decrypted by another, and users get bounced to the login page. Generate once with `python -c "import secrets; print(secrets.token_hex(32))"` and inject via a secret manager. Same effect as the `AGENT_GATEWAY_DASHBOARD__AUTH__SESSION_SECRET` env var.
 
 **Branding parameters:**
 
