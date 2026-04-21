@@ -11,7 +11,7 @@ fails.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
@@ -151,38 +151,36 @@ def _build_envelope_models(
     output_model: type[BaseModel] | None,
 ) -> tuple[type[InvokeRequest], type[InvokeResponse]]:
     """Compose per-agent request/response wrappers over the shared envelopes."""
-    request_cls: type[InvokeRequest]
-    response_cls: type[InvokeResponse]
-
+    request_kwargs: dict[str, Any] = {"__base__": InvokeRequest}
     if input_model is not None:
-        request_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
-            f"InvokeRequest_{py_id}",
-            __base__=InvokeRequest,
-            input=(input_model, ...),
-        )
-    else:
-        # No input_schema — keep the generic request shape but emit a named
-        # alias so OpenAPI shows the agent-specific operation clearly.
-        request_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
-            f"InvokeRequest_{py_id}",
-            __base__=InvokeRequest,
-        )
+        request_kwargs["input"] = (input_model, ...)
+    request_cls = cast(
+        type[InvokeRequest],
+        create_model(f"InvokeRequest_{py_id}", **request_kwargs),
+    )
 
     if output_model is not None:
-        result_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
-            f"ResultPayload_{py_id}",
-            __base__=ResultPayload,
-            output=(output_model | None, None),
+        result_cls = cast(
+            type[ResultPayload],
+            create_model(
+                f"ResultPayload_{py_id}",
+                __base__=ResultPayload,
+                output=(output_model | None, None),
+            ),
         )
-        response_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
-            f"InvokeResponse_{py_id}",
-            __base__=InvokeResponse,
-            result=(result_cls | None, None),
+        response_cls = cast(
+            type[InvokeResponse],
+            create_model(
+                f"InvokeResponse_{py_id}",
+                __base__=InvokeResponse,
+                result=(result_cls | None, None),
+            ),
         )
     else:
-        response_cls = create_model(  # type: ignore[call-overload,unused-ignore,misc,arg-type]
-            f"InvokeResponse_{py_id}",
-            __base__=InvokeResponse,
+        # No output_schema — emit a named alias for OpenAPI clarity.
+        response_cls = cast(
+            type[InvokeResponse],
+            create_model(f"InvokeResponse_{py_id}", __base__=InvokeResponse),
         )
 
     return request_cls, response_cls
