@@ -99,6 +99,8 @@ def register_dashboard(
     oauth2_config: DashboardOAuth2Config | None = None,
     discovery_client: OIDCDiscoveryClient | None = None,
     mount_prefix: str = "",
+    *,
+    trust_forwarded: bool = False,
 ) -> None:
     """Mount dashboard routes and static files onto the FastAPI app."""
 
@@ -189,10 +191,16 @@ def register_dashboard(
         )
 
         authorize_handler = make_authorize_handler(
-            oauth2_config, discovery_client, mount_prefix=mount_prefix
+            oauth2_config,
+            discovery_client,
+            mount_prefix=mount_prefix,
+            trust_forwarded=trust_forwarded,
         )
         callback_handler = make_callback_handler(
-            oauth2_config, discovery_client, mount_prefix=mount_prefix
+            oauth2_config,
+            discovery_client,
+            mount_prefix=mount_prefix,
+            trust_forwarded=trust_forwarded,
         )
 
         public.add_api_route(
@@ -1158,8 +1166,12 @@ def register_dashboard(
             event_generator(),
             media_type="text/event-stream",
             headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
+                # ``no-transform`` defeats Cloudflare / GCP LB buffering of
+                # SSE responses that otherwise accumulate tokens in 1–60s
+                # chunks. ``Connection: keep-alive`` is intentionally omitted
+                # — it is a hop-by-hop header with no meaning under HTTP/2 and
+                # some proxies strip it.
+                "Cache-Control": "no-cache, no-transform",
                 "X-Accel-Buffering": "no",
             },
         )

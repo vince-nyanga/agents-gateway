@@ -58,6 +58,18 @@ if use_keycloak_api:
 
 gw = Gateway(**gw_kwargs)
 
+# ── Trust upstream proxy (opt-in) ──────────────────────────────────
+# Set TRUST_PROXY=1 when running behind Caddy/Nginx/Cloudflare/ALB in front of
+# this app. ``use_proxy_headers`` installs ``ProxyHeadersMiddleware`` so
+# ``request.url_for()`` returns external HTTPS URLs and the dashboard session
+# cookie picks up ``Secure`` automatically. Prefer the Uvicorn CLI flag
+# ``--proxy-headers --forwarded-allow-ips=*`` in production; this fluent call
+# is a fallback for Gunicorn-with-uvicorn-worker and similar.
+if os.environ.get("TRUST_PROXY", "").strip() in ("1", "true"):
+    gw.use_proxy_headers(
+        forwarded_allow_ips=os.environ.get("TRUSTED_PROXIES", "*"),
+    )
+
 # Static files for branding
 gw.mount("/static", StaticFiles(directory="static"), name="static")
 

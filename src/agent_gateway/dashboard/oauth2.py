@@ -65,10 +65,52 @@ def _make_login_redirect(mount_prefix: str = "") -> Callable[[str], RedirectResp
     return _login_redirect
 
 
+def _build_callback_url(request: Request, *, trust_forwarded: bool) -> str:
+    """Return the external-facing absolute URL for the oauth2_callback route.
+
+    Strategy:
+
+    1. Start from ``request.url_for("oauth2_callback")``. When Uvicorn is run
+       with ``--proxy-headers`` (or ``ProxyHeadersMiddleware`` is installed via
+       :meth:`Gateway.use_proxy_headers`), this already reflects the external
+       scheme and host.
+    2. Belt-and-braces — if ``trust_forwarded`` is True and forwarded headers
+       are present, rewrite the scheme and host so the callback URL matches the
+       IdP-registered ``redirect_uri`` even when the operator forgot
+       ``--proxy-headers``.
+    3. SECURITY: when ``trust_forwarded`` is False, forwarded headers are
+       IGNORED unconditionally. Accepting them on an untrusted peer would let
+       an attacker inject ``X-Forwarded-Host: attacker.com`` and hijack the
+       OAuth2 ``redirect_uri``, producing an open-redirect / account-takeover
+       vector.
+
+    Non-standard ports: ``X-Forwarded-Host`` may already include an explicit
+    port (e.g. ``app.example.com:8443``). The forwarded header is authoritative
+    for the external port seen by the browser, so it is preserved verbatim
+    rather than merging with whatever port ``url_for()`` resolved.
+    """
+    url = str(request.url_for("oauth2_callback"))
+    if not trust_forwarded:
+        return url
+
+    fwd_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    fwd_host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
+    if not (fwd_proto and fwd_host):
+        return url
+
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(url)
+    # fwd_host may contain a port already; pass it through as-is.
+    return urlunparse(parsed._replace(scheme=fwd_proto, netloc=fwd_host))
+
+
 def make_authorize_handler(
     config: DashboardOAuth2Config,
     discovery: OIDCDiscoveryClient,
     mount_prefix: str = "",
+    *,
+    trust_forwarded: bool = False,
 ) -> Any:
     _login_redirect = _make_login_redirect(mount_prefix)
 
@@ -87,7 +129,10 @@ def make_authorize_handler(
         state = secrets.token_hex(32)
         request.session["oauth2_state"] = state
 
-        redirect_uri = str(request.url_for("oauth2_callback"))
+        redirect_uri = _build_callback_url(request, trust_forwarded=trust_forwarded)
+        # Log once per authorize so operators can diagnose IdP redirect_uri
+        # mismatches. NOT logged on every callback hit to avoid noise.
+        logger.info("OAuth2 redirect_uri=%s", redirect_uri)
         params = urlencode(
             {
                 "response_type": "code",
@@ -106,6 +151,8 @@ def make_callback_handler(
     config: DashboardOAuth2Config,
     discovery: OIDCDiscoveryClient,
     mount_prefix: str = "",
+    *,
+    trust_forwarded: bool = False,
 ) -> Any:
     _login_redirect = _make_login_redirect(mount_prefix)
 
@@ -144,8 +191,10 @@ def make_callback_handler(
             logger.warning("No token_endpoint in OIDC discovery")
             return _login_redirect("SSO configuration error")
 
-        # Exchange code for tokens
-        redirect_uri = str(request.url_for("oauth2_callback"))
+        # Exchange code for tokens. MUST match the redirect_uri sent during
+        # authorize (RFC 6749 §4.1.3) — use the same builder to keep them in
+        # sync across both halves of the flow.
+        redirect_uri = _build_callback_url(request, trust_forwarded=trust_forwarded)
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.post(

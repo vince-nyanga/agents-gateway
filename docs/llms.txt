@@ -356,6 +356,8 @@ gw.mount_to(app, path="/ai")
 
 All features work identically when mounted: dashboard, auth, OAuth2, static assets, HTMX, scheduling, MCP, and chat streaming.
 
+Behind an HTTPS reverse proxy (Cloud Run / Fly.io / Nginx / ALB / Cloudflare / Caddy): launch Uvicorn with `--proxy-headers --forwarded-allow-ips='*'` OR call `gw.use_proxy_headers(forwarded_allow_ips="*")`. Combined with `gw.use_dashboard(session_cookie_https_only=None, ...)` (the default), the dashboard session cookie picks up `Secure` automatically and `request.url_for()` / the OAuth2 `redirect_uri` reflect the external HTTPS URL. Only enable when a trusted proxy is in front of the app; otherwise an attacker can inject `X-Forwarded-Host` and hijack URL construction.
+
 ## CLI Commands
 
 | Command | Description |

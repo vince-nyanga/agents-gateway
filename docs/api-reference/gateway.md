@@ -737,6 +737,33 @@ Customize security headers. Headers are enabled by default -- this method overri
 gw.use_security_headers(x_frame_options="SAMEORIGIN")
 ```
 
+#### `use_proxy_headers`
+
+```python
+def use_proxy_headers(
+    *,
+    trust_forwarded: bool = True,
+    forwarded_allow_ips: str = "127.0.0.1",
+) -> Gateway
+```
+
+Trust `X-Forwarded-*` headers from an upstream reverse proxy. Installs Uvicorn's `ProxyHeadersMiddleware` so `request.url_for()` returns external HTTPS URLs and the dashboard session cookie's `Secure` flag auto-enables.
+
+!!! danger "Only enable when a trusted proxy sits in front of the gateway"
+    Without a trusted upstream, any client can inject `X-Forwarded-Host` and hijack the OAuth2 `redirect_uri` — an open-redirect / account-takeover vector.
+
+```python
+gw.use_proxy_headers(forwarded_allow_ips="*")
+```
+
+Prefer the equivalent Uvicorn CLI flags in production:
+
+```bash
+uvicorn app:app --proxy-headers --forwarded-allow-ips='*'
+```
+
+The fluent method is a fallback for Gunicorn-with-uvicorn-worker and similar setups where CLI flags aren't available. See the [mounting guide](../guides/mounting.md#running-behind-an-https-reverse-proxy) for a full deployment walkthrough.
+
 ---
 
 ### Dashboard
@@ -766,6 +793,12 @@ def use_dashboard(
     login_button_text: str | None = None,
     admin_username: str | None = None,
     admin_password: str | None = None,
+    # --- Session cookie hardening (HTTPS-proxy deployments) ---
+    session_cookie_name: str | None = None,
+    session_cookie_same_site: str | None = None,   # "lax" | "strict" | "none"
+    session_cookie_https_only: bool | None = ...,  # None = auto
+    session_cookie_domain: str | None = ...,
+    session_max_age_seconds: int | None = None,
 ) -> Gateway
 ```
 

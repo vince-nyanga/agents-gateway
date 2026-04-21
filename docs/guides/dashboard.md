@@ -95,6 +95,20 @@ The admin account is completely separate from regular user credentials. Both are
 
 OAuth2 users are always regular (non-admin) users — admin access requires password login.
 
+### Session Cookie Hardening
+
+When the gateway is deployed behind an HTTPS reverse proxy (Cloud Run, Fly.io, Nginx, ALB, Cloudflare, Caddy, …), the dashboard session cookie must be marked `Secure` or strict browsers / intermediaries will drop it on an HTTPS origin. The `use_dashboard` fluent API exposes five fields:
+
+| Kwarg | Default | Description |
+|---|---|---|
+| `session_cookie_name` | `"agw_dashboard_session"` | Cookie name. Rename if you run multiple gateways on the same domain. |
+| `session_cookie_same_site` | `"lax"` | `SameSite` attribute (`"lax" \| "strict" \| "none"`). `"none"` requires `https_only=True` per spec. |
+| `session_cookie_https_only` | `None` | `None` = auto: `True` when `proxy.trust_forwarded` is on, else `False`. Pass `True` or `False` to force. |
+| `session_cookie_domain` | `None` | Optional `Domain` attribute on the cookie. |
+| `session_max_age_seconds` | `86400` | Session lifetime in seconds (default 24h). |
+
+Most operators should leave `session_cookie_https_only=None` and pair it with `gw.use_proxy_headers()` — the combination auto-selects the right value for both local dev (`http://localhost:8000`) and HTTPS production. See the [HTTPS reverse proxy guide](mounting.md#running-behind-an-https-reverse-proxy) for a full walkthrough.
+
 ### OAuth2 / OIDC
 
 Use the Authorization Code flow with any OIDC-compliant provider (Google, Entra ID, Okta, Keycloak, etc.).

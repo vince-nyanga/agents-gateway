@@ -31,6 +31,7 @@ from agent_gateway.config import (
     GatewayConfig,
     NotificationsConfig,
     PersistenceConfig,
+    ProxyConfig,
     RateLimitConfig,
     SecurityConfig,
 )
@@ -85,6 +86,11 @@ from agent_gateway.workspace.registry import CodeTool, ToolRegistry
 logger = logging.getLogger(__name__)
 
 _AUTH_NOT_SET = object()  # sentinel: distinguishes "not configured" from "explicitly disabled"
+# Sentinel for use_dashboard kwargs whose natural default (``None``) has a
+# meaning distinct from "not provided". Session cookie flags are the canonical
+# case: ``session_cookie_https_only=None`` means "auto-resolve from proxy",
+# but we still need to distinguish that from "caller did not pass the kwarg".
+_DASHBOARD_UNSET = object()
 _MAX_CONCURRENT_EXECUTIONS = 50
 
 _GATEWAY_OPENAPI_TAGS: list[dict[str, str]] = [
@@ -176,6 +182,7 @@ class Gateway(FastAPI):
         self._pending_cors_config: CorsConfig | None = None  # fluent API
         self._pending_rate_limit_config: RateLimitConfig | None = None  # fluent API
         self._pending_security_config: SecurityConfig | None = None  # fluent API
+        self._pending_proxy_config: ProxyConfig | None = None  # fluent API
         self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
         self._oauth2_issuer: str | None = None  # for OpenAPI security scheme
         self._extraction_cooldowns: dict[str, float] = {}
@@ -890,8 +897,23 @@ class Gateway(FastAPI):
             else:
                 self.add_middleware(SecurityHeadersMiddleware, config=self._config.security)
 
-        # 12. Mount dashboard if enabled
+        # 11d. Apply pending ProxyConfig BEFORE the dashboard initializes so
+        # SessionMiddleware's ``https_only=None`` auto-resolution observes
+        # ``trust_forwarded`` and picks the right ``Secure`` flag. The matching
+        # ``ProxyHeadersMiddleware`` install happens AFTER _maybe_init_dashboard
+        # so it wraps OUTSIDE SessionMiddleware (runs FIRST per request,
+        # correcting scope['scheme'] before the cookie is evaluated).
+        if self._pending_proxy_config is not None:
+            self._config.proxy = self._pending_proxy_config
+
+        # 12. Mount dashboard if enabled (installs SessionMiddleware)
         self._maybe_init_dashboard()
+
+        # 12b. Install ProxyHeadersMiddleware AFTER SessionMiddleware so it
+        # wraps OUTSIDE the session layer. Uvicorn's ``--proxy-headers`` flag
+        # is the preferred way to get this in production; this middleware
+        # install is a fallback for operators who can't set Uvicorn flags.
+        self._install_proxy_headers_middleware()
 
         self._started = True
 
@@ -1556,6 +1578,43 @@ class Gateway(FastAPI):
         self._pending_security_config = SecurityConfig(**kwargs)
         return self
 
+    # --- Proxy headers configuration (fluent API) ---
+
+    def use_proxy_headers(
+        self,
+        *,
+        trust_forwarded: bool = True,
+        forwarded_allow_ips: str = "127.0.0.1",
+    ) -> Gateway:
+        """Trust ``X-Forwarded-*`` headers from an upstream reverse proxy.
+
+        Call this when the gateway is deployed behind a TLS-terminating proxy
+        (Cloud Run, Fly.io, Nginx, ALB, Cloudflare, Caddy, …) so that
+        ``request.url_for()`` returns external HTTPS URLs and the session
+        cookie's ``Secure`` flag is auto-enabled.
+
+        SECURITY: only enable when a trusted proxy sits in front of the
+        gateway. Otherwise any client can inject ``X-Forwarded-*`` headers
+        and hijack URL construction (including the OAuth2 ``redirect_uri``).
+
+        The Uvicorn CLI flags ``--proxy-headers --forwarded-allow-ips=*`` are
+        the preferred production setup; this fluent method is a fallback for
+        operators who cannot set Uvicorn flags (e.g. running under Gunicorn
+        with a Uvicorn worker).
+
+        Example::
+
+            gw = Gateway(workspace="workspace/")
+            gw.use_proxy_headers(forwarded_allow_ips="*")
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure proxy headers after gateway has started")
+        self._pending_proxy_config = ProxyConfig(
+            trust_forwarded=trust_forwarded,
+            forwarded_allow_ips=forwarded_allow_ips,
+        )
+        return self
+
     # --- Dashboard configuration (fluent API) ---
 
     def use_dashboard(
@@ -1581,6 +1640,14 @@ class Gateway(FastAPI):
         login_button_text: str | None = None,
         admin_username: str | None = None,
         admin_password: str | None = None,
+        # --- Session cookie hardening (HTTPS-proxy deployments) ---
+        session_cookie_name: str | None = None,
+        session_cookie_same_site: str | None = None,
+        # ``None`` is a meaningful value for https_only (auto) and domain (no
+        # Domain attribute), so use a sentinel to distinguish "not provided".
+        session_cookie_https_only: bool | None | object = _DASHBOARD_UNSET,
+        session_cookie_domain: str | None | object = _DASHBOARD_UNSET,
+        session_max_age_seconds: int | None = None,
     ) -> Gateway:
         """Enable and configure the built-in web dashboard at /dashboard.
 
@@ -1665,6 +1732,30 @@ class Gateway(FastAPI):
                 oauth2_dict["client_secret"] = oauth2_client_secret
             if oauth2_scopes is not None:
                 oauth2_dict["scopes"] = oauth2_scopes
+        # Session cookie hardening overrides. ``None`` is a meaningful value
+        # for https_only/domain, so we use the sentinel to distinguish "caller
+        # did not pass the kwarg" from "caller explicitly asked for auto / no
+        # Domain attribute".
+        if session_cookie_name is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["session_cookie_name"] = (
+                session_cookie_name
+            )
+        if session_cookie_same_site is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})[
+                "session_cookie_same_site"
+            ] = session_cookie_same_site
+        if session_cookie_https_only is not _DASHBOARD_UNSET:
+            self._pending_dashboard_overrides.setdefault("auth", {})[
+                "session_cookie_https_only"
+            ] = session_cookie_https_only
+        if session_cookie_domain is not _DASHBOARD_UNSET:
+            self._pending_dashboard_overrides.setdefault("auth", {})["session_cookie_domain"] = (
+                session_cookie_domain
+            )
+        if session_max_age_seconds is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["session_max_age_seconds"] = (
+                session_max_age_seconds
+            )
         return self
 
     def _init_notifications_from_config(self, config: NotificationsConfig) -> None:
@@ -2064,6 +2155,47 @@ class Gateway(FastAPI):
             )
         return None
 
+    def _install_proxy_headers_middleware(self) -> None:
+        """Install Uvicorn's ``ProxyHeadersMiddleware`` if proxy trust is enabled.
+
+        Must be called AFTER any middleware that depends on the corrected
+        ``scope['scheme']`` / ``scope['client']`` (notably SessionMiddleware),
+        so that ``ProxyHeadersMiddleware`` wraps OUTSIDE those layers and runs
+        FIRST per request, rewriting scope before downstream middleware sees
+        it. Handles both startup branches:
+
+        - ``add_middleware`` branch: middleware_stack not yet built (tests /
+          direct ``__aenter__``). The LAST add_middleware call wraps OUTERMOST.
+        - ``middleware_stack is not None`` branch: the real uvicorn lifespan
+          path. We wrap the existing stack in a new ``ProxyHeadersMiddleware``
+          instance.
+        """
+        if self._config is None:
+            return
+        if not self._config.proxy.trust_forwarded:
+            return
+        try:
+            from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+        except ImportError:
+            logger.warning(
+                "use_proxy_headers: uvicorn.middleware.proxy_headers is unavailable; "
+                "forwarded headers will be ignored. Install uvicorn or set "
+                "proxy.trust_forwarded=False."
+            )
+            return
+
+        trusted = self._config.proxy.forwarded_allow_ips
+        if self.middleware_stack is not None:
+            # Same mypy pattern as AuthMiddleware wrap at _startup step 11:
+            # Starlette's ``middleware_stack`` typing is ASGI-scope-parametric
+            # and middleware wrappers don't match it exactly.
+            self.middleware_stack = ProxyHeadersMiddleware(  # type: ignore[assignment]
+                self.middleware_stack,  # type: ignore[arg-type]
+                trusted_hosts=trusted,
+            )
+        else:
+            self.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
+
     def _maybe_init_dashboard(self) -> None:
         """Enable the dashboard if configured (called during startup)."""
         if self._config is None:
@@ -2163,28 +2295,39 @@ class Gateway(FastAPI):
 
         session_secret = dash_config.auth.session_secret or _secrets.token_hex(32)
 
-        # Add SessionMiddleware
+        # Resolve session cookie flags. ``session_cookie_https_only=None`` is
+        # auto-mode: follow ``proxy.trust_forwarded`` so operators behind HTTPS
+        # get ``Secure=True`` automatically and local dev over http://localhost
+        # still works. The pending ProxyConfig MUST already be applied to
+        # self._config.proxy by the caller (see _startup step 11d).
+        https_only_cfg = dash_config.auth.session_cookie_https_only
+        if https_only_cfg is None:
+            https_only = self._config.proxy.trust_forwarded
+        else:
+            https_only = https_only_cfg
+
+        session_kwargs: dict[str, Any] = {
+            "secret_key": session_secret,
+            "session_cookie": dash_config.auth.session_cookie_name,
+            "max_age": dash_config.auth.session_max_age_seconds,
+            "https_only": https_only,
+            "same_site": dash_config.auth.session_cookie_same_site,
+        }
+        if dash_config.auth.session_cookie_domain:
+            session_kwargs["domain"] = dash_config.auth.session_cookie_domain
+
+        # Add SessionMiddleware. Starlette's SessionMiddleware has no ``path``
+        # kwarg — do not attempt to scope the cookie that way. A "/"-scoped
+        # cookie works for both mounted and standalone deployments.
         try:
             from starlette.middleware.sessions import SessionMiddleware
 
             if self.middleware_stack is not None:
                 self.middleware_stack = SessionMiddleware(
-                    app=self.middleware_stack,
-                    secret_key=session_secret,
-                    session_cookie="agw_dashboard_session",
-                    max_age=86400,
-                    https_only=False,
-                    same_site="lax",
+                    app=self.middleware_stack, **session_kwargs
                 )
             else:
-                self.add_middleware(
-                    SessionMiddleware,
-                    secret_key=session_secret,
-                    session_cookie="agw_dashboard_session",
-                    max_age=86400,
-                    https_only=False,
-                    same_site="lax",
-                )
+                self.add_middleware(SessionMiddleware, **session_kwargs)
         except ImportError:
             logger.error(
                 "SessionMiddleware requires 'itsdangerous'. Install with: pip install itsdangerous"
@@ -2217,6 +2360,7 @@ class Gateway(FastAPI):
                 oauth2_config=oauth2_config,
                 discovery_client=discovery_client,
                 mount_prefix=self._mount_prefix,
+                trust_forwarded=self._config.proxy.trust_forwarded,
             )
             if oauth2_config:
                 logger.info("Dashboard enabled at /dashboard (OAuth2/SSO)")
@@ -2271,6 +2415,14 @@ class Gateway(FastAPI):
             ws_path = Path(self._workspace_path)
             retriever_names = frozenset(self._pending_retrievers.keys())
             new_workspace = load_workspace(ws_path, retriever_names=retriever_names)
+
+            # Re-apply pending ProxyConfig in case use_proxy_headers() was
+            # called after startup (rare). Reload does NOT reinstall middleware
+            # — the existing ProxyHeadersMiddleware/SessionMiddleware stack
+            # built in _startup continues to read ``self._config.proxy``. This
+            # keeps proxy trust coherent across reloads.
+            if self._pending_proxy_config is not None and self._config is not None:
+                self._config.proxy = self._pending_proxy_config
 
             new_registry = ToolRegistry()
             new_registry.register_file_tools(new_workspace.tools)
