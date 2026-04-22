@@ -179,7 +179,7 @@ async def _invoke_agent_core(
     # Reconstruct an InvokeRequest for the background queue helper. We keep
     # this struct because _run_background_execution has historically taken
     # an InvokeRequest — no behaviour change.
-    proxy_body = InvokeRequest(message=message, input=input_ or {}, options=options)
+    proxy_body = InvokeRequest(message=message, input=input_ or {}, options=options or InvokeOptions())
 
     # Queued execution: enqueue to backend, return 202
     if should_queue:
@@ -339,7 +339,7 @@ async def invoke_agent(
         agent_id=agent_id,
         message=body.message,
         input_=body.input or {},
-        options=body.options,
+        options=body.options or InvokeOptions(),
         request=request,
         skip_input_validation=False,
     )

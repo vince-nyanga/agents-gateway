@@ -66,7 +66,7 @@ async def chat_with_agent(
         return error_response(503, "sessions_unavailable", "Session store not initialized")
 
     # Handle streaming — the streaming generator acquires its own lock
-    if body.options.stream:
+    if body.options and body.options.stream:
         return _create_streaming_response(
             gw=gw,
             agent_id=agent_id,
@@ -85,7 +85,7 @@ async def chat_with_agent(
             # Even if the agent declares an output_schema in AGENT.md, chat
             # endpoints return free-text conversational output. See
             # docs/plans/2026-04-20-feat-agent-output-schema-plan.md.
-            options=ExecutionOptions(timeout_ms=body.options.timeout_ms),
+            options=ExecutionOptions(timeout_ms=body.options.timeout_ms if body.options else None),
             auth=auth,
         )
         execution_id = result.execution_id or ""
@@ -190,7 +190,7 @@ def _create_streaming_response(
         # output is only enforced on invoke / scheduled-execution paths; chat
         # stays free-text. See
         # docs/plans/2026-04-20-feat-agent-output-schema-plan.md.
-        exec_options = ExecutionOptions(timeout_ms=body.options.timeout_ms)
+        exec_options = ExecutionOptions(timeout_ms=body.options.timeout_ms if body.options else None)
         import uuid
 
         execution_id = str(uuid.uuid4())

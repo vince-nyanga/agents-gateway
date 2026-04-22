@@ -44,8 +44,8 @@ class InvokeRequest(BaseModel):
         default_factory=dict,
         description="Key-value input variables for the agent.",
     )
-    options: InvokeOptions = Field(
-        default_factory=InvokeOptions, description="Invocation options."
+    options: InvokeOptions | None = Field(
+        None, description="Invocation options."
     )
 
 
@@ -257,7 +257,7 @@ class ChatRequest(BaseModel):
         None, description="Existing session ID to continue, or null for a new session."
     )
     input: dict[str, Any] = Field(default_factory=dict, description="Key-value input variables.")
-    options: ChatOptions = Field(default_factory=ChatOptions, description="Chat options.")
+    options: ChatOptions | None = Field(None, description="Chat options.")
 
 
 class ChatResponse(BaseModel):
