@@ -32,7 +32,7 @@ The dashboard is mounted at `/dashboard`. Once enabled, open that path in your b
 | Agents overview | `/dashboard/agents` | List of all registered agents with status and metadata. |
 | Executions | `/dashboard/executions` | Filterable list of past executions. Filter by `agent_id`, `status`, or `session_id`. |
 | Execution detail | `/dashboard/executions/{id}` | Full execution record including input, output, tool calls, and the distributed trace. |
-| Conversations | `/dashboard/conversations` | List of conversation sessions across all agents. |
+| Conversations | `/dashboard/conversations` | List of conversation sessions. Available to all authenticated users; non-admins see only their own conversations. |
 | Conversation detail | `/dashboard/conversations/{id}` | Full message history for a session. |
 | Interactive chat | `/dashboard/chat` | Send messages to any agent and receive streaming responses over SSE. |
 | Schedules | `/dashboard/schedules` | View global and personal cron-scheduled agent jobs. |

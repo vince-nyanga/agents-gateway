@@ -118,6 +118,7 @@ class ExecutionResult:
     error: str | None = None
     validation_errors: list[str] | None = None
     duration_ms: int = 0
+    execution_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for API responses."""
@@ -134,6 +135,8 @@ class ExecutionResult:
             result["error"] = self.error
         if self.validation_errors:
             result["validation_errors"] = self.validation_errors
+        if self.execution_id is not None:
+            result["execution_id"] = self.execution_id
         return result
 
 
