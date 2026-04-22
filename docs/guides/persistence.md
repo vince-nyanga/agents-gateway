@@ -121,6 +121,8 @@ persistence:
 gw.use_postgres(url, schema="tenant_a")
 ```
 
+The schema is created automatically on startup if it does not already exist.
+
 Both options can be combined. Schema isolation is generally preferable in PostgreSQL because it keeps system catalogs clean and allows per-schema access control.
 
 ## Database Migrations

@@ -58,6 +58,7 @@ gw.use_postgres(
         "POSTGRES_URL",
         "postgresql+asyncpg://agentgw:agentgw_dev@localhost:54320/agent_gateway",
     ),
+    schema=os.environ.get("POSTGRES_SCHEMA") or None,
 )
 gw.use_rabbitmq_queue(
     url=os.environ.get(

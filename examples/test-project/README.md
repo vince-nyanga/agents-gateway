@@ -190,6 +190,7 @@ KEYCLOAK_DASHBOARD=1 KEYCLOAK_API=1 make dev-mounted   # mounted
 | `AGENT_GATEWAY_API_KEY` | `dev-api-key-change-me` | Static API key (when not using OAuth2) |
 | `GEMINI_API_KEY` | _(required)_ | API key for the Gemini LLM |
 | `POSTGRES_URL` | `postgresql+asyncpg://...localhost:54320/...` | PostgreSQL connection string |
+| `POSTGRES_SCHEMA` | _(unset)_ | Optional custom PostgreSQL schema (auto-created on startup) |
 | `RABBITMQ_URL` | `amqp://...localhost:56720/` | RabbitMQ connection string |
 | `SLACK_BOT_TOKEN` | _(unset)_ | Slack bot token for notifications |
 | `SLACK_DEFAULT_CHANNEL` | `#agent-alerts` | Default Slack channel |

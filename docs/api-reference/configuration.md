@@ -168,7 +168,7 @@ Env prefix: `AGENT_GATEWAY_PERSISTENCE__`
 | `backend` | `str` | `"sqlite"` | Backend type: `"sqlite"` or `"postgres"`. |
 | `url` | `str` | `"sqlite+aiosqlite:///agent_gateway.db"` | SQLAlchemy async DSN. |
 | `table_prefix` | `str` | `""` | Optional prefix for all table names (e.g. `"ag_"`). |
-| `db_schema` | `str \| None` | `None` | PostgreSQL schema name. Must pre-exist. Has no effect with SQLite. |
+| `db_schema` | `str \| None` | `None` | PostgreSQL schema name. Auto-created on startup if it does not exist. Has no effect with SQLite. |
 
 The fluent API (`use_sqlite`, `use_postgres`) overrides these settings.
 

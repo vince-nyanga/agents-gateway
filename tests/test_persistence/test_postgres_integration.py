@@ -10,7 +10,7 @@ import os
 import uuid
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
 from agent_gateway.persistence.backends.postgres import PostgresBackend
 from agent_gateway.persistence.backends.sql.repository import (
@@ -87,15 +87,7 @@ async def test_postgres_backend_table_prefix(postgres_container: str):
 
 async def test_postgres_backend_schema(postgres_container: str):
     """Tables should be created inside the specified schema."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
     schema_name = f"test_{uuid.uuid4().hex[:8]}"
-
-    # Create the schema first
-    engine = create_async_engine(postgres_container)
-    async with engine.begin() as conn:
-        await conn.execute(text(f"CREATE SCHEMA {schema_name}"))
-    await engine.dispose()
 
     backend = PostgresBackend(url=postgres_container, schema=schema_name)
     await backend.initialize()
@@ -281,3 +273,47 @@ async def test_postgres_idempotent_initialize(postgres_container: str):
     await backend.initialize()
     await backend.initialize()  # Should not raise
     await backend.dispose()
+
+
+async def test_postgres_schema_auto_create_idempotent(postgres_container: str):
+    """Custom schema should be auto-created and initialize() idempotent."""
+    schema_name = f"test_{uuid.uuid4().hex[:8]}"
+    backend = PostgresBackend(url=postgres_container, schema=schema_name)
+    await backend.initialize()
+    await backend.initialize()  # Should not raise
+    await backend.dispose()
+
+
+async def test_postgres_raw_sql_schema_qualified(postgres_container: str):
+    """Raw SQL methods should work when tables live in a custom schema."""
+    from agent_gateway.persistence.backends.sql.repository import ExecutionRepository
+
+    schema_name = f"test_{uuid.uuid4().hex[:8]}"
+    backend = PostgresBackend(url=postgres_container, schema=schema_name)
+    await backend.initialize()
+    try:
+        repo = ExecutionRepository(backend._session_factory, backend._tables)
+
+        record = ExecutionRecord(
+            id="pg-schema-001",
+            agent_id="test-agent",
+            status="completed",
+            message="Hello",
+            session_id="sess-1",
+            user_id="user-1",
+            usage={"cost_usd": 0.001, "input_tokens": 10, "output_tokens": 20},
+        )
+        await repo.create(record)
+
+        # All raw-SQL methods should succeed
+        assert await repo.cost_by_session("sess-1") is not None
+        assert await repo.list_conversations_summary(limit=10, offset=0) is not None
+        assert await repo.count_conversations() is not None
+        assert await repo.cost_by_root_execution("pg-schema-001") is not None
+        assert await repo.cost_by_day(days=1) is not None
+        assert await repo.cost_by_agent(days=1) is not None
+        assert await repo.get_summary_stats(days=1) is not None
+        assert await repo.get_schedule_stats(hours=1) is not None
+        assert await repo.executions_by_day(days=1) is not None
+    finally:
+        await backend.dispose()

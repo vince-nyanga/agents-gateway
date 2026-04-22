@@ -27,6 +27,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import registry, relationship
+from sqlalchemy.schema import CreateSchema
 
 from agent_gateway.memory.domain import MemoryRecord
 from agent_gateway.persistence.domain import (
@@ -445,7 +446,7 @@ class SqlBackend:
             UserScheduleRepository as UserSchedRepo,
         )
 
-        self._execution_repo: ExecutionRepository = ExecRepo(self._session_factory)
+        self._execution_repo: ExecutionRepository = ExecRepo(self._session_factory, self._tables)
         self._audit_repo: AuditRepository = AuditRepo(self._session_factory)
         self._schedule_repo: ScheduleRepository = SchedRepo(self._session_factory)
         self._user_repo: UserRepository = UserRepo(self._session_factory)
@@ -468,6 +469,8 @@ class SqlBackend:
             # Alembic migrations use hardcoded table names; use create_all for
             # prefixed tables or custom schemas
             async with self._engine.begin() as conn:
+                if self._metadata.schema and self._engine.dialect.name == "postgresql":
+                    await conn.execute(CreateSchema(self._metadata.schema, if_not_exists=True))
                 await conn.run_sync(self._metadata.create_all)
             logger.info("Database tables initialized (prefix=%s)", self._table_prefix)
             return
