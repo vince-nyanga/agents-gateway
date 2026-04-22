@@ -88,6 +88,7 @@ async def chat_with_agent(
             options=ExecutionOptions(timeout_ms=body.options.timeout_ms),
             auth=auth,
         )
+        execution_id = result.execution_id or ""
     except ValueError as e:
         msg = str(e)
         if "not found" in msg and "Session" in msg:
@@ -110,7 +111,7 @@ async def chat_with_agent(
 
     return ChatResponse(
         session_id=session_id,
-        execution_id="",
+        execution_id=execution_id,
         agent_id=agent_id,
         status=status,
         result=ResultPayload(

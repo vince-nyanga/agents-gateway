@@ -105,12 +105,10 @@
       </a>
       {% endif %}
 
-      {% if current_user and current_user.is_admin %}
       <a href="{{ base_path }}/dashboard/conversations" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'conversations' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'conversations' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">forum</span>
         <span class="text-sm font-semibold">Conversations</span>
       </a>
-      {% endif %}
 
       {% if current_user and current_user.is_admin %}
       <a href="{{ base_path }}/dashboard/schedules" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'schedules' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">

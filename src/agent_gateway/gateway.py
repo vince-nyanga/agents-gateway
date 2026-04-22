@@ -53,7 +53,7 @@ from agent_gateway.notifications.models import (
 )
 from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
-from agent_gateway.persistence.domain import NotificationDeliveryRecord
+from agent_gateway.persistence.domain import ExecutionRecord, NotificationDeliveryRecord
 from agent_gateway.persistence.null import (
     NullAuditRepository,
     NullConversationRepository,
@@ -3188,6 +3188,24 @@ class Gateway(FastAPI):
             handle = ExecutionHandle(execution_id=execution_id)
             self._execution_handles[execution_id] = handle
 
+            # Create execution record
+            from datetime import UTC, datetime
+
+            record = ExecutionRecord(
+                id=execution_id,
+                agent_id=agent_id,
+                status="running",
+                message=message,
+                session_id=session.session_id,
+                user_id=user_id,
+                options={},
+                started_at=datetime.now(UTC),
+            )
+            try:
+                await self._execution_repo.create(record)
+            except Exception:
+                logger.warning("Failed to create execution record for chat %s", execution_id)
+
             start = time.monotonic()
             # Chat is intentionally NOT merged with agent.output_schema here.
             # Chat returns free-text conversational output; structured output
@@ -3207,10 +3225,34 @@ class Gateway(FastAPI):
                     user_secrets=user_secrets,
                     user_config=user_config_values,
                 )
+            except Exception as exc:
+                try:
+                    await self._execution_repo.update_status(
+                        execution_id,
+                        "failed",
+                        error=str(exc),
+                        completed_at=datetime.now(UTC),
+                    )
+                except Exception:
+                    logger.warning("Failed to mark failed chat execution record %s", execution_id)
+                raise
             finally:
                 self._execution_handles.pop(execution_id, None)
 
             result.duration_ms = int((time.monotonic() - start) * 1000)
+            result.execution_id = execution_id
+
+            # Finalize execution record
+            status = "completed" if result.stop_reason.value == "completed" else "failed"
+            try:
+                await self._execution_repo.update_status(execution_id, status)
+                await self._execution_repo.update_result(
+                    execution_id,
+                    result={"content": result.raw_text} if result.raw_text else {},
+                    usage=result.usage.to_dict() if result.usage else {},
+                )
+            except Exception:
+                logger.warning("Failed to update execution record for chat %s", execution_id)
 
             if result.raw_text:
                 session.append_assistant_message(content=result.raw_text)

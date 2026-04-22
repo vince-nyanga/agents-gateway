@@ -244,6 +244,30 @@ class TestSessionCRUD:
 class TestChatProgrammatic:
     """Tests for gw.chat() and programmatic session methods."""
 
+    async def test_chat_creates_execution_record(self, gateway_app: Gateway) -> None:
+        """gw.chat() creates and finalizes an ExecutionRecord."""
+        from unittest.mock import AsyncMock
+
+        mock_repo = AsyncMock()
+        gateway_app._execution_repo = mock_repo  # type: ignore[assignment]
+
+        async with gateway_app:
+            with _mock_completion([make_llm_response(text="Hello!")]):
+                session_id, result = await gateway_app.chat("test-agent", "Hi")
+
+            assert result.execution_id is not None
+            assert mock_repo.create.call_count == 1
+            record = mock_repo.create.call_args[0][0]
+            assert record.agent_id == "test-agent"
+            assert record.session_id == session_id
+            assert record.status == "running"
+
+            assert mock_repo.update_status.call_count == 1
+            assert mock_repo.update_result.call_count == 1
+            args, _ = mock_repo.update_status.call_args
+            assert args[0] == result.execution_id
+            assert args[1] == "completed"
+
     async def test_chat_programmatic(self, gateway_app: Gateway) -> None:
         """gw.chat() works for multi-turn conversations."""
         async with gateway_app:

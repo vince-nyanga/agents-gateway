@@ -312,6 +312,26 @@ class TestConversationsPage:
                 resp = await client.get("/dashboard/conversations/nonexistent")
                 assert resp.status_code == 404
 
+    async def test_conversations_link_visible_to_non_admin(self) -> None:
+        """Non-admin users should see the Conversations sidebar link."""
+        gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
+        async with gw:
+            _mock_repos(gw)
+            client = await _make_client(gw)
+            async with client:
+                await _login(client, username="testuser", password="testpass")
+                resp = await client.get("/dashboard/")
+                assert resp.status_code == 200
+                text = resp.text
+                assert "/dashboard/conversations" in text
+                assert "Conversations" in text
+
 
 class TestAnalyticsPage:
     async def test_analytics_page_returns_200(self) -> None:

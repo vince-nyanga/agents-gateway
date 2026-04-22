@@ -551,6 +551,22 @@ class TestEngineNotAvailable:
         assert "Engine not available" in events[0][1]["message"]
 
 
+class TestExecutionRecordCreation:
+    async def test_record_includes_user_id(self) -> None:
+        gw, _ = make_mock_gateway(stream_chunks=[_text_chunks("hi")])
+        session = ChatSession(session_id="sess_user", agent_id="test-agent", user_id="user-123")
+        events = await _collect_events(gw, session=session)
+
+        repo = gw._execution_repo
+        assert repo.create.call_count == 1
+        record = repo.create.call_args[0][0]
+        assert record.user_id == "user-123"
+        assert record.session_id == "sess_user"
+
+        token_events = [d for t, d in events if t == "token"]
+        assert len(token_events) == 1
+
+
 class TestRepoPersistenceFailure:
     async def test_repo_add_step_failure_does_not_break_stream(self) -> None:
         gw, _ = make_mock_gateway(stream_chunks=[_text_chunks("hi")])
