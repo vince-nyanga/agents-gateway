@@ -47,6 +47,16 @@
   --color-accent-muted: rgba(13, 127, 242, 0.2);
   --color-accent-text: #0d7ff2;
 
+  /* --- Gradient tokens (send button) --- */
+  --gradient-send-from: #0d7ff2;
+  --gradient-send-to: #8b5cf6;
+  --gradient-send-shadow: rgba(13, 127, 242, 0.3);
+
+  /* --- Gradient tokens (send button) --- */
+  --gradient-send-from: #0d7ff2;
+  --gradient-send-to: #8b5cf6;
+  --gradient-send-shadow: rgba(13, 127, 242, 0.3);
+
   /* Status colours */
   --color-success: var(--palette-emerald-500);
   --color-success-bg: rgba(16, 185, 129, 0.1);
@@ -144,6 +154,10 @@ html.light {
   --sidebar-active-bg: rgba(13, 127, 242, 0.08);
   --sidebar-hover-bg: rgba(0, 0, 0, 0.04);
   --sidebar-active-text: #0d7ff2;
+
+  --gradient-send-from: #0d7ff2;
+  --gradient-send-to: #7c3aed;
+  --gradient-send-shadow: rgba(13, 127, 242, 0.2);
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);

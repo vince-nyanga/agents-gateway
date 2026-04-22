@@ -63,6 +63,30 @@ function createAssistantBubble() {
   return div;
 }
 
+function addCopyButtonToBubble(bubble, rawText) {
+  if (!rawText || !rawText.trim()) return;
+  const existing = bubble.querySelector('.chat-copy-btn');
+  if (existing) return;
+
+  const btn = document.createElement('button');
+  btn.className = 'chat-copy-btn';
+  btn.type = 'button';
+  btn.title = 'Copy response';
+  btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(rawText).then(() => {
+      btn.classList.add('chat-copy-btn--copied');
+      btn.title = 'Copied!';
+      setTimeout(() => {
+        btn.classList.remove('chat-copy-btn--copied');
+        btn.title = 'Copy response';
+      }, 1500);
+    });
+  });
+  bubble.appendChild(btn);
+}
+
 function parseSSEEvents(buffer) {
   const events = [];
   const lines = buffer.split('\n');
@@ -189,6 +213,7 @@ async function sendChatMessage(form) {
           if (fullText && typeof marked !== 'undefined') {
             bubbleContent.innerHTML = marked.parse(fullText);
           }
+          addCopyButtonToBubble(bubble, fullText);
           const field = document.getElementById('session-id-field');
           if (field && event.data.session_id) {
             field.value = event.data.session_id;

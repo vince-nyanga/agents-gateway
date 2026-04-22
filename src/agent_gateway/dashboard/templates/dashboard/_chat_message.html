@@ -7,8 +7,12 @@
 <div class="message message-assistant htmx-added"
      data-session-id="{{ session_id or '' }}">
   <div class="message-avatar" style="font-size:0.6875rem;">AI</div>
-  <div class="message-bubble" data-raw="{{ content | e }}">
+  <div class="message-bubble" data-raw="{{ content | replace('"', '&quot;') | safe }}">
     {{ content }}
+    <button type="button" class="chat-copy-btn" title="Copy response"
+            onclick="navigator.clipboard.writeText(this.parentElement.dataset.raw).then(()=>{this.classList.add('chat-copy-btn--copied');this.title='Copied!';setTimeout(()=>{this.classList.remove('chat-copy-btn--copied');this.title='Copy response'},1500)})">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    </button>
   </div>
 </div>
 {% elif role == 'error' %}
