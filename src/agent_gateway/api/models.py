@@ -44,9 +44,7 @@ class InvokeRequest(BaseModel):
         default_factory=dict,
         description="Key-value input variables for the agent.",
     )
-    options: InvokeOptions | None = Field(
-        None, description="Invocation options."
-    )
+    options: InvokeOptions | None = Field(None, description="Invocation options.")
 
 
 class UsagePayload(BaseModel):
