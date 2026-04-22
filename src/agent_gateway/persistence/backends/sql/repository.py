@@ -57,9 +57,22 @@ def _json_field(column: str, key: str, *, is_postgres: bool) -> str:
 class ExecutionRepository:
     """CRUD operations for execution records and steps."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        tables: dict[str, Any] | None = None,
+    ) -> None:
         self._session_factory = session_factory
         self._pg = _is_postgres(session_factory)
+        self._tables = tables
+
+    def _table_name(self, logical_name: str) -> str:
+        if self._tables and logical_name in self._tables:
+            table = self._tables[logical_name]
+            if table.schema:
+                return f'"{table.schema}"."{table.name}"'
+            return f'"{table.name}"'
+        return logical_name
 
     async def create(self, execution: ExecutionRecord) -> None:
         """Insert a new execution record."""
@@ -294,7 +307,7 @@ class ExecutionRepository:
                     COALESCE(SUM({cost}), 0) as total_cost_usd,
                     COALESCE(SUM({inp}), 0) as total_input_tokens,
                     COALESCE(SUM({out}), 0) as total_output_tokens
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE session_id = :session_id
                   AND usage IS NOT NULL
                 """)
@@ -324,7 +337,7 @@ class ExecutionRepository:
                     COALESCE(SUM({out}), 0) as total_output_tokens,
                     MIN(created_at) as first_activity,
                     MAX(created_at) as last_activity
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE session_id IS NOT NULL{user_filter}
                 GROUP BY session_id, agent_id
                 ORDER BY last_activity DESC
@@ -342,7 +355,7 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             stmt = text(f"""
                 SELECT COUNT(DISTINCT session_id) as cnt
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE session_id IS NOT NULL{user_filter}
                 """)
             params: dict[str, Any] = {}
@@ -373,7 +386,7 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             stmt = text(f"""
                 SELECT COALESCE(SUM({cost}), 0) as total_cost
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE root_execution_id = :root_id
                   AND usage IS NOT NULL
                 """)
@@ -408,7 +421,7 @@ class ExecutionRepository:
                     SUM({cost}) as total_cost_usd,
                     SUM({inp}) as total_input_tokens,
                     SUM({out}) as total_output_tokens
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE created_at >= :since
                   AND usage IS NOT NULL
                 GROUP BY date(created_at)
@@ -442,7 +455,7 @@ class ExecutionRepository:
                     AVG(CASE WHEN status = 'completed' AND started_at IS NOT NULL
                              AND completed_at IS NOT NULL
                              THEN {duration_expr} ELSE NULL END) as avg_duration_ms
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE created_at >= :since
                   AND usage IS NOT NULL
                 GROUP BY agent_id
@@ -473,7 +486,7 @@ class ExecutionRepository:
                     COALESCE(SUM({cost}), 0) as total_cost_usd,
                     COALESCE(AVG(CASE WHEN status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL 
                                  THEN {duration_expr} ELSE NULL END), 0) as avg_duration_ms
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE created_at >= :since
             """)
             since_param = since if self._pg else since.isoformat()
@@ -485,13 +498,13 @@ class ExecutionRepository:
         """Return counts of schedule-linked executions by status in the last N hours."""
         since = datetime.now(UTC) - timedelta(hours=hours)
         async with self._session_factory() as session:
-            stmt = text("""
+            stmt = text(f"""
                 SELECT
                     COUNT(*) as total_scheduled,
                     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
                     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
                     SUM(CASE WHEN status IN ('queued', 'running') THEN 1 ELSE 0 END) as running
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE schedule_id IS NOT NULL
                   AND created_at >= :since
             """)
@@ -501,12 +514,12 @@ class ExecutionRepository:
             stats = _normalize_row(row._mapping)
 
             # Count active schedules from both schedules and user_schedules tables
-            active_stmt = text("""
+            active_stmt = text(f"""
                 SELECT
-                    (SELECT COUNT(*) FROM schedules
+                    (SELECT COUNT(*) FROM {self._table_name("schedules")}
                      WHERE enabled = :enabled AND deleted_at IS NULL)
                     +
-                    (SELECT COUNT(*) FROM user_schedules
+                    (SELECT COUNT(*) FROM {self._table_name("user_schedules")}
                      WHERE enabled = :enabled)
                     AS active_schedules
             """)
@@ -519,19 +532,17 @@ class ExecutionRepository:
         """Daily execution count by status for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)
         async with self._session_factory() as session:
-            stmt = text(
-                """
+            stmt = text(f"""
                 SELECT
                     date(created_at) as day,
                     COUNT(*) as count,
                     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
                     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
-                FROM executions
+                FROM {self._table_name("executions")}
                 WHERE created_at >= :since
                 GROUP BY date(created_at)
                 ORDER BY day ASC
-                """
-            )
+                """)
             since_param = since if self._pg else since.isoformat()
             result = await session.execute(stmt, {"since": since_param})
             return [_normalize_row(row._mapping) for row in result]

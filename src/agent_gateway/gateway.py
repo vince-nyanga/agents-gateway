@@ -1054,7 +1054,7 @@ class Gateway(FastAPI):
 
         Args:
             url: PostgreSQL DSN (e.g. "postgresql+asyncpg://user:pass@host/db").
-            schema: PostgreSQL schema name (must pre-exist).
+            schema: PostgreSQL schema name. Auto-created on startup if it does not exist.
             table_prefix: Optional prefix for table names (e.g. "ag_").
             pool_size: Connection pool size.
             max_overflow: Max connections beyond pool_size.

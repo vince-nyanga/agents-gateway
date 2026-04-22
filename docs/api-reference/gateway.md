@@ -409,7 +409,7 @@ def use_postgres(
 ) -> Gateway
 ```
 
-Configure PostgreSQL persistence. `url` must be an asyncpg DSN (`postgresql+asyncpg://...`). Requires `pip install agents-gateway[postgres]`.
+Configure PostgreSQL persistence. `url` must be an asyncpg DSN (`postgresql+asyncpg://...`). Requires `pip install agents-gateway[postgres]`. The schema is created automatically on startup if it does not already exist.
 
 #### `use_persistence`
 
