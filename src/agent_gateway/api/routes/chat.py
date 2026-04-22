@@ -190,7 +190,8 @@ def _create_streaming_response(
         # output is only enforced on invoke / scheduled-execution paths; chat
         # stays free-text. See
         # docs/plans/2026-04-20-feat-agent-output-schema-plan.md.
-        exec_options = ExecutionOptions(timeout_ms=body.options.timeout_ms if body.options else None)
+        opts = body.options
+        exec_options = ExecutionOptions(timeout_ms=opts.timeout_ms if opts else None)
         import uuid
 
         execution_id = str(uuid.uuid4())
