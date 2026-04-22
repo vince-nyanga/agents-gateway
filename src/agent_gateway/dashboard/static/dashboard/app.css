@@ -842,6 +842,32 @@ html.light .glass-card {
   border-radius: var(--radius-lg);
 }
 
+.chat-send-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--gradient-send-from), var(--gradient-send-to));
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  box-shadow: 0 2px 8px var(--gradient-send-shadow);
+}
+.chat-send-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.chat-send-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.chat-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .typing-indicator {
   display: flex;
   align-items: center;
